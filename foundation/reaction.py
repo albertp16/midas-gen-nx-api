@@ -77,18 +77,9 @@ def runAnalysis():
     print("Performing Run Analysis in Midas Gen")
     MidasAPI("POST", "/doc/ANAL", {})
     print("Analysis is completed!!!")
-# irregular = {
-#     "Argument": {
-#         "COUNTRY_CODE": "NSCP2015",
-#         "STORY_DRIFT_METHOD": "Max.DriftofOuterExtremePoints",
-#         "STORY_STIFFNESS_METHOD": "1/StoryDriftRatio"
-#         # "SEISMIC_BEHAVIOR_FACTOR": "3orbelow"  # optional
-#     }
-# }
 
 
-
-file_open = MidasAPI("POST", "/doc/open", file_loc)
+# file_open = MidasAPI("POST", "/doc/open", file_loc)
 # print("OPEN RESPONSE:", file_open)
 node_data = MidasAPI("GET", "/db/node", {})
 # print(node_data)
@@ -310,7 +301,7 @@ def plot_force_plan_simplified(
         xy=(xs[i_min], ys[i_min]),
         xytext=(16, -16), textcoords="offset points",
         color="blue", fontsize=9.5, weight="bold",
-        bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="blue", lw=1.3),
+        bbox=dict(boxstyle="round,pad=0.25", fc="white", ec="blue ", lw=1.3),
         arrowprops=dict(arrowstyle="->", color="blue", lw=1.3),
         zorder=20
     )
