@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIDAS Gen API Dashboard</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: #0f1117;
+            color: #e1e4e8;
+            min-height: 100vh;
+        }
+
+        /* ── Header / Navbar ── */
+        .navbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px 28px;
+            background: #161b22;
+            border-bottom: 1px solid #30363d;
+        }
+
+        .navbar-brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .navbar-brand img {
+            height: 28px;
+        }
+
+        .navbar-brand h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #f0f6fc;
+        }
+
+        .navbar-brand span {
+            font-size: 11px;
+            background: #1f6feb;
+            color: #fff;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-weight: 500;
+        }
+
+        /* ── Connection Status Indicator ── */
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 16px;
+            border-radius: 8px;
+            background: #21262d;
+            border: 1px solid #30363d;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            transition: all 0.3s ease;
+        }
+
+        .status-disconnected .status-dot {
+            background: #f85149;
+            box-shadow: 0 0 8px #f8514966;
+        }
+
+        .status-connecting .status-dot {
+            background: #d29922;
+            box-shadow: 0 0 8px #d2992266;
+            animation: pulse 1.2s infinite;
+        }
+
+        .status-connected .status-dot {
+            background: #3fb950;
+            box-shadow: 0 0 8px #3fb95066;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        /* ── Main Layout ── */
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 28px 24px;
+        }
+
+        /* ── API Key Section ── */
+        .api-key-section {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 20px 24px;
+            margin-bottom: 24px;
+        }
+
+        .api-key-section h2 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #8b949e;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+        }
+
+        .api-key-row {
+            display: flex;
+            gap: 10px;
+        }
+
+        .api-key-row input {
+            flex: 1;
+            padding: 10px 14px;
+            border-radius: 6px;
+            border: 1px solid #30363d;
+            background: #0d1117;
+            color: #e1e4e8;
+            font-size: 13px;
+            font-family: 'Consolas', 'Courier New', monospace;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .api-key-row input:focus {
+            border-color: #1f6feb;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border-radius: 6px;
+            border: 1px solid #30363d;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+
+        .btn-primary {
+            background: #238636;
+            border-color: #238636;
+            color: #fff;
+        }
+
+        .btn-primary:hover { background: #2ea043; }
+
+        .btn-secondary {
+            background: #21262d;
+            color: #c9d1d9;
+        }
+
+        .btn-secondary:hover { background: #30363d; }
+
+        .btn-danger {
+            background: #da3633;
+            border-color: #da3633;
+            color: #fff;
+        }
+
+        .btn-danger:hover { background: #f85149; }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        /* ── Cards Grid ── */
+        .cards-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 16px;
+            margin-bottom: 24px;
+        }
+
+        .card {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 20px 24px;
+        }
+
+        .card h3 {
+            font-size: 15px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #f0f6fc;
+        }
+
+        .card p {
+            font-size: 12px;
+            color: #8b949e;
+            margin-bottom: 14px;
+        }
+
+        .card-stat {
+            font-size: 32px;
+            font-weight: 700;
+            color: #58a6ff;
+            margin-bottom: 4px;
+        }
+
+        .card-label {
+            font-size: 12px;
+            color: #8b949e;
+        }
+
+        /* ── Actions ── */
+        .actions-section {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 20px 24px;
+            margin-bottom: 24px;
+        }
+
+        .actions-section h2 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #8b949e;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 14px;
+        }
+
+        .actions-row {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        /* ── Log / Output ── */
+        .log-section {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 20px 24px;
+        }
+
+        .log-section h2 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #8b949e;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .log-output {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 14px;
+            height: 320px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.7;
+        }
+
+        .log-entry {
+            padding: 2px 0;
+            border-bottom: 1px solid #21262d;
+        }
+
+        .log-entry:last-child { border-bottom: none; }
+
+        .log-time {
+            color: #484f58;
+            margin-right: 8px;
+        }
+
+        .log-method {
+            font-weight: 700;
+            margin-right: 4px;
+        }
+
+        .log-method.GET { color: #58a6ff; }
+        .log-method.POST { color: #3fb950; }
+        .log-method.PUT { color: #d29922; }
+        .log-method.DELETE { color: #f85149; }
+
+        .log-status-ok { color: #3fb950; }
+        .log-status-err { color: #f85149; }
+        .log-info { color: #8b949e; }
+        .log-warn { color: #d29922; }
+
+        /* ── Node Table ── */
+        .table-wrapper {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-top: 12px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+
+        th, td {
+            padding: 8px 12px;
+            text-align: left;
+            border-bottom: 1px solid #21262d;
+        }
+
+        th {
+            background: #21262d;
+            color: #8b949e;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+
+        td { color: #c9d1d9; }
+
+        tr:hover td { background: #1c2128; }
+
+        /* ── Toast ── */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            padding: 12px 20px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        .toast-success { background: #238636; color: #fff; }
+        .toast-error { background: #da3633; color: #fff; }
+
+        /* ── Drift Plot Section ── */
+        .drift-section {
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 10px;
+            padding: 20px 24px;
+            margin-bottom: 24px;
+            display: none;
+        }
+
+        .drift-section h2 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #8b949e;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 14px;
+        }
+
+        .drift-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: flex-end;
+            margin-bottom: 16px;
+        }
+
+        .drift-controls label {
+            font-size: 12px;
+            color: #8b949e;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .drift-controls input, .drift-controls select {
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #30363d;
+            background: #0d1117;
+            color: #e1e4e8;
+            font-size: 13px;
+            outline: none;
+        }
+
+        .drift-controls input:focus, .drift-controls select:focus {
+            border-color: #1f6feb;
+        }
+
+        .drift-controls select { cursor: pointer; }
+
+        .drift-canvas-wrapper {
+            background: #0d1117;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            padding: 16px;
+            display: flex;
+            justify-content: center;
+            position: relative;
+        }
+
+        #driftCanvas {
+            max-width: 100%;
+        }
+
+        .drift-legend {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+            justify-content: center;
+        }
+
+        .drift-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: #c9d1d9;
+        }
+
+        .drift-legend-swatch {
+            width: 20px;
+            height: 3px;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar">
+        <div class="navbar-brand">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
+                <path d="M2 17l10 5 10-5"/>
+                <path d="M2 12l10 5 10-5"/>
+            </svg>
+            <h1>MIDAS Gen API</h1>
+            <span>Dashboard</span>
+        </div>
+        <div id="connectionStatus" class="connection-status status-disconnected">
+            <div class="status-dot"></div>
+            <span id="statusText">Disconnected</span>
+        </div>
+    </nav>
+
+    <div class="container">
+
+        <!-- API Key -->
+        <div class="api-key-section">
+            <h2>API Connection</h2>
+            <div class="api-key-row">
+                <input type="password" id="apiKeyInput" placeholder="Enter your MAPI-Key..." />
+                <button class="btn btn-primary" id="connectBtn" onclick="connect()">Connect</button>
+                <button class="btn btn-danger" id="disconnectBtn" onclick="disconnect()" style="display:none;">Disconnect</button>
+            </div>
+        </div>
+
+        <!-- Stats Cards -->
+        <div class="cards-grid" id="statsCards" style="display:none;">
+            <div class="card">
+                <h3>Nodes</h3>
+                <p>Total nodes in the model</p>
+                <div class="card-stat" id="nodeCount">—</div>
+                <div class="card-label">from /db/node</div>
+            </div>
+            <div class="card">
+                <h3>Elements</h3>
+                <p>Total elements in the model</p>
+                <div class="card-stat" id="elemCount">—</div>
+                <div class="card-label">from /db/elem</div>
+            </div>
+            <div class="card">
+                <h3>Materials</h3>
+                <p>Defined material properties</p>
+                <div class="card-stat" id="matCount">—</div>
+                <div class="card-label">from /db/matl</div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="actions-section" id="actionsSection" style="display:none;">
+            <h2>Actions</h2>
+            <div class="actions-row">
+                <button class="btn btn-secondary" onclick="fetchNodes()">Get Nodes</button>
+                <button class="btn btn-secondary" onclick="fetchElements()">Get Elements</button>
+                <button class="btn btn-secondary" onclick="fetchMaterials()">Get Materials</button>
+                <button class="btn btn-secondary" onclick="fetchSections()">Get Sections</button>
+                <button class="btn btn-primary" onclick="runAnalysis()">Run Analysis</button>
+                <button class="btn btn-secondary" onclick="document.getElementById('driftSection').scrollIntoView({behavior:'smooth'})">Story Drift Plot</button>
+            </div>
+        </div>
+
+        <!-- Story Drift Plot -->
+        <div class="drift-section" id="driftSection">
+            <h2>Story Drift Plot</h2>
+            <div class="drift-controls">
+                <div>
+                    <label>Load Cases (comma-separated)</label>
+                    <input type="text" id="driftLoadCases" value="Ex(ST), EX +(ST), EX -(ST)" style="width:320px;" />
+                </div>
+                <div>
+                    <label>Direction</label>
+                    <select id="driftDirection">
+                        <option value="STORY_DRIFT_X">X Direction</option>
+                        <option value="STORY_DRIFT_Y">Y Direction</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Scale Factor</label>
+                    <input type="number" id="driftScaleFactor" value="5.95" step="0.01" style="width:90px;" />
+                </div>
+                <div>
+                    <label>Allowable Ratio</label>
+                    <input type="number" id="driftAllowable" value="0.025" step="0.001" style="width:90px;" />
+                </div>
+                <button class="btn btn-primary" onclick="plotDrift()">Plot Drift</button>
+            </div>
+            <div class="drift-canvas-wrapper">
+                <canvas id="driftCanvas" width="700" height="500"></canvas>
+            </div>
+            <div class="drift-legend" id="driftLegend"></div>
+        </div>
+
+        <!-- Log Output -->
+        <div class="log-section">
+            <h2>
+                API Log
+                <button class="btn btn-secondary" style="padding:4px 12px; font-size:11px;" onclick="clearLog()">Clear</button>
+            </h2>
+            <div class="log-output" id="logOutput">
+                <div class="log-entry log-info">Waiting for connection...</div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ── State ──
+        const BASE_URL = "https://moa-engineers.midasit.com:443/gen";
+        let apiKey = "";
+        let isConnected = false;
+        let pingInterval = null;
+
+        // ── DOM refs ──
+        const $status = document.getElementById("connectionStatus");
+        const $statusText = document.getElementById("statusText");
+        const $apiKeyInput = document.getElementById("apiKeyInput");
+        const $connectBtn = document.getElementById("connectBtn");
+        const $disconnectBtn = document.getElementById("disconnectBtn");
+        const $statsCards = document.getElementById("statsCards");
+        const $actionsSection = document.getElementById("actionsSection");
+        const $log = document.getElementById("logOutput");
+
+        // ── Logging ──
+        function logEntry(html) {
+            const time = new Date().toLocaleTimeString();
+            const div = document.createElement("div");
+            div.className = "log-entry";
+            div.innerHTML = `<span class="log-time">${time}</span>${html}`;
+            $log.appendChild(div);
+            $log.scrollTop = $log.scrollHeight;
+        }
+
+        function clearLog() {
+            $log.innerHTML = "";
+        }
+
+        // ── Toast ──
+        function showToast(msg, type = "success") {
+            const t = document.getElementById("toast");
+            t.textContent = msg;
+            t.className = `toast toast-${type} show`;
+            setTimeout(() => t.className = "toast", 3000);
+        }
+
+        // ── API Call ──
+        async function midasAPI(method, endpoint, body = null) {
+            const url = BASE_URL + endpoint;
+            const opts = {
+                method,
+                headers: {
+                    "Content-Type": "application/json",
+                    "MAPI-Key": apiKey
+                }
+            };
+            if (body && (method === "POST" || method === "PUT")) {
+                opts.body = JSON.stringify(body);
+            }
+
+            const start = performance.now();
+            try {
+                const res = await fetch(url, opts);
+                const ms = Math.round(performance.now() - start);
+                const data = await res.json();
+
+                const statusClass = res.ok ? "log-status-ok" : "log-status-err";
+                logEntry(
+                    `<span class="log-method ${method}">${method}</span>` +
+                    `${endpoint} ` +
+                    `<span class="${statusClass}">${res.status}</span> ` +
+                    `<span class="log-info">(${ms}ms)</span>`
+                );
+
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return data;
+            } catch (err) {
+                const ms = Math.round(performance.now() - start);
+                logEntry(
+                    `<span class="log-method ${method}">${method}</span>` +
+                    `${endpoint} ` +
+                    `<span class="log-status-err">ERROR</span> ` +
+                    `<span class="log-info">${err.message} (${ms}ms)</span>`
+                );
+                throw err;
+            }
+        }
+
+        // ── Connection ──
+        function setStatus(state) {
+            $status.className = `connection-status status-${state}`;
+            const labels = {
+                disconnected: "Disconnected",
+                connecting: "Connecting...",
+                connected: "Connected to MIDAS Gen"
+            };
+            $statusText.textContent = labels[state];
+        }
+
+        async function connect() {
+            apiKey = $apiKeyInput.value.trim();
+            if (!apiKey) {
+                showToast("Please enter an MAPI-Key", "error");
+                return;
+            }
+
+            setStatus("connecting");
+            $connectBtn.disabled = true;
+
+            try {
+                // Test connection by fetching node data
+                const data = await midasAPI("GET", "/db/node");
+
+                if (data && !data.error) {
+                    isConnected = true;
+                    setStatus("connected");
+                    showToast("Connected to MIDAS Gen!");
+
+                    $connectBtn.style.display = "none";
+                    $disconnectBtn.style.display = "inline-block";
+                    $apiKeyInput.disabled = true;
+                    $statsCards.style.display = "grid";
+                    $actionsSection.style.display = "block";
+                    document.getElementById("driftSection").style.display = "block";
+
+                    // Show node count
+                    const nodeKeys = Object.keys(data.NODE || data);
+                    document.getElementById("nodeCount").textContent = nodeKeys.length;
+
+                    // Auto-fetch stats
+                    fetchElements();
+                    fetchMaterials();
+
+                    // Start heartbeat ping every 30s
+                    pingInterval = setInterval(heartbeat, 30000);
+                } else {
+                    throw new Error(data.error || "Invalid response");
+                }
+            } catch (err) {
+                setStatus("disconnected");
+                showToast("Connection failed: " + err.message, "error");
+            }
+
+            $connectBtn.disabled = false;
+        }
+
+        function disconnect() {
+            isConnected = false;
+            apiKey = "";
+            clearInterval(pingInterval);
+
+            setStatus("disconnected");
+            $connectBtn.style.display = "inline-block";
+            $disconnectBtn.style.display = "none";
+            $apiKeyInput.disabled = false;
+            $apiKeyInput.value = "";
+            $statsCards.style.display = "none";
+            $actionsSection.style.display = "none";
+            document.getElementById("driftSection").style.display = "none";
+
+            document.getElementById("nodeCount").textContent = "—";
+            document.getElementById("elemCount").textContent = "—";
+            document.getElementById("matCount").textContent = "—";
+
+            logEntry('<span class="log-warn">Disconnected from MIDAS Gen</span>');
+            showToast("Disconnected", "error");
+        }
+
+        async function heartbeat() {
+            try {
+                await midasAPI("GET", "/db/node");
+                if (!isConnected) {
+                    isConnected = true;
+                    setStatus("connected");
+                }
+            } catch {
+                isConnected = false;
+                setStatus("disconnected");
+                logEntry('<span class="log-status-err">Heartbeat failed — connection lost</span>');
+                showToast("Connection lost", "error");
+            }
+        }
+
+        // ── Data fetchers ──
+        async function fetchNodes() {
+            if (!isConnected) return;
+            try {
+                const data = await midasAPI("GET", "/db/node");
+                const nodes = data.NODE || data;
+                const keys = Object.keys(nodes);
+                document.getElementById("nodeCount").textContent = keys.length;
+
+                logEntry(`<span class="log-info">Loaded ${keys.length} nodes</span>`);
+            } catch {}
+        }
+
+        async function fetchElements() {
+            if (!isConnected) return;
+            try {
+                const data = await midasAPI("GET", "/db/elem");
+                const elems = data.ELEM || data;
+                const keys = Object.keys(elems);
+                document.getElementById("elemCount").textContent = keys.length;
+
+                logEntry(`<span class="log-info">Loaded ${keys.length} elements</span>`);
+            } catch {}
+        }
+
+        async function fetchMaterials() {
+            if (!isConnected) return;
+            try {
+                const data = await midasAPI("GET", "/db/matl");
+                const mats = data.MATL || data;
+                const keys = Object.keys(mats);
+                document.getElementById("matCount").textContent = keys.length;
+
+                logEntry(`<span class="log-info">Loaded ${keys.length} materials</span>`);
+            } catch {}
+        }
+
+        async function fetchSections() {
+            if (!isConnected) return;
+            try {
+                const data = await midasAPI("GET", "/db/sect");
+                logEntry(`<span class="log-info">Sections data loaded</span>`);
+            } catch {}
+        }
+
+        async function runAnalysis() {
+            if (!isConnected) return;
+            try {
+                logEntry('<span class="log-warn">Running analysis... this may take a moment</span>');
+                const data = await midasAPI("POST", "/doc/ANAL", {});
+                logEntry('<span class="log-status-ok">Analysis completed!</span>');
+                showToast("Analysis completed!");
+            } catch {
+                showToast("Analysis failed", "error");
+            }
+        }
+
+        // ── Story Drift Plot (mirrors drift_plot_multiple.py) ──
+        const DRIFT_COLORS = [
+            "#58a6ff", "#3fb950", "#f0883e", "#f85149",
+            "#d2a8ff", "#79c0ff", "#d29922", "#ff7b72"
+        ];
+
+        function storyNo(s) {
+            s = String(s).trim().toUpperCase();
+            if (s.includes("BASE")) return 0;
+            if (s.includes("ROOF")) return 999;
+            const m = s.match(/(\d+)/);
+            return m ? parseInt(m[1]) : -1;
+        }
+
+        async function getStoryDriftData(loadCaseName, tableType, scaleFactor, allowable) {
+            const body = {
+                Argument: {
+                    TABLE_TYPE: tableType,
+                    UNIT: { FORCE: "KN", DIST: "MM" },
+                    LOAD_CASE_NAMES: [loadCaseName],
+                    STYLES: { FORMAT: "FIXED", PLACE: 5 },
+                    ADDITIONAL: {
+                        SET_STORY_DRIFT_PARAMS: {
+                            RESPONSE_MOD_FACTOR_CHECK: true,
+                            SCALE_FACTOR_VALUE: scaleFactor,
+                            ALLOWABLE_RATIO: allowable
+                        }
+                    }
+                }
+            };
+
+            const result = await midasAPI("POST", "/post/TABLE", body);
+            const headers = result.empty.HEAD;
+            const rows = result.empty.DATA;
+
+            // Parse into array of objects
+            const parsed = rows.map(row => {
+                const obj = {};
+                headers.forEach((h, i) => obj[h] = row[i]);
+                return obj;
+            });
+
+            // Sort by story number
+            parsed.sort((a, b) => storyNo(a.Story) - storyNo(b.Story));
+            return { headers, data: parsed };
+        }
+
+        async function plotDrift() {
+            if (!isConnected) return;
+
+            const loadCasesStr = document.getElementById("driftLoadCases").value;
+            const loadCases = loadCasesStr.split(",").map(s => s.trim()).filter(Boolean);
+            const tableType = document.getElementById("driftDirection").value;
+            const scaleFactor = parseFloat(document.getElementById("driftScaleFactor").value) || 5.95;
+            const allowable = parseFloat(document.getElementById("driftAllowable").value) || 0.025;
+            const dirLabel = tableType === "STORY_DRIFT_X" ? "X" : "Y";
+
+            if (loadCases.length === 0) {
+                showToast("Enter at least one load case", "error");
+                return;
+            }
+
+            logEntry(`<span class="log-warn">Fetching drift data for ${loadCases.length} load case(s)...</span>`);
+
+            const colRatio = "Maximum Drift of All Vertical Elements/Story Drift Ratio";
+
+            // Fetch all load cases
+            const allSeries = [];
+            const allStories = new Set();
+
+            for (const lc of loadCases) {
+                try {
+                    const { data } = await getStoryDriftData(lc, tableType, scaleFactor, allowable);
+                    // Add base row
+                    const series = [{ Story: "Base", StoryNo: 0, ratio: 0 }];
+                    for (const row of data) {
+                        const sn = storyNo(row.Story);
+                        const ratio = Math.abs(parseFloat(row[colRatio]) || 0);
+                        series.push({ Story: row.Story, StoryNo: sn, ratio });
+                        allStories.add(JSON.stringify({ Story: row.Story, StoryNo: sn }));
+                    }
+                    allStories.add(JSON.stringify({ Story: "Base", StoryNo: 0 }));
+                    series.sort((a, b) => a.StoryNo - b.StoryNo);
+                    allSeries.push({ name: lc, data: series });
+                    logEntry(`<span class="log-info">Drift data loaded for "${lc}" (${data.length} stories)</span>`);
+                } catch (err) {
+                    logEntry(`<span class="log-status-err">Failed to fetch drift for "${lc}": ${err.message}</span>`);
+                }
+            }
+
+            if (allSeries.length === 0) {
+                showToast("No drift data retrieved", "error");
+                return;
+            }
+
+            // Build story list sorted
+            const stories = Array.from(allStories)
+                .map(s => JSON.parse(s))
+                .sort((a, b) => a.StoryNo - b.StoryNo);
+
+            // Remove duplicates by StoryNo
+            const uniqueStories = [];
+            const seen = new Set();
+            for (const s of stories) {
+                if (!seen.has(s.StoryNo)) {
+                    seen.add(s.StoryNo);
+                    uniqueStories.push(s);
+                }
+            }
+
+            // Draw on canvas
+            drawDriftChart(allSeries, uniqueStories, allowable, dirLabel);
+            showToast("Drift plot updated!");
+        }
+
+        function drawDriftChart(seriesArr, stories, allowable, dirLabel) {
+            const canvas = document.getElementById("driftCanvas");
+            const dpr = window.devicePixelRatio || 1;
+            const W = 700, H = 500;
+            canvas.width = W * dpr;
+            canvas.height = H * dpr;
+            canvas.style.width = W + "px";
+            canvas.style.height = H + "px";
+
+            const ctx = canvas.getContext("2d");
+            ctx.scale(dpr, dpr);
+            ctx.clearRect(0, 0, W, H);
+
+            // Layout
+            const margin = { top: 40, right: 30, bottom: 50, left: 80 };
+            const plotW = W - margin.left - margin.right;
+            const plotH = H - margin.top - margin.bottom;
+
+            // Compute x-range (drift ratio)
+            let maxRatio = allowable;
+            for (const s of seriesArr) {
+                for (const d of s.data) {
+                    if (d.ratio > maxRatio) maxRatio = d.ratio;
+                }
+            }
+            maxRatio = maxRatio * 1.15; // padding
+
+            // Y positions: evenly spaced by story index
+            const storyCount = stories.length;
+
+            function xToPixel(val) {
+                return margin.left + (val / maxRatio) * plotW;
+            }
+
+            function yToPixel(storyIdx) {
+                return margin.top + plotH - (storyIdx / Math.max(1, storyCount - 1)) * plotH;
+            }
+
+            // Build storyNo -> index map
+            const storyIdxMap = {};
+            stories.forEach((s, i) => storyIdxMap[s.StoryNo] = i);
+
+            // ── Grid ──
+            ctx.strokeStyle = "#30363d";
+            ctx.lineWidth = 0.5;
+
+            // Horizontal grid + Y labels
+            ctx.fillStyle = "#8b949e";
+            ctx.font = "11px 'Segoe UI', sans-serif";
+            ctx.textAlign = "right";
+            ctx.textBaseline = "middle";
+
+            for (let i = 0; i < storyCount; i++) {
+                const y = yToPixel(i);
+                ctx.beginPath();
+                ctx.moveTo(margin.left, y);
+                ctx.lineTo(W - margin.right, y);
+                ctx.stroke();
+                ctx.fillText(stories[i].Story, margin.left - 10, y);
+            }
+
+            // Vertical grid + X labels
+            ctx.textAlign = "center";
+            ctx.textBaseline = "top";
+            const xTicks = 6;
+            for (let i = 0; i <= xTicks; i++) {
+                const val = (maxRatio / xTicks) * i;
+                const x = xToPixel(val);
+                ctx.beginPath();
+                ctx.moveTo(x, margin.top);
+                ctx.lineTo(x, H - margin.bottom);
+                ctx.stroke();
+                ctx.fillText(val.toFixed(4), x, H - margin.bottom + 8);
+            }
+
+            // ── Allowable drift line ──
+            const allowX = xToPixel(allowable);
+            ctx.setLineDash([8, 4]);
+            ctx.strokeStyle = "#f85149";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(allowX, margin.top);
+            ctx.lineTo(allowX, H - margin.bottom);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Allowable label
+            ctx.fillStyle = "#f85149";
+            ctx.font = "bold 11px 'Segoe UI', sans-serif";
+            ctx.textAlign = "left";
+            ctx.textBaseline = "bottom";
+            ctx.fillText(`Allowable (${allowable})`, allowX + 4, margin.top - 4);
+
+            // ── Plot each series ──
+            seriesArr.forEach((series, si) => {
+                const color = DRIFT_COLORS[si % DRIFT_COLORS.length];
+                const points = [];
+
+                for (const d of series.data) {
+                    const idx = storyIdxMap[d.StoryNo];
+                    if (idx !== undefined) {
+                        points.push({ x: xToPixel(d.ratio), y: yToPixel(idx) });
+                    }
+                }
+
+                if (points.length === 0) return;
+
+                // Line
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(points[0].x, points[0].y);
+                for (let i = 1; i < points.length; i++) {
+                    ctx.lineTo(points[i].x, points[i].y);
+                }
+                ctx.stroke();
+
+                // Dots
+                for (const pt of points) {
+                    ctx.beginPath();
+                    ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+                    ctx.fillStyle = color;
+                    ctx.fill();
+                    ctx.strokeStyle = "#0d1117";
+                    ctx.lineWidth = 1.5;
+                    ctx.stroke();
+                }
+            });
+
+            // ── Title ──
+            ctx.fillStyle = "#f0f6fc";
+            ctx.font = "bold 14px 'Segoe UI', sans-serif";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "top";
+            ctx.fillText(`Story Drift Ratio - ${dirLabel} Direction`, W / 2, 10);
+
+            // ── Axis labels ──
+            ctx.fillStyle = "#8b949e";
+            ctx.font = "12px 'Segoe UI', sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText("Drift Ratio", W / 2, H - 10);
+
+            ctx.save();
+            ctx.translate(16, margin.top + plotH / 2);
+            ctx.rotate(-Math.PI / 2);
+            ctx.fillText("Story", 0, 0);
+            ctx.restore();
+
+            // ── Legend ──
+            const $legend = document.getElementById("driftLegend");
+            $legend.innerHTML = "";
+
+            seriesArr.forEach((s, i) => {
+                const color = DRIFT_COLORS[i % DRIFT_COLORS.length];
+                const item = document.createElement("div");
+                item.className = "drift-legend-item";
+                item.innerHTML = `<span class="drift-legend-swatch" style="background:${color}"></span>${s.name}`;
+                $legend.appendChild(item);
+            });
+
+            // Add allowable to legend
+            const allowItem = document.createElement("div");
+            allowItem.className = "drift-legend-item";
+            allowItem.innerHTML = `<span class="drift-legend-swatch" style="background:#f85149; border-top:2px dashed #f85149; height:0;"></span>Allowable Drift`;
+            $legend.appendChild(allowItem);
+        }
+    </script>
+
+</body>
+</html>
