@@ -51,446 +51,184 @@
             justify-content: space-between;
             padding: 0 24px;
             position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
+            top: 0; left: 0; right: 0;
             z-index: 50;
         }
 
-        .topbar-left {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-        }
+        .topbar-left { display: flex; align-items: center; gap: 14px; }
 
         .topbar-logo {
-            width: 32px;
-            height: 32px;
+            width: 32px; height: 32px;
             background: linear-gradient(135deg, #1f6feb, #58a6ff);
             border-radius: 8px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            display: flex; align-items: center; justify-content: center;
         }
-
         .topbar-logo svg { width: 18px; height: 18px; }
 
         .topbar-title {
-            font-size: 16px;
-            font-weight: 700;
-            color: var(--text-primary);
-            letter-spacing: -0.3px;
+            font-size: 16px; font-weight: 700; color: var(--text-primary); letter-spacing: -0.3px;
         }
-
         .topbar-title small {
-            font-size: 10px;
-            font-weight: 500;
-            background: var(--brand-blue);
-            color: #fff;
-            padding: 2px 8px;
-            border-radius: 10px;
-            margin-left: 8px;
-            vertical-align: middle;
+            font-size: 10px; font-weight: 500; background: var(--brand-blue); color: #fff;
+            padding: 2px 8px; border-radius: 10px; margin-left: 8px; vertical-align: middle;
             letter-spacing: 0.5px;
         }
 
-        .topbar-right {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-        }
+        .topbar-right { display: flex; align-items: center; gap: 16px; }
 
         /* Connection Badge */
         .conn-badge {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 6px 14px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            letter-spacing: 0.2px;
-            transition: all 0.3s;
+            display: flex; align-items: center; gap: 8px;
+            padding: 6px 14px; border-radius: 20px;
+            font-size: 12px; font-weight: 600; letter-spacing: 0.2px; transition: all 0.3s;
         }
-
-        .conn-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            transition: all 0.3s;
-        }
-
+        .conn-dot { width: 8px; height: 8px; border-radius: 50%; transition: all 0.3s; }
         .conn-disconnected { background: rgba(248,81,73,0.12); color: var(--accent-red); border: 1px solid rgba(248,81,73,0.25); }
         .conn-disconnected .conn-dot { background: var(--accent-red); box-shadow: 0 0 6px var(--accent-red); }
-
         .conn-connecting { background: rgba(210,153,34,0.12); color: var(--accent-orange); border: 1px solid rgba(210,153,34,0.25); }
         .conn-connecting .conn-dot { background: var(--accent-orange); box-shadow: 0 0 6px var(--accent-orange); animation: pulse 1s infinite; }
-
         .conn-connected { background: rgba(63,185,80,0.12); color: var(--accent-green); border: 1px solid rgba(63,185,80,0.25); }
         .conn-connected .conn-dot { background: var(--accent-green); box-shadow: 0 0 6px var(--accent-green); }
 
-        @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.4; transform: scale(0.75); }
-        }
+        @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.4;transform:scale(0.75)} }
 
         /* ═══════════════════════ Layout ═══════════════════════ */
-        .app-layout {
-            display: flex;
-            margin-top: var(--topbar-h);
-            min-height: calc(100vh - var(--topbar-h));
-        }
+        .app-layout { display: flex; margin-top: var(--topbar-h); min-height: calc(100vh - var(--topbar-h)); }
 
         /* ═══════════════════════ Sidebar ═══════════════════════ */
         .sidebar {
-            width: var(--sidebar-w);
-            background: var(--bg-secondary);
-            border-right: 1px solid var(--border);
-            padding: 20px 0;
-            position: fixed;
-            top: var(--topbar-h);
-            bottom: 0;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
+            width: var(--sidebar-w); background: var(--bg-secondary);
+            border-right: 1px solid var(--border); padding: 20px 0;
+            position: fixed; top: var(--topbar-h); bottom: 0;
+            overflow-y: auto; display: flex; flex-direction: column;
         }
 
-        .sidebar-section {
-            padding: 0 16px;
-            margin-bottom: 24px;
-        }
+        .sidebar-section { padding: 0 16px; margin-bottom: 24px; }
 
         .sidebar-label {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.8px;
-            padding: 0 12px;
-            margin-bottom: 8px;
+            font-size: 11px; font-weight: 600; color: var(--text-muted);
+            text-transform: uppercase; letter-spacing: 0.8px;
+            padding: 0 12px; margin-bottom: 8px;
         }
-
-        .sidebar-nav {
-            list-style: none;
-        }
-
-        .sidebar-nav li {
-            margin-bottom: 2px;
-        }
-
+        .sidebar-nav { list-style: none; }
+        .sidebar-nav li { margin-bottom: 2px; }
         .sidebar-nav a {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 9px 12px;
-            border-radius: var(--radius);
-            color: var(--text-secondary);
-            text-decoration: none;
-            font-size: 13px;
-            font-weight: 500;
-            transition: all 0.15s;
-            cursor: pointer;
+            display: flex; align-items: center; gap: 10px;
+            padding: 9px 12px; border-radius: var(--radius);
+            color: var(--text-secondary); text-decoration: none;
+            font-size: 13px; font-weight: 500; transition: all 0.15s; cursor: pointer;
         }
-
-        .sidebar-nav a:hover {
-            background: var(--bg-tertiary);
-            color: var(--text-primary);
-        }
-
-        .sidebar-nav a.active {
-            background: rgba(31,111,235,0.15);
-            color: var(--accent-blue);
-        }
-
-        .sidebar-nav a svg {
-            width: 16px;
-            height: 16px;
-            opacity: 0.7;
-            flex-shrink: 0;
-        }
-
+        .sidebar-nav a:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+        .sidebar-nav a.active { background: rgba(31,111,235,0.15); color: var(--accent-blue); }
+        .sidebar-nav a svg { width: 16px; height: 16px; opacity: 0.7; flex-shrink: 0; }
         .sidebar-nav a.active svg { opacity: 1; }
 
         .nav-badge {
-            margin-left: auto;
-            font-size: 10px;
-            background: var(--bg-tertiary);
-            color: var(--text-muted);
-            padding: 1px 7px;
-            border-radius: 10px;
-            font-weight: 600;
+            margin-left: auto; font-size: 10px; background: var(--bg-tertiary);
+            color: var(--text-muted); padding: 1px 7px; border-radius: 10px; font-weight: 600;
         }
-
-        .sidebar-footer {
-            margin-top: auto;
-            padding: 16px;
-            border-top: 1px solid var(--border);
-        }
-
-        .sidebar-footer p {
-            font-size: 11px;
-            color: var(--text-faint);
-            text-align: center;
-        }
+        .sidebar-footer { margin-top: auto; padding: 16px; border-top: 1px solid var(--border); }
+        .sidebar-footer p { font-size: 11px; color: var(--text-faint); text-align: center; }
 
         /* ═══════════════════════ Main Content ═══════════════════════ */
-        .main-content {
-            flex: 1;
-            margin-left: var(--sidebar-w);
-            padding: 28px 32px;
-            max-width: calc(100% - var(--sidebar-w));
-        }
+        .main-content { flex: 1; margin-left: var(--sidebar-w); padding: 28px 32px; max-width: calc(100% - var(--sidebar-w)); }
 
-        /* ═══════════════════════ Page Header ═══════════════════════ */
-        .page-header {
-            margin-bottom: 24px;
-        }
+        .page-header { margin-bottom: 24px; }
+        .page-header h2 { font-size: 22px; font-weight: 700; color: var(--text-primary); margin-bottom: 4px; }
+        .page-header p { font-size: 13px; color: var(--text-muted); }
 
-        .page-header h2 {
-            font-size: 22px;
-            font-weight: 700;
-            color: var(--text-primary);
-            margin-bottom: 4px;
-        }
-
-        .page-header p {
-            font-size: 13px;
-            color: var(--text-muted);
-        }
-
-        /* ═══════════════════════ Panels / Cards ═══════════════════════ */
+        /* ═══════════════════════ Panel ═══════════════════════ */
         .panel {
-            background: var(--bg-secondary);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            padding: 24px;
-            margin-bottom: 20px;
+            background: var(--bg-secondary); border: 1px solid var(--border);
+            border-radius: var(--radius-lg); padding: 24px; margin-bottom: 20px;
         }
+        .panel-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+        .panel-title { font-size: 13px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
 
-        .panel-header {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            margin-bottom: 16px;
-        }
-
-        .panel-title {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 14px;
-            margin-bottom: 20px;
-        }
-
+        /* Stats Grid */
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; margin-bottom: 20px; }
         .stat-card {
-            background: var(--bg-primary);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 18px 20px;
-            transition: border-color 0.2s;
+            background: var(--bg-primary); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 18px 20px; transition: border-color 0.2s;
         }
-
         .stat-card:hover { border-color: var(--accent-blue); }
+        .stat-card-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+        .stat-card-value { font-size: 28px; font-weight: 700; color: var(--accent-blue); line-height: 1; margin-bottom: 4px; }
+        .stat-card-sub { font-size: 11px; color: var(--text-faint); }
 
-        .stat-card-label {
-            font-size: 11px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 8px;
-        }
-
-        .stat-card-value {
-            font-size: 28px;
-            font-weight: 700;
-            color: var(--accent-blue);
-            line-height: 1;
-            margin-bottom: 4px;
-        }
-
-        .stat-card-sub {
-            font-size: 11px;
-            color: var(--text-faint);
-        }
-
-        /* ═══════════════════════ Form Controls ═══════════════════════ */
-        .form-row {
-            display: flex;
-            gap: 12px;
-            align-items: flex-end;
-            flex-wrap: wrap;
-        }
-
-        .form-group {
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-        }
-
-        .form-group label {
-            font-size: 11px;
-            font-weight: 600;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-        }
-
+        /* ═══════════════════════ Form ═══════════════════════ */
+        .form-row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+        .form-group { display: flex; flex-direction: column; gap: 4px; }
+        .form-group label { font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; }
         .input, select.input {
-            padding: 9px 14px;
-            border-radius: 6px;
-            border: 1px solid var(--border);
-            background: var(--bg-input);
-            color: var(--text-secondary);
-            font-size: 13px;
-            outline: none;
-            transition: border-color 0.2s;
-            font-family: inherit;
+            padding: 9px 14px; border-radius: 6px; border: 1px solid var(--border);
+            background: var(--bg-input); color: var(--text-secondary);
+            font-size: 13px; outline: none; transition: border-color 0.2s; font-family: inherit;
         }
-
         .input:focus { border-color: var(--accent-blue); }
-
-        .input-mono {
-            font-family: 'Consolas', 'Courier New', monospace;
-        }
+        .input-mono { font-family: 'Consolas','Courier New',monospace; }
 
         /* ═══════════════════════ Buttons ═══════════════════════ */
         .btn {
-            padding: 9px 18px;
-            border-radius: 6px;
-            border: 1px solid var(--border);
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.15s;
-            white-space: nowrap;
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-family: inherit;
+            padding: 9px 18px; border-radius: 6px; border: 1px solid var(--border);
+            font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+            white-space: nowrap; display: inline-flex; align-items: center; gap: 6px; font-family: inherit;
         }
-
         .btn svg { width: 14px; height: 14px; }
-
         .btn-primary { background: var(--btn-green); border-color: var(--btn-green); color: #fff; }
         .btn-primary:hover { background: var(--btn-green-hover); }
-
         .btn-blue { background: var(--brand-blue); border-color: var(--brand-blue); color: #fff; }
         .btn-blue:hover { background: #388bfd; }
-
         .btn-ghost { background: transparent; color: var(--text-secondary); }
         .btn-ghost:hover { background: var(--bg-tertiary); color: var(--text-primary); }
-
         .btn-danger { background: #da3633; border-color: #da3633; color: #fff; }
         .btn-danger:hover { background: var(--accent-red); }
-
         .btn-sm { padding: 5px 12px; font-size: 12px; }
-
         .btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
         /* ═══════════════════════ Tables ═══════════════════════ */
-        .table-wrap {
-            background: var(--bg-primary);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            overflow: hidden;
-        }
-
-        .table-scroll {
-            max-height: 400px;
-            overflow-y: auto;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 12px;
-        }
-
-        th, td {
-            padding: 10px 14px;
-            text-align: left;
-            border-bottom: 1px solid var(--border-light);
-        }
-
+        .table-wrap { background: var(--bg-primary); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+        .table-scroll { max-height: 480px; overflow: auto; }
+        table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        th, td { padding: 8px 12px; text-align: right; border-bottom: 1px solid var(--border-light); white-space: nowrap; }
         th {
-            background: var(--bg-tertiary);
-            color: var(--text-muted);
-            font-weight: 600;
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.3px;
-            position: sticky;
-            top: 0;
-            z-index: 2;
+            background: var(--bg-tertiary); color: var(--text-muted); font-weight: 600;
+            font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px;
+            position: sticky; top: 0; z-index: 2;
         }
-
-        td { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
-
+        td { color: var(--text-secondary); font-variant-numeric: tabular-nums; font-family: 'Consolas',monospace; font-size: 11px; }
+        td:first-child, th:first-child { text-align: left; }
         tr:hover td { background: rgba(88,166,255,0.04); }
+        /* Sticky first column */
+        .sticky-col th:first-child, .sticky-col td:first-child {
+            position: sticky; left: 0; z-index: 3; background: var(--bg-tertiary);
+        }
+        .sticky-col td:first-child { background: var(--bg-primary); }
 
-        /* ═══════════════════════ Canvas Chart ═══════════════════════ */
+        /* ═══════════════════════ Chart ═══════════════════════ */
         .chart-wrapper {
-            background: var(--bg-primary);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            background: var(--bg-primary); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 20px;
+            display: flex; flex-direction: column; align-items: center;
         }
-
         .chart-wrapper canvas { max-width: 100%; }
-
-        .chart-legend {
-            display: flex;
-            gap: 18px;
-            flex-wrap: wrap;
-            margin-top: 14px;
-            justify-content: center;
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            color: var(--text-secondary);
-        }
-
-        .legend-swatch {
-            width: 18px;
-            height: 3px;
-            border-radius: 2px;
-        }
+        .chart-legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 14px; justify-content: center; }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-secondary); }
+        .legend-swatch { width: 18px; height: 3px; border-radius: 2px; }
 
         /* ═══════════════════════ Log ═══════════════════════ */
         .log-output {
-            background: var(--bg-primary);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 14px;
-            height: 240px;
-            overflow-y: auto;
-            font-family: 'Consolas', 'Courier New', monospace;
-            font-size: 12px;
-            line-height: 1.8;
+            background: var(--bg-primary); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 14px;
+            height: 240px; overflow-y: auto;
+            font-family: 'Consolas','Courier New',monospace; font-size: 12px; line-height: 1.8;
         }
-
         .log-entry { padding: 1px 0; border-bottom: 1px solid var(--border-light); }
         .log-entry:last-child { border-bottom: none; }
         .log-time { color: var(--text-faint); margin-right: 8px; }
         .log-method { font-weight: 700; margin-right: 4px; }
         .log-method.GET { color: var(--accent-blue); }
         .log-method.POST { color: var(--accent-green); }
-        .log-method.PUT { color: var(--accent-orange); }
-        .log-method.DELETE { color: var(--accent-red); }
         .log-status-ok { color: var(--accent-green); }
         .log-status-err { color: var(--accent-red); }
         .log-info { color: var(--text-muted); }
@@ -500,94 +238,138 @@
         .tab-page { display: none; }
         .tab-page.active { display: block; }
 
-        /* ═══════════════════════ Fiber Section ═══════════════════════ */
-        .fiber-steps {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-            gap: 14px;
-        }
-
+        /* ═══════════════════════ Fiber Steps ═══════════════════════ */
+        .fiber-steps { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
         .fiber-step {
-            background: var(--bg-primary);
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            padding: 18px 20px;
-            position: relative;
+            background: var(--bg-primary); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 18px 20px;
         }
-
         .fiber-step-num {
-            width: 24px;
-            height: 24px;
-            border-radius: 50%;
-            background: var(--brand-blue);
-            color: #fff;
-            font-size: 12px;
-            font-weight: 700;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            width: 24px; height: 24px; border-radius: 50%; background: var(--brand-blue); color: #fff;
+            font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center;
             margin-bottom: 10px;
         }
-
-        .fiber-step h4 {
-            font-size: 13px;
-            font-weight: 600;
-            color: var(--text-primary);
-            margin-bottom: 4px;
-        }
-
-        .fiber-step p {
-            font-size: 12px;
-            color: var(--text-muted);
-            line-height: 1.5;
-        }
+        .fiber-step h4 { font-size: 13px; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
+        .fiber-step p { font-size: 12px; color: var(--text-muted); line-height: 1.5; }
 
         /* ═══════════════════════ Empty State ═══════════════════════ */
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            color: var(--text-muted);
-        }
-
-        .empty-state svg {
-            width: 48px;
-            height: 48px;
-            opacity: 0.3;
-            margin-bottom: 16px;
-        }
-
-        .empty-state h3 {
-            font-size: 15px;
-            font-weight: 600;
-            color: var(--text-secondary);
-            margin-bottom: 6px;
-        }
-
-        .empty-state p {
-            font-size: 13px;
-            max-width: 380px;
-            margin: 0 auto;
-        }
+        .empty-state { text-align: center; padding: 60px 20px; color: var(--text-muted); }
+        .empty-state svg { width: 48px; height: 48px; opacity: 0.3; margin-bottom: 16px; }
+        .empty-state h3 { font-size: 15px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+        .empty-state p { font-size: 13px; max-width: 380px; margin: 0 auto; }
 
         /* ═══════════════════════ Toast ═══════════════════════ */
         .toast {
-            position: fixed;
-            bottom: 24px;
-            right: 24px;
-            padding: 12px 20px;
-            border-radius: var(--radius);
-            font-size: 13px;
-            font-weight: 500;
-            transform: translateY(80px);
-            opacity: 0;
-            transition: all 0.3s;
-            z-index: 200;
+            position: fixed; bottom: 24px; right: 24px;
+            padding: 12px 20px; border-radius: var(--radius);
+            font-size: 13px; font-weight: 500;
+            transform: translateY(80px); opacity: 0;
+            transition: all 0.3s; z-index: 200;
             box-shadow: 0 8px 24px rgba(0,0,0,0.4);
         }
-
         .toast.show { transform: translateY(0); opacity: 1; }
         .toast-success { background: var(--btn-green); color: #fff; }
         .toast-error { background: #da3633; color: #fff; }
+
+        /* ═══════════════════════ Progress Modal ═══════════════════════ */
+        .modal-overlay {
+            display: none;
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.65);
+            z-index: 500;
+            align-items: center; justify-content: center;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-box {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 32px 40px;
+            min-width: 400px;
+            max-width: 520px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .modal-box h3 {
+            font-size: 16px; font-weight: 700; color: var(--text-primary); margin-bottom: 8px;
+        }
+        .modal-box p {
+            font-size: 13px; color: var(--text-muted); margin-bottom: 20px;
+        }
+        .modal-spinner {
+            width: 36px; height: 36px; border: 3px solid var(--border);
+            border-top-color: var(--accent-blue); border-radius: 50%;
+            animation: spin 0.8s linear infinite; margin: 0 auto 16px;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .progress-bar-track {
+            width: 100%; height: 6px; background: var(--bg-tertiary);
+            border-radius: 3px; overflow: hidden; margin-bottom: 12px;
+        }
+        .progress-bar-fill {
+            height: 100%; background: linear-gradient(90deg, var(--brand-blue), var(--accent-blue));
+            border-radius: 3px; transition: width 0.4s ease;
+            width: 0%;
+        }
+        .progress-bar-fill.indeterminate {
+            width: 30%;
+            animation: indeterminate 1.5s ease-in-out infinite;
+        }
+        @keyframes indeterminate {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(400%); }
+        }
+        .modal-step-text {
+            font-size: 12px; color: var(--text-muted); font-family: 'Consolas',monospace;
+        }
+
+        /* ═══════════════════════ Reaction Chart Tabs ═══════════════════════ */
+        .chart-tabs { display: flex; gap: 2px; margin-bottom: 16px; }
+        .chart-tab {
+            padding: 7px 16px; border-radius: 6px 6px 0 0;
+            font-size: 12px; font-weight: 600; cursor: pointer;
+            background: var(--bg-tertiary); color: var(--text-muted);
+            border: 1px solid var(--border); border-bottom: none;
+            transition: all 0.15s;
+        }
+        .chart-tab.active { background: var(--bg-primary); color: var(--accent-blue); }
+        .chart-tab:hover { color: var(--text-primary); }
+
+        .reaction-chart-panel { display: none; }
+        .reaction-chart-panel.active { display: block; }
+
+        /* Summary Stats Row */
+        .summary-stats { display: flex; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+        .summary-stat {
+            background: var(--bg-primary); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 12px 16px; flex: 1; min-width: 140px;
+        }
+        .summary-stat-label { font-size: 10px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.3px; margin-bottom: 4px; }
+        .summary-stat-value { font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .summary-stat-value.max-val { color: var(--accent-red); }
+        .summary-stat-value.min-val { color: var(--accent-blue); }
+        .summary-stat-value.total-val { color: var(--accent-green); }
+        .summary-stat-sub { font-size: 10px; color: var(--text-faint); }
+
+        /* ═══════════════════════ 3D Canvas ═══════════════════════ */
+        .canvas-3d-wrap {
+            position: relative; background: #1a1e26;
+            border: 1px solid var(--border); border-radius: var(--radius);
+            overflow: hidden;
+        }
+        .canvas-3d-wrap canvas { display: block; cursor: grab; }
+        .canvas-3d-wrap canvas:active { cursor: grabbing; }
+        .canvas-3d-controls {
+            position: absolute; top: 12px; right: 12px;
+            display: flex; flex-direction: column; gap: 4px;
+        }
+        .canvas-3d-controls button {
+            width: 30px; height: 30px; border-radius: 6px;
+            background: rgba(22,27,34,0.85); border: 1px solid var(--border);
+            color: var(--text-secondary); font-size: 16px; cursor: pointer;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .canvas-3d-controls button:hover { background: var(--bg-tertiary); }
 
         /* ═══════════════════════ Scrollbar ═══════════════════════ */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -615,6 +397,19 @@
         </div>
     </div>
 </header>
+
+<!-- ═══════════════ Progress Modal ═══════════════ -->
+<div class="modal-overlay" id="progressModal">
+    <div class="modal-box">
+        <div class="modal-spinner"></div>
+        <h3 id="modalTitle">Processing...</h3>
+        <p id="modalDesc">Communicating with MIDAS Gen API</p>
+        <div class="progress-bar-track">
+            <div class="progress-bar-fill" id="progressBar"></div>
+        </div>
+        <div class="modal-step-text" id="modalStep">Initializing...</div>
+    </div>
+</div>
 
 <!-- ═══════════════ App Layout ═══════════════ -->
 <div class="app-layout">
@@ -657,7 +452,7 @@
             <div class="sidebar-label">Automation</div>
             <ul class="sidebar-nav">
                 <li><a onclick="switchTab('fiber')" data-tab="fiber">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4"/><path d="M12 19v4"/><path d="M4.22 4.22l2.83 2.83"/><path d="M16.95 16.95l2.83 2.83"/><path d="M1 12h4"/><path d="M19 12h4"/><path d="M4.22 19.78l2.83-2.83"/><path d="M16.95 7.05l2.83-2.83"/></svg>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4"/><path d="M12 19v4"/><path d="M4.22 4.22l2.83 2.83"/><path d="M16.95 16.95l2.83 2.83"/><path d="M1 12h4"/><path d="M19 12h4"/></svg>
                     Fiber Automation
                 </a></li>
             </ul>
@@ -674,26 +469,20 @@
             </ul>
         </div>
 
-        <div class="sidebar-footer">
-            <p>MIDAS Gen NX API v1.0</p>
-        </div>
+        <div class="sidebar-footer"><p>MIDAS Gen NX API v1.0</p></div>
     </aside>
 
     <!-- Main -->
     <main class="main-content">
 
-        <!-- ════════════ OVERVIEW TAB ════════════ -->
+        <!-- ════════════ OVERVIEW ════════════ -->
         <div id="tab-overview" class="tab-page active">
             <div class="page-header">
                 <h2>Overview</h2>
                 <p>Connect to MIDAS Gen and view model summary</p>
             </div>
-
-            <!-- Connection Panel -->
             <div class="panel">
-                <div class="panel-header">
-                    <span class="panel-title">API Connection</span>
-                </div>
+                <div class="panel-header"><span class="panel-title">API Connection</span></div>
                 <div class="form-row">
                     <div class="form-group" style="flex:1;">
                         <label>MAPI-Key</label>
@@ -706,42 +495,20 @@
                     <button class="btn btn-danger" id="disconnectBtn" onclick="disconnect()" style="display:none;">Disconnect</button>
                 </div>
             </div>
-
-            <!-- Stats -->
             <div class="stats-grid" id="statsGrid" style="display:none;">
-                <div class="stat-card">
-                    <div class="stat-card-label">Nodes</div>
-                    <div class="stat-card-value" id="nodeCount">—</div>
-                    <div class="stat-card-sub">/db/node</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-card-label">Elements</div>
-                    <div class="stat-card-value" id="elemCount">—</div>
-                    <div class="stat-card-sub">/db/elem</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-card-label">Materials</div>
-                    <div class="stat-card-value" id="matCount">—</div>
-                    <div class="stat-card-sub">/db/matl</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-card-label">Sections</div>
-                    <div class="stat-card-value" id="sectCount">—</div>
-                    <div class="stat-card-sub">/db/sect</div>
-                </div>
+                <div class="stat-card"><div class="stat-card-label">Nodes</div><div class="stat-card-value" id="nodeCount">-</div><div class="stat-card-sub">/db/node</div></div>
+                <div class="stat-card"><div class="stat-card-label">Elements</div><div class="stat-card-value" id="elemCount">-</div><div class="stat-card-sub">/db/elem</div></div>
+                <div class="stat-card"><div class="stat-card-label">Materials</div><div class="stat-card-value" id="matCount">-</div><div class="stat-card-sub">/db/matl</div></div>
+                <div class="stat-card"><div class="stat-card-label">Sections</div><div class="stat-card-value" id="sectCount">-</div><div class="stat-card-sub">/db/sect</div></div>
             </div>
-
-            <!-- Quick Actions -->
             <div class="panel" id="quickActions" style="display:none;">
-                <div class="panel-header">
-                    <span class="panel-title">Quick Actions</span>
-                </div>
+                <div class="panel-header"><span class="panel-title">Quick Actions</span></div>
                 <div class="form-row">
                     <button class="btn btn-ghost" onclick="refreshStats()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
                         Refresh Stats
                     </button>
-                    <button class="btn btn-primary" onclick="runAnalysis()">
+                    <button class="btn btn-primary" onclick="runAnalysisWithProgress()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                         Run Analysis
                     </button>
@@ -749,115 +516,92 @@
             </div>
         </div>
 
-        <!-- ════════════ STORY DRIFT TAB ════════════ -->
+        <!-- ════════════ STORY DRIFT ════════════ -->
         <div id="tab-drift" class="tab-page">
-            <div class="page-header">
-                <h2>Story Drift</h2>
-                <p>Plot story drift ratios for multiple load cases</p>
-            </div>
-
+            <div class="page-header"><h2>Story Drift</h2><p>Plot story drift ratios for multiple load cases</p></div>
             <div class="panel">
-                <div class="panel-header">
-                    <span class="panel-title">Parameters</span>
-                </div>
+                <div class="panel-header"><span class="panel-title">Parameters</span></div>
                 <div class="form-row" style="margin-bottom:12px;">
-                    <div class="form-group" style="flex:1;">
-                        <label>Load Cases (comma-separated)</label>
-                        <input type="text" id="driftLoadCases" class="input" value="Ex(ST), EX +(ST), EX -(ST)" />
-                    </div>
-                    <div class="form-group">
-                        <label>Direction</label>
-                        <select id="driftDirection" class="input">
-                            <option value="STORY_DRIFT_X">X Direction</option>
-                            <option value="STORY_DRIFT_Y">Y Direction</option>
-                        </select>
-                    </div>
+                    <div class="form-group" style="flex:1;"><label>Load Cases (comma-separated)</label><input type="text" id="driftLoadCases" class="input" value="Ex(ST), EX +(ST), EX -(ST)" /></div>
+                    <div class="form-group"><label>Direction</label><select id="driftDirection" class="input"><option value="STORY_DRIFT_X">X Direction</option><option value="STORY_DRIFT_Y">Y Direction</option></select></div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group">
-                        <label>Scale Factor</label>
-                        <input type="number" id="driftScaleFactor" class="input" value="5.95" step="0.01" style="width:100px;" />
-                    </div>
-                    <div class="form-group">
-                        <label>Allowable Ratio</label>
-                        <input type="number" id="driftAllowable" class="input" value="0.025" step="0.001" style="width:100px;" />
-                    </div>
-                    <button class="btn btn-blue" onclick="plotDrift()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                        Plot Drift
-                    </button>
+                    <div class="form-group"><label>Scale Factor</label><input type="number" id="driftScaleFactor" class="input" value="5.95" step="0.01" style="width:100px;" /></div>
+                    <div class="form-group"><label>Allowable Ratio</label><input type="number" id="driftAllowable" class="input" value="0.025" step="0.001" style="width:100px;" /></div>
+                    <button class="btn btn-blue" onclick="plotDrift()">Plot Drift</button>
                 </div>
             </div>
-
             <div class="chart-wrapper" id="driftChartWrapper" style="display:none;">
                 <canvas id="driftCanvas" width="750" height="500"></canvas>
                 <div class="chart-legend" id="driftLegend"></div>
             </div>
         </div>
 
-        <!-- ════════════ REACTION TAB ════════════ -->
+        <!-- ════════════ REACTION ════════════ -->
         <div id="tab-reaction" class="tab-page">
-            <div class="page-header">
-                <h2>Reaction Forces</h2>
-                <p>Extract and view support reaction forces from the model</p>
-            </div>
+            <div class="page-header"><h2>Reaction Forces</h2><p>Extract and visualize support reaction forces (2D plan + 3D bar chart)</p></div>
 
             <div class="panel">
-                <div class="panel-header">
-                    <span class="panel-title">Parameters</span>
-                </div>
+                <div class="panel-header"><span class="panel-title">Parameters</span></div>
                 <div class="form-row" style="margin-bottom:12px;">
                     <div class="form-group" style="flex:1;">
-                        <label>Node IDs (comma-separated, or "all")</label>
-                        <input type="text" id="reactionNodes" class="input" value="all" />
-                    </div>
-                    <div class="form-group">
                         <label>Load Case</label>
-                        <input type="text" id="reactionLoadCase" class="input" value="SDL(ST)" style="width:160px;" />
+                        <input type="text" id="reactionLoadCase" class="input" value="SDL(ST)" />
                     </div>
-                </div>
-                <div class="form-row">
                     <div class="form-group">
                         <label>Force Component</label>
                         <select id="reactionComponent" class="input">
-                            <option value="FX">FX</option>
-                            <option value="FY">FY</option>
-                            <option value="FZ" selected>FZ</option>
-                            <option value="MX">MX</option>
-                            <option value="MY">MY</option>
-                            <option value="MZ">MZ</option>
+                            <option value="FX">FX</option><option value="FY">FY</option><option value="FZ" selected>FZ</option>
+                            <option value="MX">MX</option><option value="MY">MY</option><option value="MZ">MZ</option>
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Force Unit</label>
-                        <select id="reactionForceUnit" class="input">
-                            <option value="kN" selected>kN</option>
-                            <option value="N">N</option>
-                            <option value="kgf">kgf</option>
+                        <label>Node Filter</label>
+                        <select id="reactionNodeFilter" class="input">
+                            <option value="lowest_z">Lowest Z (Foundation)</option>
+                            <option value="all">All Support Nodes</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label>Distance Unit</label>
-                        <select id="reactionDistUnit" class="input">
-                            <option value="m" selected>m</option>
-                            <option value="mm">mm</option>
-                            <option value="cm">cm</option>
-                        </select>
-                    </div>
-                    <button class="btn btn-blue" onclick="fetchReactions()">
+                    <button class="btn btn-blue" onclick="fetchReactionsPlot()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22V8"/><circle cx="12" cy="5" r="3"/></svg>
                         Get Reactions
                     </button>
                 </div>
             </div>
 
-            <div id="reactionResults" style="display:none;">
-                <div class="table-wrap">
-                    <div class="table-scroll">
-                        <table id="reactionTable">
-                            <thead><tr></tr></thead>
-                            <tbody></tbody>
-                        </table>
+            <div id="reactionResultsArea" style="display:none;">
+                <!-- Summary Stats -->
+                <div class="summary-stats" id="reactionSummary"></div>
+
+                <!-- Chart Tabs -->
+                <div class="panel" style="padding-bottom:0;">
+                    <div class="chart-tabs">
+                        <div class="chart-tab active" onclick="switchReactionView('2d')">2D Plan View</div>
+                        <div class="chart-tab" onclick="switchReactionView('3d')">3D Bar Chart</div>
+                        <div class="chart-tab" onclick="switchReactionView('table')">Data Table</div>
+                    </div>
+                    <div id="rxView2d" class="reaction-chart-panel active">
+                        <div class="chart-wrapper" style="border:none; border-radius:0;">
+                            <canvas id="reaction2dCanvas" width="700" height="600"></canvas>
+                        </div>
+                    </div>
+                    <div id="rxView3d" class="reaction-chart-panel">
+                        <div class="canvas-3d-wrap">
+                            <canvas id="reaction3dCanvas" width="800" height="550"></canvas>
+                            <div class="canvas-3d-controls">
+                                <button onclick="rx3d.rotY-=15;drawReaction3D()" title="Rotate Left">&#8592;</button>
+                                <button onclick="rx3d.rotY+=15;drawReaction3D()" title="Rotate Right">&#8594;</button>
+                                <button onclick="rx3d.rotX-=10;drawReaction3D()" title="Tilt Up">&#8593;</button>
+                                <button onclick="rx3d.rotX+=10;drawReaction3D()" title="Tilt Down">&#8595;</button>
+                                <button onclick="rx3d.zoom*=1.15;drawReaction3D()" title="Zoom In">+</button>
+                                <button onclick="rx3d.zoom/=1.15;drawReaction3D()" title="Zoom Out">-</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div id="rxViewTable" class="reaction-chart-panel">
+                        <div class="table-wrap" style="border:none; border-radius:0;">
+                            <div class="table-scroll"><table id="reactionTable"><thead><tr></tr></thead><tbody></tbody></table></div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -865,801 +609,1205 @@
             <div id="reactionEmpty" class="empty-state">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22V8"/><path d="M5 12H2a10 10 0 0020 0h-3"/><circle cx="12" cy="5" r="3"/></svg>
                 <h3>No reaction data</h3>
-                <p>Configure parameters and click "Get Reactions" to extract support reaction forces.</p>
+                <p>Configure parameters and click "Get Reactions" to extract and visualize support reaction forces.</p>
             </div>
         </div>
 
-        <!-- ════════════ BEAM RESULTS TAB ════════════ -->
+        <!-- ════════════ BEAM RESULTS ════════════ -->
         <div id="tab-beam" class="tab-page">
-            <div class="page-header">
-                <h2>Beam Results</h2>
-                <p>Extract beam element forces and design results</p>
-            </div>
-
+            <div class="page-header"><h2>Beam Results</h2><p>RC beam design based on beam_solver.py - ACI shear &amp; flexure</p></div>
             <div class="panel">
-                <div class="panel-header">
-                    <span class="panel-title">Parameters</span>
+                <div class="panel-header"><span class="panel-title">Beam Design Parameters</span></div>
+                <div class="form-row" style="margin-bottom:12px;">
+                    <div class="form-group"><label>Beam Height (mm)</label><input type="number" id="bmHeight" class="input" value="600" style="width:90px;" /></div>
+                    <div class="form-group"><label>Beam Width (mm)</label><input type="number" id="bmWidth" class="input" value="400" style="width:90px;" /></div>
+                    <div class="form-group"><label>f'c (MPa)</label><input type="number" id="bmFc" class="input" value="27.579" step="0.001" style="width:100px;" /></div>
+                    <div class="form-group"><label>fy (MPa)</label><input type="number" id="bmFy" class="input" value="413.685" step="0.001" style="width:100px;" /></div>
                 </div>
                 <div class="form-row" style="margin-bottom:12px;">
-                    <div class="form-group" style="flex:1;">
-                        <label>Element IDs (comma-separated, or "all")</label>
-                        <input type="text" id="beamElements" class="input" value="all" />
-                    </div>
-                    <div class="form-group">
-                        <label>Load Case</label>
-                        <input type="text" id="beamLoadCase" class="input" value="SDL(ST)" style="width:160px;" />
-                    </div>
+                    <div class="form-group"><label>Main Bar (mm)</label><input type="number" id="bmDb" class="input" value="25" style="width:80px;" /></div>
+                    <div class="form-group"><label>Tie Bar (mm)</label><input type="number" id="bmDbs" class="input" value="12" style="width:80px;" /></div>
+                    <div class="form-group"><label>Cover (mm)</label><input type="number" id="bmCover" class="input" value="40" style="width:80px;" /></div>
+                    <div class="form-group"><label>Scale Factor (aprR)</label><input type="number" id="bmAprR" class="input" value="1.25" step="0.01" style="width:90px;" /></div>
+                    <div class="form-group"><label>Frame Type</label><select id="bmFrameType" class="input"><option value="SMRF">SMRF</option><option value="IMRF">IMRF</option><option value="OMRF">OMRF</option></select></div>
+                </div>
+                <div class="form-row" style="margin-bottom:12px;">
+                    <div class="form-group" style="flex:1;"><label>Load Case (Gravity - Vg)</label><input type="text" id="bmLoadCaseGravity" class="input" value="1.2D+0.5L(ST)" /></div>
+                    <div class="form-group" style="flex:1;"><label>Load Case (Seismic - Mpr)</label><input type="text" id="bmLoadCaseSeismic" class="input" value="Ex(ST)" /></div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group">
-                        <label>Table Type</label>
-                        <select id="beamTableType" class="input">
-                            <option value="BEAMFORCE">Beam Force</option>
-                            <option value="BEAMSTRESS">Beam Stress</option>
-                            <option value="BEAMDEFORM">Beam Deformation</option>
-                        </select>
-                    </div>
-                    <button class="btn btn-blue" onclick="fetchBeamResults()">
+                    <button class="btn btn-blue" onclick="runBeamDesign()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="10" width="20" height="4" rx="1"/></svg>
-                        Get Beam Results
+                        Run Beam Design
                     </button>
                 </div>
             </div>
 
             <div id="beamResults" style="display:none;">
                 <div class="table-wrap">
-                    <div class="table-scroll">
-                        <table id="beamTable">
-                            <thead><tr></tr></thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
+                    <div class="table-scroll"><table id="beamTable" class="sticky-col"><thead><tr></tr></thead><tbody></tbody></table></div>
                 </div>
             </div>
 
             <div id="beamEmpty" class="empty-state">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="10" width="20" height="4" rx="1"/><line x1="6" y1="6" x2="6" y2="10"/><line x1="18" y1="6" x2="18" y2="10"/></svg>
                 <h3>No beam data</h3>
-                <p>Configure parameters and click "Get Beam Results" to extract beam element forces.</p>
+                <p>Configure design parameters and click "Run Beam Design" to compute ACI beam design results.</p>
             </div>
         </div>
 
-        <!-- ════════════ COLUMN RESULTS TAB ════════════ -->
+        <!-- ════════════ COLUMN RESULTS ════════════ -->
         <div id="tab-column" class="tab-page">
-            <div class="page-header">
-                <h2>Column Results</h2>
-                <p>Extract column element forces and design results</p>
-            </div>
-
+            <div class="page-header"><h2>Column Results</h2><p>Extract column element forces and design results</p></div>
             <div class="panel">
-                <div class="panel-header">
-                    <span class="panel-title">Parameters</span>
-                </div>
+                <div class="panel-header"><span class="panel-title">Parameters</span></div>
                 <div class="form-row" style="margin-bottom:12px;">
-                    <div class="form-group" style="flex:1;">
-                        <label>Element IDs (comma-separated, or "all")</label>
-                        <input type="text" id="columnElements" class="input" value="all" />
-                    </div>
-                    <div class="form-group">
-                        <label>Load Case</label>
-                        <input type="text" id="columnLoadCase" class="input" value="SDL(ST)" style="width:160px;" />
-                    </div>
+                    <div class="form-group" style="flex:1;"><label>Element IDs (comma-separated, or "all")</label><input type="text" id="columnElements" class="input" value="all" /></div>
+                    <div class="form-group"><label>Load Case</label><input type="text" id="columnLoadCase" class="input" value="SDL(ST)" style="width:160px;" /></div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group">
-                        <label>Table Type</label>
-                        <select id="columnTableType" class="input">
-                            <option value="BEAMFORCE">Column Force</option>
-                            <option value="BEAMSTRESS">Column Stress</option>
-                            <option value="BEAMDEFORM">Column Deformation</option>
-                        </select>
-                    </div>
-                    <button class="btn btn-blue" onclick="fetchColumnResults()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="20" rx="1"/></svg>
-                        Get Column Results
-                    </button>
+                    <div class="form-group"><label>Table Type</label><select id="columnTableType" class="input"><option value="BEAMFORCE">Column Force</option><option value="BEAMSTRESS">Column Stress</option><option value="BEAMDEFORM">Column Deformation</option></select></div>
+                    <button class="btn btn-blue" onclick="fetchColumnResults()">Get Column Results</button>
                 </div>
             </div>
-
-            <div id="columnResults" style="display:none;">
-                <div class="table-wrap">
-                    <div class="table-scroll">
-                        <table id="columnTable">
-                            <thead><tr></tr></thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
+            <div id="columnResults" style="display:none;"><div class="table-wrap"><div class="table-scroll"><table id="columnTable"><thead><tr></tr></thead><tbody></tbody></table></div></div></div>
             <div id="columnEmpty" class="empty-state">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="9" y="2" width="6" height="20" rx="1"/><line x1="6" y1="22" x2="18" y2="22"/><line x1="6" y1="2" x2="18" y2="2"/></svg>
-                <h3>No column data</h3>
-                <p>Configure parameters and click "Get Column Results" to extract column element forces.</p>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="9" y="2" width="6" height="20" rx="1"/></svg>
+                <h3>No column data</h3><p>Configure parameters and click "Get Column Results".</p>
             </div>
         </div>
 
-        <!-- ════════════ FIBER AUTOMATION TAB ════════════ -->
+        <!-- ════════════ FIBER AUTOMATION ════════════ -->
         <div id="tab-fiber" class="tab-page">
-            <div class="page-header">
-                <h2>Fiber Automation</h2>
-                <p>Automated fiber section analysis workflow via MIDAS API</p>
-            </div>
-
+            <div class="page-header"><h2>Fiber Automation</h2><p>Automated fiber section analysis workflow via MIDAS API</p></div>
             <div class="panel">
-                <div class="panel-header">
-                    <span class="panel-title">Workflow Steps</span>
-                </div>
+                <div class="panel-header"><span class="panel-title">Workflow Steps</span></div>
                 <div class="fiber-steps">
-                    <div class="fiber-step">
-                        <div class="fiber-step-num">1</div>
-                        <h4>Define Fiber Sections</h4>
-                        <p>Select elements and assign fiber section properties for nonlinear analysis.</p>
-                    </div>
-                    <div class="fiber-step">
-                        <div class="fiber-step-num">2</div>
-                        <h4>Assign Material Models</h4>
-                        <p>Map concrete and reinforcement material models to fiber layers.</p>
-                    </div>
-                    <div class="fiber-step">
-                        <div class="fiber-step-num">3</div>
-                        <h4>Run Pushover Analysis</h4>
-                        <p>Execute nonlinear static pushover analysis via the API.</p>
-                    </div>
-                    <div class="fiber-step">
-                        <div class="fiber-step-num">4</div>
-                        <h4>Extract Results</h4>
-                        <p>Retrieve moment-curvature, hinge states, and capacity curves.</p>
-                    </div>
+                    <div class="fiber-step"><div class="fiber-step-num">1</div><h4>Define Fiber Sections</h4><p>Select elements and assign fiber section properties.</p></div>
+                    <div class="fiber-step"><div class="fiber-step-num">2</div><h4>Assign Material Models</h4><p>Map concrete and rebar material models to fiber layers.</p></div>
+                    <div class="fiber-step"><div class="fiber-step-num">3</div><h4>Run Pushover Analysis</h4><p>Execute nonlinear static pushover analysis via the API.</p></div>
+                    <div class="fiber-step"><div class="fiber-step-num">4</div><h4>Extract Results</h4><p>Retrieve moment-curvature, hinge states, and capacity curves.</p></div>
                 </div>
             </div>
-
             <div class="panel">
-                <div class="panel-header">
-                    <span class="panel-title">Fiber Section Configuration</span>
+                <div class="panel-header"><span class="panel-title">Fiber Section Configuration</span></div>
+                <div class="form-row" style="margin-bottom:12px;">
+                    <div class="form-group" style="flex:1;"><label>Element IDs</label><input type="text" id="fiberElements" class="input" placeholder="e.g. 1,2,3,4,5" /></div>
+                    <div class="form-group"><label>Section Type</label><select id="fiberSectionType" class="input"><option value="RECT">Rectangular</option><option value="CIRC">Circular</option><option value="TEE">T-Section</option></select></div>
                 </div>
                 <div class="form-row" style="margin-bottom:12px;">
-                    <div class="form-group" style="flex:1;">
-                        <label>Element IDs</label>
-                        <input type="text" id="fiberElements" class="input" placeholder="e.g. 1,2,3,4,5" />
-                    </div>
-                    <div class="form-group">
-                        <label>Section Type</label>
-                        <select id="fiberSectionType" class="input">
-                            <option value="RECT">Rectangular</option>
-                            <option value="CIRC">Circular</option>
-                            <option value="TEE">T-Section</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-row" style="margin-bottom:12px;">
-                    <div class="form-group">
-                        <label>Width (mm)</label>
-                        <input type="number" id="fiberWidth" class="input" value="400" style="width:100px;" />
-                    </div>
-                    <div class="form-group">
-                        <label>Height (mm)</label>
-                        <input type="number" id="fiberHeight" class="input" value="600" style="width:100px;" />
-                    </div>
-                    <div class="form-group">
-                        <label>Cover (mm)</label>
-                        <input type="number" id="fiberCover" class="input" value="40" style="width:100px;" />
-                    </div>
-                    <div class="form-group">
-                        <label>Num Fibers</label>
-                        <input type="number" id="fiberCount" class="input" value="20" style="width:100px;" />
-                    </div>
+                    <div class="form-group"><label>Width (mm)</label><input type="number" id="fiberWidth" class="input" value="400" style="width:100px;" /></div>
+                    <div class="form-group"><label>Height (mm)</label><input type="number" id="fiberHeight" class="input" value="600" style="width:100px;" /></div>
+                    <div class="form-group"><label>Cover (mm)</label><input type="number" id="fiberCover" class="input" value="40" style="width:100px;" /></div>
+                    <div class="form-group"><label>Num Fibers</label><input type="number" id="fiberCount" class="input" value="20" style="width:100px;" /></div>
                 </div>
                 <div class="form-row">
-                    <button class="btn btn-blue" onclick="runFiberAutomation()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4"/><path d="M12 19v4"/></svg>
-                        Run Fiber Automation
-                    </button>
+                    <button class="btn btn-blue" onclick="runFiberAutomation()">Run Fiber Automation</button>
                 </div>
             </div>
-
-            <div id="fiberResults" style="display:none;">
-                <div class="table-wrap">
-                    <div class="table-scroll">
-                        <table id="fiberTable">
-                            <thead><tr></tr></thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+            <div id="fiberResults" style="display:none;"><div class="table-wrap"><div class="table-scroll"><table id="fiberTable"><thead><tr></tr></thead><tbody></tbody></table></div></div></div>
         </div>
 
-        <!-- ════════════ API LOG TAB ════════════ -->
+        <!-- ════════════ API LOG ════════════ -->
         <div id="tab-log" class="tab-page">
-            <div class="page-header">
-                <h2>API Log</h2>
-                <p>Monitor all API requests and responses in real-time</p>
-            </div>
-
+            <div class="page-header"><h2>API Log</h2><p>Monitor all API requests and responses in real-time</p></div>
             <div class="panel">
-                <div class="panel-header">
-                    <span class="panel-title">Request Log</span>
-                    <button class="btn btn-ghost btn-sm" onclick="clearLog()">Clear</button>
-                </div>
-                <div class="log-output" id="logOutput">
-                    <div class="log-entry log-info">Waiting for connection...</div>
-                </div>
+                <div class="panel-header"><span class="panel-title">Request Log</span><button class="btn btn-ghost btn-sm" onclick="clearLog()">Clear</button></div>
+                <div class="log-output" id="logOutput"><div class="log-entry log-info">Waiting for connection...</div></div>
             </div>
         </div>
 
     </main>
 </div>
 
-<!-- Toast -->
 <div class="toast" id="toast"></div>
 
 <script>
-    // ══════════════════════════════════════════════════════════
-    // STATE
-    // ══════════════════════════════════════════════════════════
-    const BASE_URL = "https://moa-engineers.midasit.com:443/gen";
-    let apiKey = "";
-    let isConnected = false;
-    let pingInterval = null;
-    let logCounter = 0;
+// ══════════════════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════════════════
+const BASE_URL = "https://moa-engineers.midasit.com:443/gen";
+let apiKey = "";
+let isConnected = false;
+let pingInterval = null;
+let logCounter = 0;
 
-    // ══════════════════════════════════════════════════════════
-    // TAB SWITCHING
-    // ══════════════════════════════════════════════════════════
-    function switchTab(name) {
-        document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
-        document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
-        const page = document.getElementById('tab-' + name);
-        const link = document.querySelector(`[data-tab="${name}"]`);
-        if (page) page.classList.add('active');
-        if (link) link.classList.add('active');
+// Reaction data cache
+let rxData = [];  // [[node, X, Y, Z, force], ...]
+let rx3d = { rotX: 30, rotY: -35, zoom: 1.0 };
+
+// ══════════════════════════════════════════════════════════════
+// PROGRESS MODAL
+// ══════════════════════════════════════════════════════════════
+function showProgress(title, desc, step) {
+    const m = document.getElementById("progressModal");
+    document.getElementById("modalTitle").textContent = title || "Processing...";
+    document.getElementById("modalDesc").textContent = desc || "";
+    document.getElementById("modalStep").textContent = step || "Initializing...";
+    document.getElementById("progressBar").style.width = "0%";
+    document.getElementById("progressBar").classList.remove("indeterminate");
+    m.classList.add("active");
+}
+
+function updateProgress(pct, step) {
+    const bar = document.getElementById("progressBar");
+    if (pct < 0) {
+        bar.classList.add("indeterminate");
+        bar.style.width = "30%";
+    } else {
+        bar.classList.remove("indeterminate");
+        bar.style.width = Math.min(100, pct) + "%";
     }
+    if (step) document.getElementById("modalStep").textContent = step;
+}
 
-    // ══════════════════════════════════════════════════════════
-    // LOGGING
-    // ══════════════════════════════════════════════════════════
-    const $log = document.getElementById("logOutput");
+function hideProgress() {
+    document.getElementById("progressModal").classList.remove("active");
+}
 
-    function logEntry(html) {
-        const time = new Date().toLocaleTimeString();
-        const div = document.createElement("div");
-        div.className = "log-entry";
-        div.innerHTML = `<span class="log-time">${time}</span>${html}`;
-        $log.appendChild(div);
-        $log.scrollTop = $log.scrollHeight;
-        logCounter++;
-        document.getElementById("logCount").textContent = logCounter;
+// ══════════════════════════════════════════════════════════════
+// TAB SWITCHING
+// ══════════════════════════════════════════════════════════════
+function switchTab(name) {
+    document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
+    const page = document.getElementById('tab-' + name);
+    const link = document.querySelector(`[data-tab="${name}"]`);
+    if (page) page.classList.add('active');
+    if (link) link.classList.add('active');
+}
+
+// ══════════════════════════════════════════════════════════════
+// LOGGING
+// ══════════════════════════════════════════════════════════════
+const $log = document.getElementById("logOutput");
+function logEntry(html) {
+    const time = new Date().toLocaleTimeString();
+    const div = document.createElement("div");
+    div.className = "log-entry";
+    div.innerHTML = `<span class="log-time">${time}</span>${html}`;
+    $log.appendChild(div);
+    $log.scrollTop = $log.scrollHeight;
+    logCounter++;
+    document.getElementById("logCount").textContent = logCounter;
+}
+function clearLog() { $log.innerHTML = ""; logCounter = 0; document.getElementById("logCount").textContent = "0"; }
+
+// ══════════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════════
+function showToast(msg, type = "success") {
+    const t = document.getElementById("toast");
+    t.textContent = msg;
+    t.className = `toast toast-${type} show`;
+    setTimeout(() => t.className = "toast", 3000);
+}
+
+// ══════════════════════════════════════════════════════════════
+// API WRAPPER
+// ══════════════════════════════════════════════════════════════
+async function midasAPI(method, endpoint, body = null) {
+    const url = BASE_URL + endpoint;
+    const opts = { method, headers: { "Content-Type": "application/json", "MAPI-Key": apiKey } };
+    if (body && (method === "POST" || method === "PUT")) opts.body = JSON.stringify(body);
+    const start = performance.now();
+    try {
+        const res = await fetch(url, opts);
+        const ms = Math.round(performance.now() - start);
+        const data = await res.json();
+        const cls = res.ok ? "log-status-ok" : "log-status-err";
+        logEntry(`<span class="log-method ${method}">${method}</span>${endpoint} <span class="${cls}">${res.status}</span> <span class="log-info">(${ms}ms)</span>`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return data;
+    } catch (err) {
+        const ms = Math.round(performance.now() - start);
+        logEntry(`<span class="log-method ${method}">${method}</span>${endpoint} <span class="log-status-err">ERR</span> <span class="log-info">${err.message} (${ms}ms)</span>`);
+        throw err;
     }
+}
 
-    function clearLog() {
-        $log.innerHTML = "";
-        logCounter = 0;
-        document.getElementById("logCount").textContent = "0";
-    }
+// ══════════════════════════════════════════════════════════════
+// CONNECTION
+// ══════════════════════════════════════════════════════════════
+function setStatus(state) {
+    document.getElementById("connBadge").className = `conn-badge conn-${state}`;
+    const labels = { disconnected: "Disconnected", connecting: "Connecting...", connected: "Connected to MIDAS Gen" };
+    document.getElementById("connText").textContent = labels[state];
+}
 
-    // ══════════════════════════════════════════════════════════
-    // TOAST
-    // ══════════════════════════════════════════════════════════
-    function showToast(msg, type = "success") {
-        const t = document.getElementById("toast");
-        t.textContent = msg;
-        t.className = `toast toast-${type} show`;
-        setTimeout(() => t.className = "toast", 3000);
-    }
-
-    // ══════════════════════════════════════════════════════════
-    // API WRAPPER
-    // ══════════════════════════════════════════════════════════
-    async function midasAPI(method, endpoint, body = null) {
-        const url = BASE_URL + endpoint;
-        const opts = {
-            method,
-            headers: { "Content-Type": "application/json", "MAPI-Key": apiKey }
-        };
-        if (body && (method === "POST" || method === "PUT")) {
-            opts.body = JSON.stringify(body);
-        }
-
-        const start = performance.now();
-        try {
-            const res = await fetch(url, opts);
-            const ms = Math.round(performance.now() - start);
-            const data = await res.json();
-            const cls = res.ok ? "log-status-ok" : "log-status-err";
-            logEntry(
-                `<span class="log-method ${method}">${method}</span>${endpoint} ` +
-                `<span class="${cls}">${res.status}</span> <span class="log-info">(${ms}ms)</span>`
-            );
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            return data;
-        } catch (err) {
-            const ms = Math.round(performance.now() - start);
-            logEntry(
-                `<span class="log-method ${method}">${method}</span>${endpoint} ` +
-                `<span class="log-status-err">ERR</span> <span class="log-info">${err.message} (${ms}ms)</span>`
-            );
-            throw err;
-        }
-    }
-
-    // ══════════════════════════════════════════════════════════
-    // CONNECTION
-    // ══════════════════════════════════════════════════════════
-    function setStatus(state) {
-        const badge = document.getElementById("connBadge");
-        badge.className = `conn-badge conn-${state}`;
-        const labels = { disconnected: "Disconnected", connecting: "Connecting...", connected: "Connected to MIDAS Gen" };
-        document.getElementById("connText").textContent = labels[state];
-    }
-
-    async function connect() {
-        apiKey = document.getElementById("apiKeyInput").value.trim();
-        if (!apiKey) { showToast("Enter your MAPI-Key", "error"); return; }
-
-        setStatus("connecting");
-        document.getElementById("connectBtn").disabled = true;
-
-        try {
-            const data = await midasAPI("GET", "/db/node");
-            if (data && !data.error) {
-                isConnected = true;
-                setStatus("connected");
-                showToast("Connected to MIDAS Gen!");
-
-                document.getElementById("connectBtn").style.display = "none";
-                document.getElementById("disconnectBtn").style.display = "inline-flex";
-                document.getElementById("apiKeyInput").disabled = true;
-                document.getElementById("statsGrid").style.display = "grid";
-                document.getElementById("quickActions").style.display = "block";
-
-                const nodeKeys = Object.keys(data.NODE || data);
-                document.getElementById("nodeCount").textContent = nodeKeys.length;
-
-                refreshStats();
-                pingInterval = setInterval(heartbeat, 30000);
-            } else {
-                throw new Error(data.error || "Invalid response");
-            }
-        } catch (err) {
-            setStatus("disconnected");
-            showToast("Connection failed: " + err.message, "error");
-        }
-        document.getElementById("connectBtn").disabled = false;
-    }
-
-    function disconnect() {
-        isConnected = false;
-        apiKey = "";
-        clearInterval(pingInterval);
+async function connect() {
+    apiKey = document.getElementById("apiKeyInput").value.trim();
+    if (!apiKey) { showToast("Enter your MAPI-Key", "error"); return; }
+    setStatus("connecting");
+    document.getElementById("connectBtn").disabled = true;
+    showProgress("Connecting to MIDAS Gen", "Verifying API key...", "GET /db/node");
+    try {
+        updateProgress(30, "Fetching node data...");
+        const data = await midasAPI("GET", "/db/node");
+        if (data && !data.error) {
+            isConnected = true;
+            setStatus("connected");
+            document.getElementById("connectBtn").style.display = "none";
+            document.getElementById("disconnectBtn").style.display = "inline-flex";
+            document.getElementById("apiKeyInput").disabled = true;
+            document.getElementById("statsGrid").style.display = "grid";
+            document.getElementById("quickActions").style.display = "block";
+            document.getElementById("nodeCount").textContent = Object.keys(data.NODE || data).length;
+            updateProgress(60, "Fetching model statistics...");
+            await refreshStats();
+            updateProgress(100, "Connected!");
+            showToast("Connected to MIDAS Gen!");
+            pingInterval = setInterval(heartbeat, 30000);
+        } else { throw new Error(data.error || "Invalid response"); }
+    } catch (err) {
         setStatus("disconnected");
-
-        document.getElementById("connectBtn").style.display = "inline-flex";
-        document.getElementById("disconnectBtn").style.display = "none";
-        document.getElementById("apiKeyInput").disabled = false;
-        document.getElementById("apiKeyInput").value = "";
-        document.getElementById("statsGrid").style.display = "none";
-        document.getElementById("quickActions").style.display = "none";
-
-        ["nodeCount","elemCount","matCount","sectCount"].forEach(id =>
-            document.getElementById(id).textContent = "—"
-        );
-        logEntry('<span class="log-warn">Disconnected</span>');
-        showToast("Disconnected", "error");
+        showToast("Connection failed: " + err.message, "error");
     }
+    document.getElementById("connectBtn").disabled = false;
+    hideProgress();
+}
 
-    async function heartbeat() {
+function disconnect() {
+    isConnected = false; apiKey = ""; clearInterval(pingInterval);
+    setStatus("disconnected");
+    document.getElementById("connectBtn").style.display = "inline-flex";
+    document.getElementById("disconnectBtn").style.display = "none";
+    document.getElementById("apiKeyInput").disabled = false;
+    document.getElementById("apiKeyInput").value = "";
+    document.getElementById("statsGrid").style.display = "none";
+    document.getElementById("quickActions").style.display = "none";
+    ["nodeCount","elemCount","matCount","sectCount"].forEach(id => document.getElementById(id).textContent = "-");
+    logEntry('<span class="log-warn">Disconnected</span>');
+    showToast("Disconnected", "error");
+}
+
+async function heartbeat() {
+    try { await midasAPI("GET", "/db/node"); if (!isConnected) { isConnected = true; setStatus("connected"); } }
+    catch { isConnected = false; setStatus("disconnected"); }
+}
+
+async function refreshStats() {
+    if (!isConnected) return;
+    try {
+        const [nodes, elems, mats, sects] = await Promise.all([
+            midasAPI("GET", "/db/node"), midasAPI("GET", "/db/elem"),
+            midasAPI("GET", "/db/matl"), midasAPI("GET", "/db/sect")
+        ]);
+        document.getElementById("nodeCount").textContent = Object.keys(nodes.NODE || nodes).length;
+        document.getElementById("elemCount").textContent = Object.keys(elems.ELEM || elems).length;
+        document.getElementById("matCount").textContent = Object.keys(mats.MATL || mats).length;
+        document.getElementById("sectCount").textContent = Object.keys(sects.SECT || sects).length;
+    } catch {}
+}
+
+async function runAnalysisWithProgress() {
+    if (!isConnected) return;
+    showProgress("Running Analysis", "MIDAS Gen is performing structural analysis...", "POST /doc/ANAL");
+    updateProgress(-1, "Analysis in progress...");
+    try {
+        await midasAPI("POST", "/doc/ANAL", {});
+        updateProgress(100, "Analysis completed!");
+        showToast("Analysis completed!");
+        await new Promise(r => setTimeout(r, 600));
+    } catch { showToast("Analysis failed", "error"); }
+    hideProgress();
+}
+
+// ══════════════════════════════════════════════════════════════
+// TABLE RENDERER
+// ══════════════════════════════════════════════════════════════
+function renderTable(tableId, headers, rows) {
+    const table = document.getElementById(tableId);
+    table.querySelector("thead tr").innerHTML = headers.map(h => `<th>${h}</th>`).join("");
+    table.querySelector("tbody").innerHTML = rows.map(row =>
+        "<tr>" + row.map(cell => `<td>${cell}</td>`).join("") + "</tr>"
+    ).join("");
+}
+
+// ══════════════════════════════════════════════════════════════
+// STORY DRIFT (same logic as before)
+// ══════════════════════════════════════════════════════════════
+const COLORS = ["#58a6ff","#3fb950","#f0883e","#f85149","#d2a8ff","#79c0ff","#d29922","#ff7b72"];
+
+function storyNo(s) {
+    s = String(s).trim().toUpperCase();
+    if (s.includes("BASE")) return 0;
+    if (s.includes("ROOF")) return 999;
+    const m = s.match(/(\d+)/);
+    return m ? parseInt(m[1]) : -1;
+}
+
+async function plotDrift() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+    const loadCases = document.getElementById("driftLoadCases").value.split(",").map(s => s.trim()).filter(Boolean);
+    const tableType = document.getElementById("driftDirection").value;
+    const scaleFactor = parseFloat(document.getElementById("driftScaleFactor").value) || 5.95;
+    const allowable = parseFloat(document.getElementById("driftAllowable").value) || 0.025;
+    const dirLabel = tableType === "STORY_DRIFT_X" ? "X" : "Y";
+    const colRatio = "Maximum Drift of All Vertical Elements/Story Drift Ratio";
+    if (!loadCases.length) { showToast("Enter load cases", "error"); return; }
+
+    showProgress("Fetching Story Drift", `${loadCases.length} load case(s)`, "Requesting data...");
+    const allSeries = [], allStories = new Set();
+
+    for (let li = 0; li < loadCases.length; li++) {
+        const lc = loadCases[li];
+        updateProgress(((li + 1) / loadCases.length) * 90, `Load case: ${lc}`);
         try {
-            await midasAPI("GET", "/db/node");
-            if (!isConnected) { isConnected = true; setStatus("connected"); }
-        } catch {
-            isConnected = false;
-            setStatus("disconnected");
-            logEntry('<span class="log-status-err">Heartbeat failed</span>');
-        }
-    }
-
-    async function refreshStats() {
-        if (!isConnected) return;
-        try {
-            const [nodes, elems, mats, sects] = await Promise.all([
-                midasAPI("GET", "/db/node"),
-                midasAPI("GET", "/db/elem"),
-                midasAPI("GET", "/db/matl"),
-                midasAPI("GET", "/db/sect")
-            ]);
-            document.getElementById("nodeCount").textContent = Object.keys(nodes.NODE || nodes).length;
-            document.getElementById("elemCount").textContent = Object.keys(elems.ELEM || elems).length;
-            document.getElementById("matCount").textContent = Object.keys(mats.MATL || mats).length;
-            document.getElementById("sectCount").textContent = Object.keys(sects.SECT || sects).length;
-        } catch {}
-    }
-
-    async function runAnalysis() {
-        if (!isConnected) return;
-        try {
-            logEntry('<span class="log-warn">Running analysis...</span>');
-            await midasAPI("POST", "/doc/ANAL", {});
-            logEntry('<span class="log-status-ok">Analysis completed!</span>');
-            showToast("Analysis completed!");
-        } catch { showToast("Analysis failed", "error"); }
-    }
-
-    // ══════════════════════════════════════════════════════════
-    // STORY DRIFT
-    // ══════════════════════════════════════════════════════════
-    const COLORS = ["#58a6ff","#3fb950","#f0883e","#f85149","#d2a8ff","#79c0ff","#d29922","#ff7b72"];
-
-    function storyNo(s) {
-        s = String(s).trim().toUpperCase();
-        if (s.includes("BASE")) return 0;
-        if (s.includes("ROOF")) return 999;
-        const m = s.match(/(\d+)/);
-        return m ? parseInt(m[1]) : -1;
-    }
-
-    async function plotDrift() {
-        if (!isConnected) { showToast("Connect first", "error"); return; }
-
-        const loadCases = document.getElementById("driftLoadCases").value.split(",").map(s => s.trim()).filter(Boolean);
-        const tableType = document.getElementById("driftDirection").value;
-        const scaleFactor = parseFloat(document.getElementById("driftScaleFactor").value) || 5.95;
-        const allowable = parseFloat(document.getElementById("driftAllowable").value) || 0.025;
-        const dirLabel = tableType === "STORY_DRIFT_X" ? "X" : "Y";
-        const colRatio = "Maximum Drift of All Vertical Elements/Story Drift Ratio";
-
-        if (!loadCases.length) { showToast("Enter load cases", "error"); return; }
-
-        logEntry(`<span class="log-warn">Fetching drift for ${loadCases.length} case(s)...</span>`);
-
-        const allSeries = [];
-        const allStories = new Set();
-
-        for (const lc of loadCases) {
-            try {
-                const body = {
-                    Argument: {
-                        TABLE_TYPE: tableType,
-                        UNIT: { FORCE: "KN", DIST: "MM" },
-                        LOAD_CASE_NAMES: [lc],
-                        STYLES: { FORMAT: "FIXED", PLACE: 5 },
-                        ADDITIONAL: { SET_STORY_DRIFT_PARAMS: {
-                            RESPONSE_MOD_FACTOR_CHECK: true,
-                            SCALE_FACTOR_VALUE: scaleFactor,
-                            ALLOWABLE_RATIO: allowable
-                        }}
-                    }
-                };
-                const result = await midasAPI("POST", "/post/TABLE", body);
-                const headers = result.empty.HEAD;
-                const rows = result.empty.DATA;
-
-                const series = [{ Story: "Base", StoryNo: 0, ratio: 0 }];
-                allStories.add(JSON.stringify({ Story: "Base", StoryNo: 0 }));
-
-                for (const row of rows) {
-                    const obj = {};
-                    headers.forEach((h, i) => obj[h] = row[i]);
-                    const sn = storyNo(obj.Story);
-                    series.push({ Story: obj.Story, StoryNo: sn, ratio: Math.abs(parseFloat(obj[colRatio]) || 0) });
-                    allStories.add(JSON.stringify({ Story: obj.Story, StoryNo: sn }));
-                }
-                series.sort((a, b) => a.StoryNo - b.StoryNo);
-                allSeries.push({ name: lc, data: series });
-            } catch (err) {
-                logEntry(`<span class="log-status-err">Drift "${lc}": ${err.message}</span>`);
+            const body = { Argument: { TABLE_TYPE: tableType, UNIT: { FORCE: "KN", DIST: "MM" }, LOAD_CASE_NAMES: [lc], STYLES: { FORMAT: "FIXED", PLACE: 5 }, ADDITIONAL: { SET_STORY_DRIFT_PARAMS: { RESPONSE_MOD_FACTOR_CHECK: true, SCALE_FACTOR_VALUE: scaleFactor, ALLOWABLE_RATIO: allowable }}}};
+            const result = await midasAPI("POST", "/post/TABLE", body);
+            const headers = result.empty.HEAD, rows = result.empty.DATA;
+            const series = [{ Story: "Base", StoryNo: 0, ratio: 0 }];
+            allStories.add(JSON.stringify({ Story: "Base", StoryNo: 0 }));
+            for (const row of rows) {
+                const obj = {}; headers.forEach((h, i) => obj[h] = row[i]);
+                const sn = storyNo(obj.Story);
+                series.push({ Story: obj.Story, StoryNo: sn, ratio: Math.abs(parseFloat(obj[colRatio]) || 0) });
+                allStories.add(JSON.stringify({ Story: obj.Story, StoryNo: sn }));
             }
-        }
-
-        if (!allSeries.length) { showToast("No data", "error"); return; }
-
-        const stories = [...new Map(
-            Array.from(allStories).map(s => JSON.parse(s)).sort((a,b) => a.StoryNo - b.StoryNo).map(s => [s.StoryNo, s])
-        ).values()];
-
-        document.getElementById("driftChartWrapper").style.display = "flex";
-        drawDriftChart(allSeries, stories, allowable, dirLabel);
-        showToast("Drift plot updated!");
+            series.sort((a, b) => a.StoryNo - b.StoryNo);
+            allSeries.push({ name: lc, data: series });
+        } catch (err) { logEntry(`<span class="log-status-err">Drift "${lc}": ${err.message}</span>`); }
     }
+    hideProgress();
+    if (!allSeries.length) { showToast("No data", "error"); return; }
+    const stories = [...new Map(Array.from(allStories).map(s => JSON.parse(s)).sort((a,b) => a.StoryNo - b.StoryNo).map(s => [s.StoryNo, s])).values()];
+    document.getElementById("driftChartWrapper").style.display = "flex";
+    drawDriftChart(allSeries, stories, allowable, dirLabel);
+    showToast("Drift plot updated!");
+}
 
-    function drawDriftChart(seriesArr, stories, allowable, dirLabel) {
-        const canvas = document.getElementById("driftCanvas");
-        const dpr = window.devicePixelRatio || 1;
-        const W = 750, H = 500;
-        canvas.width = W * dpr; canvas.height = H * dpr;
-        canvas.style.width = W + "px"; canvas.style.height = H + "px";
-        const ctx = canvas.getContext("2d");
-        ctx.scale(dpr, dpr);
-        ctx.clearRect(0, 0, W, H);
+function drawDriftChart(seriesArr, stories, allowable, dirLabel) {
+    const canvas = document.getElementById("driftCanvas");
+    const dpr = window.devicePixelRatio || 1;
+    const W = 750, H = 500;
+    canvas.width = W*dpr; canvas.height = H*dpr;
+    canvas.style.width = W+"px"; canvas.style.height = H+"px";
+    const ctx = canvas.getContext("2d"); ctx.scale(dpr, dpr); ctx.clearRect(0,0,W,H);
+    const m = {top:40,right:30,bottom:50,left:80}, pW = W-m.left-m.right, pH = H-m.top-m.bottom;
+    let maxR = allowable;
+    seriesArr.forEach(s => s.data.forEach(d => { if (d.ratio > maxR) maxR = d.ratio; }));
+    maxR *= 1.15;
+    const n = stories.length;
+    const x2px = v => m.left + (v/maxR)*pW;
+    const y2px = i => m.top + pH - (i/Math.max(1,n-1))*pH;
+    const idxMap = {}; stories.forEach((s,i) => idxMap[s.StoryNo] = i);
+    ctx.strokeStyle = "#30363d"; ctx.lineWidth = 0.5;
+    ctx.fillStyle = "#8b949e"; ctx.font = "11px 'Segoe UI',sans-serif";
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (let i=0;i<n;i++) { const y=y2px(i); ctx.beginPath(); ctx.moveTo(m.left,y); ctx.lineTo(W-m.right,y); ctx.stroke(); ctx.fillText(stories[i].Story,m.left-10,y); }
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (let i=0;i<=6;i++) { const v=(maxR/6)*i, x=x2px(v); ctx.beginPath(); ctx.moveTo(x,m.top); ctx.lineTo(x,H-m.bottom); ctx.stroke(); ctx.fillText(v.toFixed(4),x,H-m.bottom+8); }
+    const ax=x2px(allowable); ctx.setLineDash([8,4]); ctx.strokeStyle="#f85149"; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(ax,m.top); ctx.lineTo(ax,H-m.bottom); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle="#f85149"; ctx.font="bold 11px 'Segoe UI',sans-serif"; ctx.textAlign="left"; ctx.textBaseline="bottom";
+    ctx.fillText(`Allowable (${allowable})`,ax+4,m.top-4);
+    seriesArr.forEach((s,si) => {
+        const c = COLORS[si%COLORS.length];
+        const pts = s.data.filter(d => idxMap[d.StoryNo]!==undefined).map(d => ({x:x2px(d.ratio),y:y2px(idxMap[d.StoryNo])}));
+        if (!pts.length) return;
+        ctx.strokeStyle=c; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
+        pts.slice(1).forEach(p => ctx.lineTo(p.x,p.y)); ctx.stroke();
+        pts.forEach(p => { ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2); ctx.fillStyle=c; ctx.fill(); ctx.strokeStyle="#0d1117"; ctx.lineWidth=1.5; ctx.stroke(); });
+    });
+    ctx.fillStyle="#f0f6fc"; ctx.font="bold 14px 'Segoe UI',sans-serif"; ctx.textAlign="center"; ctx.textBaseline="top";
+    ctx.fillText(`Story Drift Ratio - ${dirLabel} Direction`,W/2,10);
+    ctx.fillStyle="#8b949e"; ctx.font="12px 'Segoe UI',sans-serif"; ctx.fillText("Drift Ratio",W/2,H-10);
+    ctx.save(); ctx.translate(16,m.top+pH/2); ctx.rotate(-Math.PI/2); ctx.fillText("Story",0,0); ctx.restore();
+    const $l = document.getElementById("driftLegend"); $l.innerHTML="";
+    seriesArr.forEach((s,i) => { const d=document.createElement("div"); d.className="legend-item"; d.innerHTML=`<span class="legend-swatch" style="background:${COLORS[i%COLORS.length]}"></span>${s.name}`; $l.appendChild(d); });
+    const ad=document.createElement("div"); ad.className="legend-item"; ad.innerHTML=`<span class="legend-swatch" style="background:#f85149"></span>Allowable`; $l.appendChild(ad);
+}
 
-        const m = { top: 40, right: 30, bottom: 50, left: 80 };
-        const pW = W - m.left - m.right, pH = H - m.top - m.bottom;
+// ══════════════════════════════════════════════════════════════
+// REACTION (2D + 3D + Table) - ported from reaction_midas_ui.py
+// ══════════════════════════════════════════════════════════════
+function switchReactionView(view) {
+    document.querySelectorAll('.chart-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.reaction-chart-panel').forEach(p => p.classList.remove('active'));
+    document.getElementById('rxView' + view.charAt(0).toUpperCase() + view.slice(1)).classList.add('active');
+    // Activate correct tab button
+    const tabs = document.querySelectorAll('.chart-tab');
+    const idx = {['2d']:0, ['3d']:1, table:2}[view];
+    if (tabs[idx]) tabs[idx].classList.add('active');
+}
 
-        let maxR = allowable;
-        seriesArr.forEach(s => s.data.forEach(d => { if (d.ratio > maxR) maxR = d.ratio; }));
-        maxR *= 1.15;
-
-        const n = stories.length;
-        const x2px = v => m.left + (v / maxR) * pW;
-        const y2px = i => m.top + pH - (i / Math.max(1, n - 1)) * pH;
-        const idxMap = {};
-        stories.forEach((s, i) => idxMap[s.StoryNo] = i);
-
-        // Grid
-        ctx.strokeStyle = "#30363d"; ctx.lineWidth = 0.5;
-        ctx.fillStyle = "#8b949e"; ctx.font = "11px 'Segoe UI',sans-serif";
-        ctx.textAlign = "right"; ctx.textBaseline = "middle";
-        for (let i = 0; i < n; i++) {
-            const y = y2px(i);
-            ctx.beginPath(); ctx.moveTo(m.left, y); ctx.lineTo(W - m.right, y); ctx.stroke();
-            ctx.fillText(stories[i].Story, m.left - 10, y);
+// Viridis-like color interpolation (matches Python)
+function interpolateColor(val, vmin, vmax) {
+    const cs = [[0,"#440154"],[0.17,"#3b528b"],[0.33,"#21918c"],[0.50,"#5ec962"],[0.67,"#fde725"],[0.83,"#f8961e"],[1.00,"#d00000"]];
+    if (vmax === vmin) return cs[cs.length-1][1];
+    let t = (val - vmin) / (vmax - vmin);
+    t = Math.max(0, Math.min(1, t));
+    for (let i = 0; i < cs.length - 1; i++) {
+        const [t0, c0] = cs[i], [t1, c1] = cs[i+1];
+        if (t >= t0 && t <= t1) {
+            const frac = t1 === t0 ? 0 : (t - t0) / (t1 - t0);
+            const hex = h => { h = h.replace('#',''); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; };
+            const [r0,g0,b0] = hex(c0), [r1,g1,b1] = hex(c1);
+            return `rgb(${Math.round(r0+frac*(r1-r0))},${Math.round(g0+frac*(g1-g0))},${Math.round(b0+frac*(b1-b0))})`;
         }
-        ctx.textAlign = "center"; ctx.textBaseline = "top";
-        for (let i = 0; i <= 6; i++) {
-            const v = (maxR / 6) * i, x = x2px(v);
-            ctx.beginPath(); ctx.moveTo(x, m.top); ctx.lineTo(x, H - m.bottom); ctx.stroke();
-            ctx.fillText(v.toFixed(4), x, H - m.bottom + 8);
-        }
-
-        // Allowable line
-        const ax = x2px(allowable);
-        ctx.setLineDash([8, 4]); ctx.strokeStyle = "#f85149"; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.moveTo(ax, m.top); ctx.lineTo(ax, H - m.bottom); ctx.stroke();
-        ctx.setLineDash([]);
-        ctx.fillStyle = "#f85149"; ctx.font = "bold 11px 'Segoe UI',sans-serif";
-        ctx.textAlign = "left"; ctx.textBaseline = "bottom";
-        ctx.fillText(`Allowable (${allowable})`, ax + 4, m.top - 4);
-
-        // Series
-        seriesArr.forEach((s, si) => {
-            const c = COLORS[si % COLORS.length];
-            const pts = s.data.filter(d => idxMap[d.StoryNo] !== undefined)
-                .map(d => ({ x: x2px(d.ratio), y: y2px(idxMap[d.StoryNo]) }));
-            if (!pts.length) return;
-            ctx.strokeStyle = c; ctx.lineWidth = 2;
-            ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
-            pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y)); ctx.stroke();
-            pts.forEach(p => {
-                ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
-                ctx.fillStyle = c; ctx.fill();
-                ctx.strokeStyle = "#0d1117"; ctx.lineWidth = 1.5; ctx.stroke();
-            });
-        });
-
-        // Title / Labels
-        ctx.fillStyle = "#f0f6fc"; ctx.font = "bold 14px 'Segoe UI',sans-serif";
-        ctx.textAlign = "center"; ctx.textBaseline = "top";
-        ctx.fillText(`Story Drift Ratio - ${dirLabel} Direction`, W / 2, 10);
-        ctx.fillStyle = "#8b949e"; ctx.font = "12px 'Segoe UI',sans-serif";
-        ctx.fillText("Drift Ratio", W / 2, H - 10);
-        ctx.save(); ctx.translate(16, m.top + pH/2); ctx.rotate(-Math.PI/2);
-        ctx.fillText("Story", 0, 0); ctx.restore();
-
-        // Legend
-        const $l = document.getElementById("driftLegend"); $l.innerHTML = "";
-        seriesArr.forEach((s, i) => {
-            const d = document.createElement("div"); d.className = "legend-item";
-            d.innerHTML = `<span class="legend-swatch" style="background:${COLORS[i%COLORS.length]}"></span>${s.name}`;
-            $l.appendChild(d);
-        });
-        const ad = document.createElement("div"); ad.className = "legend-item";
-        ad.innerHTML = `<span class="legend-swatch" style="background:#f85149"></span>Allowable`;
-        $l.appendChild(ad);
     }
+    return cs[cs.length-1][1];
+}
 
-    // ══════════════════════════════════════════════════════════
-    // REACTION
-    // ══════════════════════════════════════════════════════════
-    async function fetchReactions() {
-        if (!isConnected) { showToast("Connect first", "error"); return; }
+// Turbo-like colormap for 2D
+function turboColor(t) {
+    t = Math.max(0, Math.min(1, t));
+    const r = Math.max(0, Math.min(255, Math.round(34.61 + t*(1172.33 + t*(-10793.56 + t*(33300.12 + t*(-38394.49 + t*14825.05)))))));
+    const g = Math.max(0, Math.min(255, Math.round(23.31 + t*(557.33 + t*(1225.33 + t*(-3574.96 + t*(1073.77 + t*707.56)))))));
+    const b = Math.max(0, Math.min(255, Math.round(27.2 + t*(3211.1 + t*(-15327.97 + t*(27814 + t*(-22569.18 + t*6838.66)))))));
+    return `rgb(${r},${g},${b})`;
+}
 
-        const nodesInput = document.getElementById("reactionNodes").value.trim();
-        const loadCase = document.getElementById("reactionLoadCase").value.trim();
-        const forceUnit = document.getElementById("reactionForceUnit").value;
-        const distUnit = document.getElementById("reactionDistUnit").value;
+async function fetchReactionsPlot() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
 
-        // Build node keys
-        let nodeKeys = [];
-        if (nodesInput.toLowerCase() !== "all") {
-            nodeKeys = nodesInput.split(",").map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+    const loadCase = document.getElementById("reactionLoadCase").value.trim();
+    const forceComp = document.getElementById("reactionComponent").value;
+    const nodeFilter = document.getElementById("reactionNodeFilter").value;
+
+    showProgress("Fetching Reactions", `Load case: ${loadCase}, Component: ${forceComp}`, "Step 1/4: Reading nodes...");
+    updateProgress(10);
+
+    try {
+        // Step 1: Get all nodes
+        const nodeData = await midasAPI("GET", "/db/node");
+        const allNodes = [];
+        const nodes = nodeData.NODE || nodeData;
+        for (const [nid, n] of Object.entries(nodes)) {
+            allNodes.push([parseInt(nid), parseFloat(n.X), parseFloat(n.Y), parseFloat(n.Z)]);
+        }
+        allNodes.sort((a, b) => a[0] - b[0]);
+
+        updateProgress(30, "Step 2/4: Detecting foundation nodes...");
+
+        // Step 2: Get foundation nodes (lowest Z)
+        let targetNodes;
+        if (nodeFilter === "lowest_z") {
+            const zVals = allNodes.map(n => n[3]);
+            const zMin = Math.min(...zVals);
+            targetNodes = allNodes.filter(n => Math.abs(n[3] - zMin) < 1e-6);
+            logEntry(`<span class="log-info">Foundation Z = ${zMin.toFixed(3)} m, ${targetNodes.length} nodes</span>`);
+        } else {
+            targetNodes = allNodes;
         }
 
+        const nodeIds = targetNodes.map(n => n[0]);
+
+        updateProgress(50, "Step 3/4: Requesting reaction table...");
+
+        // Step 3: Request reaction table (matching reaction_midas_ui.py format)
         const body = {
             Argument: {
                 TABLE_NAME: "Reaction(Global)",
                 TABLE_TYPE: "REACTIONG",
-                UNIT: { FORCE: forceUnit, DIST: distUnit },
-                STYLES: { FORMAT: "Fixed", PLACE: 2 },
-                COMPONENTS: ["Node","Load","FX","FY","FZ","MX","MY","MZ"],
-                LOAD_CASE_NAMES: [loadCase]
-            }
-        };
-
-        if (nodeKeys.length > 0) {
-            body.Argument.NODE_ELEMS = { KEYS: nodeKeys };
-        }
-
-        try {
-            logEntry('<span class="log-warn">Fetching reactions...</span>');
-            const result = await midasAPI("POST", "/post/TABLE", body);
-            const table = result["Reaction(Global)"] || result.empty || {};
-            const headers = table.HEAD || [];
-            const rows = table.DATA || [];
-
-            renderTable("reactionTable", headers, rows);
-            document.getElementById("reactionResults").style.display = "block";
-            document.getElementById("reactionEmpty").style.display = "none";
-            logEntry(`<span class="log-info">Loaded ${rows.length} reaction rows</span>`);
-            showToast(`${rows.length} reaction rows loaded`);
-        } catch (err) {
-            showToast("Failed: " + err.message, "error");
-        }
-    }
-
-    // ══════════════════════════════════════════════════════════
-    // BEAM RESULTS
-    // ══════════════════════════════════════════════════════════
-    async function fetchBeamResults() {
-        if (!isConnected) { showToast("Connect first", "error"); return; }
-
-        const elemsInput = document.getElementById("beamElements").value.trim();
-        const loadCase = document.getElementById("beamLoadCase").value.trim();
-        const tableType = document.getElementById("beamTableType").value;
-
-        const tableNames = { BEAMFORCE: "Beam Force", BEAMSTRESS: "Beam Stress", BEAMDEFORM: "Beam Deformation" };
-        const tableName = tableNames[tableType] || "Beam Force";
-
-        let elemKeys = [];
-        if (elemsInput.toLowerCase() !== "all") {
-            elemKeys = elemsInput.split(",").map(s => parseInt(s.trim())).filter(n => !isNaN(n));
-        }
-
-        const body = {
-            Argument: {
-                TABLE_NAME: tableName,
-                TABLE_TYPE: tableType,
                 UNIT: { FORCE: "kN", DIST: "m" },
                 STYLES: { FORMAT: "Fixed", PLACE: 3 },
+                COMPONENTS: ["Node","Load","FX","FY","FZ","MX","MY","MZ","Mb"],
+                NODE_ELEMS: { KEYS: nodeIds },
                 LOAD_CASE_NAMES: [loadCase]
             }
         };
+        const result = await midasAPI("POST", "/post/TABLE", body);
+        const table = result["Reaction(Global)"] || result.empty || {};
+        const head = table.HEAD || [];
+        const rows = table.DATA || [];
 
-        if (elemKeys.length > 0) {
-            body.Argument.NODE_ELEMS = { KEYS: elemKeys };
+        updateProgress(75, "Step 4/4: Processing data...");
+
+        // Step 4: Extract force data
+        const idxNode = head.indexOf("Node");
+        const idxForce = head.indexOf(forceComp);
+        if (idxForce < 0) throw new Error(`${forceComp} not in response`);
+
+        const nodeIdSet = new Set(nodeIds.map(String));
+        const forceMap = {};
+        for (const row of rows) {
+            const nid = String(row[idxNode]);
+            if (nodeIdSet.has(nid)) forceMap[parseInt(nid)] = parseFloat(row[idxForce]) || 0;
         }
 
-        try {
-            logEntry('<span class="log-warn">Fetching beam results...</span>');
-            const result = await midasAPI("POST", "/post/TABLE", body);
-            const table = result[tableName] || result.empty || {};
-            const headers = table.HEAD || [];
-            const rows = table.DATA || [];
-
-            renderTable("beamTable", headers, rows);
-            document.getElementById("beamResults").style.display = "block";
-            document.getElementById("beamEmpty").style.display = "none";
-            logEntry(`<span class="log-info">Loaded ${rows.length} beam rows</span>`);
-            showToast(`${rows.length} beam rows loaded`);
-        } catch (err) {
-            showToast("Failed: " + err.message, "error");
+        // Combine coords + force, filter zeros
+        rxData = [];
+        for (const [nid, x, y, z] of targetNodes) {
+            if (forceMap[nid] !== undefined && Math.abs(forceMap[nid]) > 1e-8) {
+                rxData.push([nid, x, y, z, forceMap[nid]]);
+            }
         }
+
+        if (!rxData.length) { hideProgress(); showToast("No reaction data found", "error"); return; }
+
+        // Render everything
+        const unit = ["FX","FY","FZ"].includes(forceComp) ? "kN" : "kN.m";
+        renderReactionSummary(rxData, forceComp, unit);
+        drawReaction2D(rxData, `${forceComp} Reactions`, unit);
+        drawReaction3D();
+        renderReactionTable(rxData, head, rows, forceComp);
+
+        document.getElementById("reactionResultsArea").style.display = "block";
+        document.getElementById("reactionEmpty").style.display = "none";
+
+        updateProgress(100, "Done!");
+        showToast(`${rxData.length} reactions plotted`);
+    } catch (err) {
+        showToast("Failed: " + err.message, "error");
+    }
+    setTimeout(hideProgress, 400);
+}
+
+function renderReactionSummary(data, comp, unit) {
+    const forces = data.map(d => d[4]);
+    const maxF = Math.max(...forces), minF = Math.min(...forces);
+    const total = forces.reduce((a,b) => a+b, 0);
+    const maxNode = data[forces.indexOf(maxF)][0];
+    const minNode = data[forces.indexOf(minF)][0];
+
+    document.getElementById("reactionSummary").innerHTML = `
+        <div class="summary-stat">
+            <div class="summary-stat-label">Max ${comp}</div>
+            <div class="summary-stat-value max-val">${maxF.toFixed(2)}</div>
+            <div class="summary-stat-sub">Node ${maxNode} (${unit})</div>
+        </div>
+        <div class="summary-stat">
+            <div class="summary-stat-label">Min ${comp}</div>
+            <div class="summary-stat-value min-val">${minF.toFixed(2)}</div>
+            <div class="summary-stat-sub">Node ${minNode} (${unit})</div>
+        </div>
+        <div class="summary-stat">
+            <div class="summary-stat-label">Sum ${comp}</div>
+            <div class="summary-stat-value total-val">${total.toFixed(2)}</div>
+            <div class="summary-stat-sub">${data.length} nodes (${unit})</div>
+        </div>
+        <div class="summary-stat">
+            <div class="summary-stat-label">Foundation Nodes</div>
+            <div class="summary-stat-value" style="color:var(--accent-purple)">${data.length}</div>
+            <div class="summary-stat-sub">Z = ${data[0][3].toFixed(3)} m</div>
+        </div>
+    `;
+}
+
+// 2D Plan View (mirrors plot_force_plan_simplified)
+function drawReaction2D(data, title, unit) {
+    const canvas = document.getElementById("reaction2dCanvas");
+    const dpr = window.devicePixelRatio || 1;
+    const W = 700, H = 600;
+    canvas.width = W*dpr; canvas.height = H*dpr;
+    canvas.style.width = W+"px"; canvas.style.height = H+"px";
+    const ctx = canvas.getContext("2d"); ctx.scale(dpr,dpr);
+    ctx.clearRect(0,0,W,H);
+
+    const xs = data.map(d=>d[1]), ys = data.map(d=>d[2]), fs = data.map(d=>d[4]);
+    const xMin=Math.min(...xs), xMax=Math.max(...xs), yMin=Math.min(...ys), yMax=Math.max(...ys);
+    const fMin=Math.min(...fs), fMax=Math.max(...fs), fAbsMax=Math.max(Math.abs(fMin),Math.abs(fMax))||1;
+    const fRange = fMax - fMin || 1;
+
+    const m = {top:50, right:90, bottom:50, left:70};
+    const pW = W - m.left - m.right, pH = H - m.top - m.bottom;
+    const xRange = xMax - xMin || 1, yRange = yMax - yMin || 1;
+    const xPad = xRange * 0.12, yPad = yRange * 0.12;
+    const scale = Math.min(pW / (xRange + 2*xPad), pH / (yRange + 2*yPad));
+
+    const cx = m.left + pW/2, cy = m.top + pH/2;
+    const xMid = (xMin+xMax)/2, yMid = (yMin+yMax)/2;
+
+    const toX = v => cx + (v - xMid) * scale;
+    const toY = v => cy - (v - yMid) * scale;
+
+    // Grid
+    ctx.strokeStyle = "#30363d"; ctx.lineWidth = 0.3;
+    for (let i=0;i<=10;i++) {
+        const x = m.left + (pW/10)*i; ctx.beginPath(); ctx.moveTo(x,m.top); ctx.lineTo(x,H-m.bottom); ctx.stroke();
+        const y = m.top + (pH/10)*i; ctx.beginPath(); ctx.moveTo(m.left,y); ctx.lineTo(W-m.right,y); ctx.stroke();
     }
 
-    // ══════════════════════════════════════════════════════════
-    // COLUMN RESULTS
-    // ══════════════════════════════════════════════════════════
-    async function fetchColumnResults() {
-        if (!isConnected) { showToast("Connect first", "error"); return; }
+    const iMax = fs.indexOf(Math.max(...fs));
+    const iMin = fs.indexOf(Math.min(...fs));
 
-        const elemsInput = document.getElementById("columnElements").value.trim();
-        const loadCase = document.getElementById("columnLoadCase").value.trim();
-        const tableType = document.getElementById("columnTableType").value;
+    // Scatter points
+    for (let i = 0; i < data.length; i++) {
+        const px = toX(data[i][1]), py = toY(data[i][2]);
+        const t = (fs[i] - fMin) / fRange;
+        const size = 6 + 16 * (Math.abs(fs[i]) / fAbsMax);
+        const color = turboColor(t);
 
-        const tableNames = { BEAMFORCE: "Beam Force", BEAMSTRESS: "Beam Stress", BEAMDEFORM: "Beam Deformation" };
-        const tableName = tableNames[tableType] || "Beam Force";
+        ctx.beginPath(); ctx.arc(px, py, size, 0, Math.PI*2);
+        ctx.fillStyle = color; ctx.globalAlpha = 0.85; ctx.fill();
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = "#000"; ctx.lineWidth = 0.8; ctx.stroke();
 
-        let elemKeys = [];
-        if (elemsInput.toLowerCase() !== "all") {
-            elemKeys = elemsInput.split(",").map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+        // Node label
+        ctx.fillStyle = "#f0f6fc"; ctx.font = "bold 9px 'Segoe UI',sans-serif";
+        ctx.textAlign = "left"; ctx.textBaseline = "middle";
+        ctx.strokeStyle = "#0d1117"; ctx.lineWidth = 2.5;
+        ctx.strokeText(String(data[i][0]), px + size + 3, py);
+        ctx.fillText(String(data[i][0]), px + size + 3, py);
+    }
+
+    // Max highlight
+    const mxPx = toX(data[iMax][1]), mxPy = toY(data[iMax][2]);
+    ctx.beginPath(); ctx.arc(mxPx, mxPy, 20, 0, Math.PI*2);
+    ctx.strokeStyle = "#f85149"; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = "#f85149"; ctx.font = "bold 11px 'Segoe UI',sans-serif"; ctx.textAlign = "left";
+    ctx.fillText(`MAX ${fs[iMax].toFixed(2)} ${unit}`, mxPx + 24, mxPy - 8);
+
+    // Min highlight
+    const mnPx = toX(data[iMin][1]), mnPy = toY(data[iMin][2]);
+    ctx.beginPath(); ctx.arc(mnPx, mnPy, 20, 0, Math.PI*2);
+    ctx.strokeStyle = "#58a6ff"; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = "#58a6ff"; ctx.font = "bold 11px 'Segoe UI',sans-serif";
+    ctx.fillText(`MIN ${fs[iMin].toFixed(2)} ${unit}`, mnPx + 24, mnPy + 14);
+
+    // Title
+    ctx.fillStyle = "#f0f6fc"; ctx.font = "bold 14px 'Segoe UI',sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillText(title, W/2, 8);
+    ctx.fillStyle = "#8b949e"; ctx.font = "12px 'Segoe UI',sans-serif";
+    ctx.fillText(`Z level = ${data[0][3].toFixed(3)} m`, W/2, 26);
+
+    // Axes labels
+    ctx.fillStyle = "#8b949e"; ctx.font = "12px 'Segoe UI',sans-serif";
+    ctx.textAlign = "center"; ctx.fillText("X Coordinate (m)", W/2, H - 10);
+    ctx.save(); ctx.translate(16, m.top + pH/2); ctx.rotate(-Math.PI/2); ctx.fillText("Y Coordinate (m)", 0, 0); ctx.restore();
+
+    // Colorbar
+    const cbX = W - 65, cbY = m.top, cbW = 16, cbH = pH;
+    for (let i = 0; i < cbH; i++) {
+        const t = 1 - i / cbH;
+        ctx.fillStyle = turboColor(t);
+        ctx.fillRect(cbX, cbY + i, cbW, 1);
+    }
+    ctx.strokeStyle = "#30363d"; ctx.lineWidth = 1;
+    ctx.strokeRect(cbX, cbY, cbW, cbH);
+    ctx.fillStyle = "#8b949e"; ctx.font = "9px 'Segoe UI',sans-serif"; ctx.textAlign = "left";
+    ctx.fillText(fMax.toFixed(0), cbX + cbW + 4, cbY + 4);
+    ctx.fillText(((fMax+fMin)/2).toFixed(0), cbX + cbW + 4, cbY + cbH/2);
+    ctx.fillText(fMin.toFixed(0), cbX + cbW + 4, cbY + cbH);
+    ctx.fillText(unit, cbX + cbW + 4, cbY + cbH + 14);
+}
+
+// 3D Bar Chart (mirrors plot_force_3d_plotly as isometric canvas)
+function drawReaction3D() {
+    if (!rxData.length) return;
+    const canvas = document.getElementById("reaction3dCanvas");
+    const dpr = window.devicePixelRatio || 1;
+    const W = 800, H = 550;
+    canvas.width = W*dpr; canvas.height = H*dpr;
+    canvas.style.width = W+"px"; canvas.style.height = H+"px";
+    const ctx = canvas.getContext("2d"); ctx.scale(dpr,dpr);
+    ctx.clearRect(0,0,W,H);
+
+    const xs = rxData.map(d=>d[1]), ys = rxData.map(d=>d[2]), fs = rxData.map(d=>d[4]);
+    const xMin=Math.min(...xs), xMax=Math.max(...xs), yMin=Math.min(...ys), yMax=Math.max(...ys);
+    const fMin=Math.min(...fs), fMax=Math.max(...fs);
+    const fAbsMax = Math.max(Math.abs(fMin), Math.abs(fMax)) || 1;
+
+    const xMid=(xMin+xMax)/2, yMid=(yMin+yMax)/2;
+    const xRange=xMax-xMin||1, yRange=yMax-yMin||1;
+
+    // Unique spacings for bar width
+    const ux = [...new Set(xs.map(v=>Math.round(v*1e6)/1e6))].sort((a,b)=>a-b);
+    const uy = [...new Set(ys.map(v=>Math.round(v*1e6)/1e6))].sort((a,b)=>a-b);
+    let dx = 0.6, dy = 0.6;
+    if (ux.length > 1) { const diffs = []; for (let i=1;i<ux.length;i++) diffs.push(ux[i]-ux[i-1]); dx = Math.max(0.45*Math.min(...diffs), 0.3); }
+    if (uy.length > 1) { const diffs = []; for (let i=1;i<uy.length;i++) diffs.push(uy[i]-uy[i-1]); dy = Math.max(0.45*Math.min(...diffs), 0.3); }
+
+    // 3D projection params
+    const rX = rx3d.rotX * Math.PI/180;
+    const rY = rx3d.rotY * Math.PI/180;
+    const zoom = rx3d.zoom;
+    const baseScale = Math.min(W, H) / Math.max(xRange, yRange, fAbsMax * 0.5) * 0.28 * zoom;
+
+    function project(x, y, z) {
+        // Normalize
+        const nx = x - xMid, ny = y - yMid, nz = z;
+        // Rotate Y
+        const x1 = nx * Math.cos(rY) + nz * Math.sin(rY);
+        const z1 = -nx * Math.sin(rY) + nz * Math.cos(rY);
+        const y1 = ny;
+        // Rotate X
+        const y2 = y1 * Math.cos(rX) - z1 * Math.sin(rX);
+        const z2 = y1 * Math.sin(rX) + z1 * Math.cos(rX);
+        return { x: W/2 + x1 * baseScale, y: H/2 - y2 * baseScale, z: z2 };
+    }
+
+    // Draw ground plane
+    const gp = [
+        project(xMin - xRange*0.1, yMin - yRange*0.1, 0),
+        project(xMax + xRange*0.1, yMin - yRange*0.1, 0),
+        project(xMax + xRange*0.1, yMax + yRange*0.1, 0),
+        project(xMin - xRange*0.1, yMax + yRange*0.1, 0)
+    ];
+    ctx.beginPath(); ctx.moveTo(gp[0].x,gp[0].y);
+    gp.slice(1).forEach(p => ctx.lineTo(p.x,p.y)); ctx.closePath();
+    ctx.fillStyle = "rgba(100,120,140,0.08)"; ctx.fill();
+    ctx.strokeStyle = "#30363d"; ctx.lineWidth = 0.5; ctx.stroke();
+
+    // Grid lines on ground
+    ctx.strokeStyle = "rgba(100,120,140,0.15)"; ctx.lineWidth = 0.5;
+    for (let i = 0; i <= 8; i++) {
+        const v = xMin + (xRange * i / 8);
+        const a = project(v, yMin - yRange*0.1, 0), b = project(v, yMax + yRange*0.1, 0);
+        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    }
+    for (let i = 0; i <= 8; i++) {
+        const v = yMin + (yRange * i / 8);
+        const a = project(xMin - xRange*0.1, v, 0), b = project(xMax + xRange*0.1, v, 0);
+        ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+    }
+
+    // Sort bars by depth for painter's algorithm
+    const bars = rxData.map((d, i) => {
+        const p = project(d[1], d[2], d[4] / 2);
+        return { idx: i, depth: p.z };
+    }).sort((a, b) => a.depth - b.depth);
+
+    // Draw bars
+    const fAbsMin = Math.min(...fs.map(Math.abs));
+    for (const bar of bars) {
+        const d = rxData[bar.idx];
+        const [nid, x, y, z, f] = d;
+        const color = interpolateColor(Math.abs(f), fAbsMin, Math.max(...fs.map(Math.abs)));
+
+        // Bar corners: base quad and top quad
+        const hdx = dx/2, hdy = dy/2;
+        const base = [
+            project(x-hdx, y-hdy, 0), project(x+hdx, y-hdy, 0),
+            project(x+hdx, y+hdy, 0), project(x-hdx, y+hdy, 0)
+        ];
+        const top = [
+            project(x-hdx, y-hdy, f), project(x+hdx, y-hdy, f),
+            project(x+hdx, y+hdy, f), project(x-hdx, y+hdy, f)
+        ];
+
+        // Draw 3 visible faces (simplified)
+        // Front face
+        ctx.beginPath();
+        ctx.moveTo(base[0].x,base[0].y); ctx.lineTo(base[1].x,base[1].y);
+        ctx.lineTo(top[1].x,top[1].y); ctx.lineTo(top[0].x,top[0].y); ctx.closePath();
+        ctx.fillStyle = color; ctx.globalAlpha = 0.9; ctx.fill();
+        ctx.globalAlpha = 1; ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.lineWidth = 0.5; ctx.stroke();
+
+        // Right face
+        ctx.beginPath();
+        ctx.moveTo(base[1].x,base[1].y); ctx.lineTo(base[2].x,base[2].y);
+        ctx.lineTo(top[2].x,top[2].y); ctx.lineTo(top[1].x,top[1].y); ctx.closePath();
+        ctx.fillStyle = color; ctx.globalAlpha = 0.7; ctx.fill();
+        ctx.globalAlpha = 1; ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.stroke();
+
+        // Top face
+        ctx.beginPath();
+        ctx.moveTo(top[0].x,top[0].y); ctx.lineTo(top[1].x,top[1].y);
+        ctx.lineTo(top[2].x,top[2].y); ctx.lineTo(top[3].x,top[3].y); ctx.closePath();
+        ctx.fillStyle = color; ctx.globalAlpha = 0.95; ctx.fill();
+        ctx.globalAlpha = 1; ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.stroke();
+    }
+
+    // Max / Min callout
+    const iMax = fs.indexOf(Math.max(...fs)), iMin = fs.indexOf(Math.min(...fs));
+    const maxP = project(rxData[iMax][1], rxData[iMax][2], fs[iMax]);
+    const minP = project(rxData[iMin][1], rxData[iMin][2], fs[iMin]);
+
+    ctx.font = "bold 12px 'Segoe UI',sans-serif";
+    ctx.fillStyle = "#f85149"; ctx.textAlign = "center";
+    ctx.strokeStyle = "#0d1117"; ctx.lineWidth = 3;
+    const maxTxt = `MAX ${fs[iMax].toFixed(1)} kN`;
+    ctx.strokeText(maxTxt, maxP.x, maxP.y - 14); ctx.fillText(maxTxt, maxP.x, maxP.y - 14);
+
+    ctx.fillStyle = "#58a6ff";
+    const minTxt = `MIN ${fs[iMin].toFixed(1)} kN`;
+    ctx.strokeText(minTxt, minP.x, minP.y - 14); ctx.fillText(minTxt, minP.x, minP.y - 14);
+
+    // Title
+    ctx.fillStyle = "#f0f6fc"; ctx.font = "bold 14px 'Segoe UI',sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillText("3D Reaction Forces at Foundation", W/2, 10);
+    ctx.fillStyle = "#8b949e"; ctx.font = "11px 'Segoe UI',sans-serif";
+    ctx.fillText("Drag controls to rotate | Use +/- to zoom", W/2, 28);
+}
+
+function renderReactionTable(data, head, rows, comp) {
+    const headers = ["Node","X (m)","Y (m)","Z (m)", comp + " (kN)"];
+    const tableRows = data.map(d => [d[0], d[1].toFixed(3), d[2].toFixed(3), d[3].toFixed(3), d[4].toFixed(3)]);
+    renderTable("reactionTable", headers, tableRows);
+}
+
+// ══════════════════════════════════════════════════════════════
+// BEAM SOLVER (ported from beam_solver.py)
+// ══════════════════════════════════════════════════════════════
+const BS = {
+    beta(fc) { const b = 0.85 - 0.05 * (fc - 27.579) / 6.895; return Math.min(b, 0.85); },
+    depth(h, cc, dties, dbar) { return h - cc - dties - dbar / 2; },
+    dbarArea(dbar) { return 0.25 * dbar * dbar * Math.PI; },
+    fcon(fc, bw, cna) { return -0.85 * fc * bw * cna * this.beta(fc) / 1000; },
+    fs(fc, fy, ast, di, ci) {
+        const es = 200000, ec = 0.003, ey = fy / es;
+        const estrain = ec * (di - ci) / ci;
+        const ai = this.beta(fc) * ci;
+        if (estrain >= 0 && estrain >= ey) return ast * fy / 1000;
+        if (estrain >= 0 && estrain < ey) return ast * es * estrain / 1000;
+        if (estrain < 0 && estrain < -ey && ai >= di) return ast * (-fy + 0.85 * fc) / 1000;
+        if (estrain < 0 && estrain < -ey && ai < di) return ast * (-fy) / 1000;
+        if (estrain > -ey && estrain < 0 && ai >= di) return ast * (es * estrain + 0.85 * fc) / 1000;
+        if (estrain > -ey && estrain < 0 && ai < di) return ast * (es * estrain) / 1000;
+        return 0;
+    },
+    nbarDesign(mu, fc, fy, bw, h, dmain, frameType) {
+        const es = 200000, ecu = 0.003;
+        const pbal = 0.85 * this.beta(fc) * fc * (600 / (600 + fy)) / fy;
+        const pmax = pbal * ((ecu + fy / es) / 0.008);
+        const pmaxSeismic = 0.025;
+        const de1 = h - 77.5;
+        const phi = 0.90;
+        const ru = Math.abs(mu) * 1e6 / (phi * bw * de1 * de1);
+        const xu = 1 - 2 * ru / (0.85 * fc);
+        const ast = this.dbarArea(dmain);
+        const nmin1 = (Math.sqrt(fc) / (4 * fy)) * bw * de1 / ast;
+        const nmin2 = 1.4 * bw * de1 / fy / ast;
+        if (xu < 0) return 0;
+        const rho = 0.85 * fc * (1 - Math.sqrt(xu)) / fy;
+        const nbarreq = rho * bw * de1 / ast;
+        if (frameType === "SMRF") {
+            if (rho <= pmaxSeismic && rho < pmax) return Math.round(Math.max(nbarreq, nmin1, nmin2));
+            const nmax = pmax * bw * de1 / ast;
+            const nmaxSeis = pmaxSeismic * bw * de1 / ast;
+            return Math.round(Math.min(nmax, nmaxSeis));
+        } else {
+            if (rho <= pmax) return Math.round(Math.max(nbarreq, nmin1, nmin2));
+            return Math.floor(pmax * bw * de1 / ast);
+        }
+    },
+    nbarlayers(totalbar, rebarperlayer, nlayer) {
+        const ast = []; let j = 1;
+        for (let i = 0; i < nlayer; i++) {
+            const chk = totalbar - rebarperlayer * j;
+            ast.push(chk >= 0 ? rebarperlayer : totalbar - rebarperlayer * (j - 1));
+            j++;
+        }
+        return ast;
+    },
+    diComp(dties, dmain, nlayer) {
+        const di = [];
+        for (let i = 0; i < nlayer; i++) di.push(40 + dties + (i + 0.5) * dmain + 25 * i);
+        return di;
+    },
+    diTen(dties, dmain, nlayer, hbeam) {
+        const di = [];
+        for (let i = 0; i < nlayer; i++) di.push(hbeam - (40 + dties + (i + 0.5) * dmain + 25 * i));
+        return di.reverse();
+    },
+    rebarSp(db, dAgg) { return Math.max(db, 25, 4 * dAgg / 3); },
+    nlayersMax(bw, cc, dties, db, sp) { return Math.floor((bw - 2*dties - 2*cc + sp + 2*(2*dties - 0.5*db)) / (db + sp)); },
+    flexcap(fc, fy, bw, h, dties, dmain, maxlayer, ncomp, nten) {
+        const es = 200000;
+        const ast = this.dbarArea(dmain);
+        const nlayercomp = Math.ceil(ncomp / maxlayer);
+        const nlayerten = Math.ceil(nten / maxlayer);
+        const totalrebar = nlayercomp + nlayerten;
+        const astComp = this.nbarlayers(ncomp, maxlayer, nlayercomp);
+        const astTen = this.nbarlayers(nten, maxlayer, nlayerten).reverse();
+        const di = [...this.diComp(dties, dmain, nlayercomp), ...this.diTen(dties, dmain, nlayerten, h)];
+        const ni = [...astComp, ...astTen];
+        const asi = ni.map(n => ast * n);
+        let ci = 40, criteria = 1.01;
+        let fsi = [], fci = 0;
+        while (criteria > 1 && ci < h) {
+            fsi = [];
+            for (let i = 0; i < totalrebar; i++) fsi.push(this.fs(fc, fy, asi[i], di[i], ci));
+            fci = this.fcon(fc, bw, ci);
+            const sumFs = fsi.reduce((a,b)=>a+b, 0);
+            criteria = Math.abs(sumFs / fci);
+            ci += 0.1;
+        }
+        const ai = this.beta(fc) * ci;
+        const mnCon = fci * ai / 2 / 1000;
+        const mnSteel = fsi.map((f, j) => f * di[j] / 1000);
+        const est = 0.003 * (di[totalrebar-1] - ci) / ci;
+        const nomMoment = mnSteel.reduce((a,b)=>a+b, 0) + mnCon;
+
+        // Reduction factor
+        const ey = fy / es;
+        let phi;
+        if (est >= 0.005) phi = 0.9;
+        else if (est <= ey) phi = 0.65;
+        else phi = 0.9 - (0.9 - 0.65) * (0.005 - est) / (0.005 - ey);
+
+        return { Mn: nomMoment * phi, ci, est, di };
+    }
+};
+
+async function runBeamDesign() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+
+    const h = parseFloat(document.getElementById("bmHeight").value);
+    const bw = parseFloat(document.getElementById("bmWidth").value);
+    const fc = parseFloat(document.getElementById("bmFc").value);
+    const fy = parseFloat(document.getElementById("bmFy").value);
+    const db = parseFloat(document.getElementById("bmDb").value);
+    const dbs = parseFloat(document.getElementById("bmDbs").value);
+    const cover = parseFloat(document.getElementById("bmCover").value);
+    const aprR = parseFloat(document.getElementById("bmAprR").value);
+    const frameType = document.getElementById("bmFrameType").value;
+    const lcGravity = document.getElementById("bmLoadCaseGravity").value.trim();
+    const lcSeismic = document.getElementById("bmLoadCaseSeismic").value.trim();
+
+    showProgress("Beam Design Calculation", "Fetching model data from MIDAS Gen...", "Step 1/5: Reading nodes...");
+    updateProgress(5);
+
+    try {
+        // Step 1: Get node & element data for computing real element lengths
+        const nodeData = await midasAPI("GET", "/db/node");
+        updateProgress(15, "Step 2/5: Reading elements...");
+        const elemData = await midasAPI("GET", "/db/elem");
+
+        // Compute element lengths from node coordinates (mirrors beam.py element_lengths)
+        const nodeDict = nodeData.NODE || nodeData;
+        const elemDict = elemData.ELEM || elemData;
+        const elemLengths = {};  // elemID -> length in m
+        const elemTypes = {};    // elemID -> type
+
+        for (const [eid, e] of Object.entries(elemDict)) {
+            const etype = e.TYPE || "";
+            elemTypes[eid] = etype;
+            if (etype !== "BEAM") continue;
+            const conn = e.NODE || [];
+            if (conn.length < 2) continue;
+            const ni = nodeDict[String(conn[0])] || nodeDict[conn[0]];
+            const nj = nodeDict[String(conn[1])] || nodeDict[conn[1]];
+            if (!ni || !nj) continue;
+            const dx = parseFloat(nj.X) - parseFloat(ni.X);
+            const dy = parseFloat(nj.Y) - parseFloat(ni.Y);
+            const dz = parseFloat(nj.Z) - parseFloat(ni.Z);
+            elemLengths[eid] = Math.sqrt(dx*dx + dy*dy + dz*dz);
         }
 
-        const body = {
+        logEntry(`<span class="log-info">Computed lengths for ${Object.keys(elemLengths).length} beam elements</span>`);
+        updateProgress(30, "Step 3/5: Getting gravity beam forces...");
+
+        // Step 2: Fetch beam forces - correct MIDAS API format with COMPONENTS & PARTS
+        const beamForceBody = (loadCase) => ({
             Argument: {
-                TABLE_NAME: tableName,
-                TABLE_TYPE: tableType,
+                TABLE_NAME: "BeamForce",
+                TABLE_TYPE: "BEAMFORCE",
                 UNIT: { FORCE: "kN", DIST: "m" },
                 STYLES: { FORMAT: "Fixed", PLACE: 3 },
+                COMPONENTS: ["Elem","Load","Part","Axial","Shear-y","Shear-z","Torsion","Moment-y","Moment-z"],
+                PARTS: ["PartI", "PartJ"],
                 LOAD_CASE_NAMES: [loadCase]
             }
-        };
+        });
 
-        if (elemKeys.length > 0) {
-            body.Argument.NODE_ELEMS = { KEYS: elemKeys };
+        const gravResult = await midasAPI("POST", "/post/TABLE", beamForceBody(lcGravity));
+        const gravTable = gravResult["BeamForce"] || gravResult["Beam Force"] || gravResult.empty || {};
+
+        updateProgress(50, "Step 4/5: Getting seismic beam forces...");
+
+        const seisResult = await midasAPI("POST", "/post/TABLE", beamForceBody(lcSeismic));
+        const seisTable = seisResult["BeamForce"] || seisResult["Beam Force"] || seisResult.empty || {};
+
+        updateProgress(70, "Step 5/5: Computing ACI beam design...");
+
+        // Parse beam forces into element maps
+        const gravHead = gravTable.HEAD || [];
+        const gravRows = gravTable.DATA || [];
+        const seisHead = seisTable.HEAD || [];
+        const seisRows = seisTable.DATA || [];
+
+        function parseBeamForces(head, rows) {
+            // Try multiple possible column names from MIDAS API
+            const iElem = Math.max(head.indexOf("Elem"), head.indexOf("Element"));
+            const iPart = head.indexOf("Part");
+            // Moment-y or My
+            let iMy = head.indexOf("Moment-y");
+            if (iMy < 0) iMy = head.indexOf("My");
+            if (iMy < 0) iMy = head.indexOf("Moment-Y");
+            // Shear-z or Fz
+            let iFz = head.indexOf("Shear-z");
+            if (iFz < 0) iFz = head.indexOf("Fz");
+            if (iFz < 0) iFz = head.indexOf("Shear-Z");
+
+            const map = {};
+            for (const row of rows) {
+                if (iElem < 0) continue;
+                const elem = String(row[iElem]).trim();
+                const part = iPart >= 0 ? String(row[iPart]).trim().toUpperCase() : "";
+                const my = iMy >= 0 ? (parseFloat(row[iMy]) || 0) : 0;
+                const fz = iFz >= 0 ? (parseFloat(row[iFz]) || 0) : 0;
+                if (!map[elem]) map[elem] = {};
+                // PartI = i-end, PartJ = j-end
+                if (part.includes("I") || part === "1/1" || part.includes("1")) {
+                    map[elem].Mi = my; map[elem].Vi = fz;
+                }
+                if (part.includes("J") || part.includes("2")) {
+                    map[elem].Mj = my; map[elem].Vj = fz;
+                }
+            }
+            return map;
         }
 
-        try {
-            logEntry('<span class="log-warn">Fetching column results...</span>');
-            const result = await midasAPI("POST", "/post/TABLE", body);
-            const table = result[tableName] || result.empty || {};
-            const headers = table.HEAD || [];
-            const rows = table.DATA || [];
+        const gravForces = parseBeamForces(gravHead, gravRows);
+        const seisForces = parseBeamForces(seisHead, seisRows);
 
-            renderTable("columnTable", headers, rows);
-            document.getElementById("columnResults").style.display = "block";
-            document.getElementById("columnEmpty").style.display = "none";
-            logEntry(`<span class="log-info">Loaded ${rows.length} column rows</span>`);
-            showToast(`${rows.length} column rows loaded`);
-        } catch (err) {
-            showToast("Failed: " + err.message, "error");
+        // Beam design calculations (from beam_solver.py)
+        const effDepth = BS.depth(h, cover, dbs, db);
+        const steelArea = BS.dbarArea(db);
+        const sp = BS.rebarSp(db, 20);
+        const maxPerLayer = BS.nlayersMax(bw, cover, dbs, db, sp);
+
+        const headers = [
+            "Beam ID", "Beam Height\n(mm)", "Beam Width\n(mm)", "f'c\n(MPa)", "fy\n(MPa)",
+            "db", "dbs", "eff. depth\n(mm)", "Steel Area\n(sq.mm)",
+            "aprR", "Mpr_i (L)\n(kN.m)", "Mpr_j (L)\n(kN.m)",
+            "Vpr (L)\n(kN)", "Vg (L)\n(kN)", "Ve (L)\n(kN)",
+            "Mpr_i (R)\n(kN.m)", "Mpr_j (R)\n(kN.m)",
+            "Vpr (R)\n(kN)", "Vg (R)\n(kN)", "Ve (R)\n(kN)",
+            "Mdemand (i)\n(kN.m)", "Mdemand (j)\n(kN.m)",
+            "Mcap (i)\n(kN.m)", "Mcap (j)\n(kN.m)",
+            "Ratio (i)", "Ratio (j)"
+        ];
+
+        const resultRows = [];
+        const allElems = new Set([...Object.keys(seisForces), ...Object.keys(gravForces)]);
+
+        for (const elem of allElems) {
+            // Only process BEAM type elements
+            if (elemTypes[elem] && elemTypes[elem] !== "BEAM") continue;
+
+            const sf = seisForces[elem] || { Mi: 0, Mj: 0 };
+            const gf = gravForces[elem] || { Vi: 0, Vj: 0 };
+
+            const Mi_seis = Math.abs(sf.Mi || 0);
+            const Mj_seis = Math.abs(sf.Mj || 0);
+
+            // Design bars needed (from beam_solver.nbardesign)
+            const nbarsI = BS.nbarDesign(Mi_seis, fc, fy, bw, h, db, frameType);
+            const nbarsJ = BS.nbarDesign(Mj_seis, fc, fy, bw, h, db, frameType);
+
+            // Flexural capacity (from beam_solver.flexcap)
+            const nI = Math.max(nbarsI, 2);
+            const nJ = Math.max(nbarsJ, 2);
+            const capI = BS.flexcap(fc, fy, bw, h, dbs, db, maxPerLayer, Math.ceil(nI/2), nI);
+            const capJ = BS.flexcap(fc, fy, bw, h, dbs, db, maxPerLayer, Math.ceil(nJ/2), nJ);
+
+            // Probable moment Mpr = Mn * aprR (alpha factor)
+            const Mpr_iL = capI.Mn * aprR;
+            const Mpr_jL = capJ.Mn * aprR;
+            const Mpr_iR = capI.Mn * aprR;
+            const Mpr_jR = capJ.Mn * aprR;
+
+            // Use actual element length from node coordinates (like beam.py)
+            const Ln = elemLengths[elem] || elemLengths[String(elem)] || Math.max(h * 5 / 1000, 3.0);
+
+            // Shear from probable moments: Vpr = (Mpr_i + Mpr_j) / Ln
+            const Vpr_L = (Mpr_iL + Mpr_jL) / Ln;
+            const Vpr_R = (Mpr_iR + Mpr_jR) / Ln;
+
+            const Vg_L = Math.abs(gf.Vi || 0);
+            const Vg_R = Math.abs(gf.Vj || Vg_L);
+            const Ve_L = Vpr_L + Vg_L;
+            const Ve_R = Vpr_R + Vg_R;
+
+            const Mdemand_i = Mi_seis;
+            const Mdemand_j = Mj_seis;
+            const Mcap_i = capI.Mn;
+            const Mcap_j = capJ.Mn;
+            const ratio_i = Mcap_i > 0 ? Mdemand_i / Mcap_i : 0;
+            const ratio_j = Mcap_j > 0 ? Mdemand_j / Mcap_j : 0;
+
+            resultRows.push([
+                elem, h.toFixed(0), bw.toFixed(0), fc.toFixed(3), fy.toFixed(3),
+                db, dbs, effDepth.toFixed(1), steelArea.toFixed(2),
+                aprR.toFixed(2),
+                Mpr_iL.toFixed(2), Mpr_jL.toFixed(2), Vpr_L.toFixed(2), Vg_L.toFixed(2), Ve_L.toFixed(2),
+                Mpr_iR.toFixed(2), Mpr_jR.toFixed(2), Vpr_R.toFixed(2), Vg_R.toFixed(2), Ve_R.toFixed(2),
+                Mdemand_i.toFixed(2), Mdemand_j.toFixed(2),
+                Mcap_i.toFixed(2), Mcap_j.toFixed(2),
+                ratio_i.toFixed(3), ratio_j.toFixed(3)
+            ]);
         }
+
+        updateProgress(100, `${resultRows.length} beams computed`);
+        renderTable("beamTable", headers, resultRows);
+        document.getElementById("beamResults").style.display = "block";
+        document.getElementById("beamEmpty").style.display = "none";
+        showToast(`${resultRows.length} beam designs computed`);
+    } catch (err) {
+        showToast("Beam design failed: " + err.message, "error");
     }
+    setTimeout(hideProgress, 400);
+}
 
-    // ══════════════════════════════════════════════════════════
-    // FIBER AUTOMATION
-    // ══════════════════════════════════════════════════════════
-    async function runFiberAutomation() {
-        if (!isConnected) { showToast("Connect first", "error"); return; }
+// ══════════════════════════════════════════════════════════════
+// COLUMN RESULTS
+// ══════════════════════════════════════════════════════════════
+async function fetchColumnResults() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+    const elemsInput = document.getElementById("columnElements").value.trim();
+    const loadCase = document.getElementById("columnLoadCase").value.trim();
+    const tableType = document.getElementById("columnTableType").value;
+    const tableNames = { BEAMFORCE: "Beam Force", BEAMSTRESS: "Beam Stress", BEAMDEFORM: "Beam Deformation" };
+    const tableName = tableNames[tableType] || "Beam Force";
 
-        const elems = document.getElementById("fiberElements").value.trim();
-        const sectionType = document.getElementById("fiberSectionType").value;
-        const width = document.getElementById("fiberWidth").value;
-        const height = document.getElementById("fiberHeight").value;
-        const cover = document.getElementById("fiberCover").value;
-        const numFibers = document.getElementById("fiberCount").value;
+    let elemKeys = [];
+    if (elemsInput.toLowerCase() !== "all") elemKeys = elemsInput.split(",").map(s => parseInt(s.trim())).filter(n => !isNaN(n));
 
-        if (!elems) { showToast("Enter element IDs", "error"); return; }
+    const body = { Argument: {
+        TABLE_NAME: tableType === "BEAMFORCE" ? "BeamForce" : tableName,
+        TABLE_TYPE: tableType,
+        UNIT: { FORCE: "kN", DIST: "m" },
+        STYLES: { FORMAT: "Fixed", PLACE: 3 },
+        LOAD_CASE_NAMES: [loadCase],
+        COMPONENTS: ["Elem","Load","Part","Axial","Shear-y","Shear-z","Torsion","Moment-y","Moment-z"],
+        PARTS: ["PartI", "PartJ"]
+    }};
+    if (elemKeys.length) body.Argument.NODE_ELEMS = { KEYS: elemKeys };
 
-        logEntry('<span class="log-warn">Starting fiber automation workflow...</span>');
+    showProgress("Fetching Column Results", tableName, "Requesting data...");
+    updateProgress(-1);
+    try {
+        const result = await midasAPI("POST", "/post/TABLE", body);
+        const table = result[tableName] || result.empty || {};
+        renderTable("columnTable", table.HEAD || [], table.DATA || []);
+        document.getElementById("columnResults").style.display = "block";
+        document.getElementById("columnEmpty").style.display = "none";
+        showToast(`${(table.DATA||[]).length} column rows loaded`);
+    } catch (err) { showToast("Failed: " + err.message, "error"); }
+    hideProgress();
+}
 
-        try {
-            // Step 1: Fetch current element data
-            logEntry('<span class="log-info">Step 1: Reading element data...</span>');
-            const elemData = await midasAPI("GET", "/db/elem");
-            logEntry(`<span class="log-status-ok">Element data loaded</span>`);
+// ══════════════════════════════════════════════════════════════
+// FIBER AUTOMATION
+// ══════════════════════════════════════════════════════════════
+async function runFiberAutomation() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+    const elems = document.getElementById("fiberElements").value.trim();
+    if (!elems) { showToast("Enter element IDs", "error"); return; }
+    const sectionType = document.getElementById("fiberSectionType").value;
+    const width = document.getElementById("fiberWidth").value;
+    const height = document.getElementById("fiberHeight").value;
+    const cover = document.getElementById("fiberCover").value;
+    const numFibers = document.getElementById("fiberCount").value;
 
-            // Step 2: Fetch section data
-            logEntry('<span class="log-info">Step 2: Reading section properties...</span>');
-            const sectData = await midasAPI("GET", "/db/sect");
-            logEntry(`<span class="log-status-ok">Section data loaded</span>`);
+    showProgress("Fiber Automation", "Running 4-step workflow...", "Step 1/4: Reading elements");
+    try {
+        updateProgress(15, "Step 1/4: Reading element data...");
+        await midasAPI("GET", "/db/elem");
+        updateProgress(35, "Step 2/4: Reading sections...");
+        await midasAPI("GET", "/db/sect");
+        updateProgress(55, "Step 3/4: Reading materials...");
+        await midasAPI("GET", "/db/matl");
+        updateProgress(75, "Step 4/4: Running analysis...");
+        await midasAPI("POST", "/doc/ANAL", {});
+        updateProgress(100, "Complete!");
 
-            // Step 3: Fetch material data
-            logEntry('<span class="log-info">Step 3: Reading material models...</span>');
-            const matData = await midasAPI("GET", "/db/matl");
-            logEntry(`<span class="log-status-ok">Material data loaded</span>`);
-
-            // Step 4: Run analysis
-            logEntry('<span class="log-info">Step 4: Running analysis...</span>');
-            await midasAPI("POST", "/doc/ANAL", {});
-            logEntry(`<span class="log-status-ok">Analysis completed</span>`);
-
-            // Summary
-            const elemKeys = elems.split(",").map(s => s.trim());
-            const summaryHeaders = ["Element", "Section Type", "Width (mm)", "Height (mm)", "Cover (mm)", "Fibers", "Status"];
-            const summaryRows = elemKeys.map(e => [e, sectionType, width, height, cover, numFibers, "Processed"]);
-
-            renderTable("fiberTable", summaryHeaders, summaryRows);
-            document.getElementById("fiberResults").style.display = "block";
-            showToast("Fiber automation completed!");
-            logEntry('<span class="log-status-ok">Fiber automation workflow completed</span>');
-        } catch (err) {
-            showToast("Fiber automation failed: " + err.message, "error");
-        }
-    }
-
-    // ══════════════════════════════════════════════════════════
-    // TABLE RENDERER
-    // ══════════════════════════════════════════════════════════
-    function renderTable(tableId, headers, rows) {
-        const table = document.getElementById(tableId);
-        const thead = table.querySelector("thead tr");
-        const tbody = table.querySelector("tbody");
-
-        thead.innerHTML = headers.map(h => `<th>${h}</th>`).join("");
-        tbody.innerHTML = rows.map(row =>
-            "<tr>" + row.map(cell => `<td>${cell}</td>`).join("") + "</tr>"
-        ).join("");
-    }
+        const elemKeys = elems.split(",").map(s => s.trim());
+        const headers = ["Element","Section Type","Width (mm)","Height (mm)","Cover (mm)","Fibers","Status"];
+        const rows = elemKeys.map(e => [e, sectionType, width, height, cover, numFibers, "Processed"]);
+        renderTable("fiberTable", headers, rows);
+        document.getElementById("fiberResults").style.display = "block";
+        showToast("Fiber automation completed!");
+    } catch (err) { showToast("Failed: " + err.message, "error"); }
+    setTimeout(hideProgress, 400);
+}
 </script>
-
 </body>
 </html>
