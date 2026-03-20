@@ -371,6 +371,9 @@
         }
         .canvas-3d-controls button:hover { background: var(--bg-tertiary); }
 
+        /* ═══════════════════════ Pass/Fail highlight rows ═══════════════════════ */
+        tr[data-status="FAIL"] td { background: rgba(248,81,73,0.06); }
+
         /* ═══════════════════════ Scrollbar ═══════════════════════ */
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -644,6 +647,16 @@
             </div>
 
             <div id="beamResults" style="display:none;">
+                <div style="display:flex; gap:8px; margin-bottom:12px; justify-content:flex-end;">
+                    <button class="btn btn-ghost btn-sm" onclick="copyBeamTable()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                        Copy to Clipboard
+                    </button>
+                    <button class="btn btn-ghost btn-sm" onclick="exportBeamCSV()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Export CSV
+                    </button>
+                </div>
                 <div class="table-wrap">
                     <div class="table-scroll"><table id="beamTable" class="sticky-col"><thead><tr></tr></thead><tbody></tbody></table></div>
                 </div>
@@ -919,9 +932,59 @@ async function runAnalysisWithProgress() {
 function renderTable(tableId, headers, rows) {
     const table = document.getElementById(tableId);
     table.querySelector("thead tr").innerHTML = headers.map(h => `<th>${h}</th>`).join("");
-    table.querySelector("tbody").innerHTML = rows.map(row =>
-        "<tr>" + row.map(cell => `<td>${cell}</td>`).join("") + "</tr>"
-    ).join("");
+    table.querySelector("tbody").innerHTML = rows.map(row => {
+        const hasStatus = row.some(c => String(c).trim() === "FAIL");
+        return `<tr ${hasStatus ? 'data-status="FAIL"' : ''}>` + row.map((cell, ci) => {
+            let style = "";
+            const val = String(cell).trim();
+            // Color PASS/FAIL status column
+            if (val === "PASS") style = 'style="color:#3fb950;font-weight:700;text-align:center"';
+            else if (val === "FAIL") style = 'style="color:#f85149;font-weight:700;text-align:center"';
+            // Highlight ratio > 1.0 in red
+            const hdr = headers[ci] || "";
+            if (hdr.includes("Ratio") && parseFloat(val) > 1.0) style = 'style="color:#f85149;font-weight:700"';
+            return `<td ${style}>${cell}</td>`;
+        }).join("") + "</tr>";
+    }).join("");
+}
+
+// Store last beam table data for copy/export
+let lastBeamHeaders = [], lastBeamRows = [];
+
+function copyBeamTable() {
+    const table = document.getElementById("beamTable");
+    if (!table) return;
+    const headers = [...table.querySelectorAll("thead th")].map(th => th.textContent.replace(/\n/g, " "));
+    const rows = [...table.querySelectorAll("tbody tr")].map(tr =>
+        [...tr.querySelectorAll("td")].map(td => td.textContent)
+    );
+    const tsv = [headers.join("\t"), ...rows.map(r => r.join("\t"))].join("\n");
+    navigator.clipboard.writeText(tsv).then(() => {
+        showToast("Copied to clipboard! Paste into Excel/Sheets");
+    }).catch(() => {
+        // Fallback: select and copy
+        const ta = document.createElement("textarea");
+        ta.value = tsv; document.body.appendChild(ta);
+        ta.select(); document.execCommand("copy");
+        document.body.removeChild(ta);
+        showToast("Copied to clipboard!");
+    });
+}
+
+function exportBeamCSV() {
+    const table = document.getElementById("beamTable");
+    if (!table) return;
+    const headers = [...table.querySelectorAll("thead th")].map(th => th.textContent.replace(/\n/g, " "));
+    const rows = [...table.querySelectorAll("tbody tr")].map(tr =>
+        [...tr.querySelectorAll("td")].map(td => td.textContent)
+    );
+    const csv = [headers.join(","), ...rows.map(r => r.map(c => `"${c}"`).join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href = url;
+    a.download = `beam_design_${new Date().toISOString().slice(0,10)}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+    showToast("CSV exported!");
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1303,57 +1366,64 @@ function drawReaction3D() {
 
     const xMid=(xMin+xMax)/2, yMid=(yMin+yMax)/2;
     const xRange=xMax-xMin||1, yRange=yMax-yMin||1;
+    const xyRange = Math.max(xRange, yRange);
 
-    // Unique spacings for bar width
+    // Unique spacings for bar width (mirrors reaction_midas_ui.py)
     const ux = [...new Set(xs.map(v=>Math.round(v*1e6)/1e6))].sort((a,b)=>a-b);
     const uy = [...new Set(ys.map(v=>Math.round(v*1e6)/1e6))].sort((a,b)=>a-b);
-    let dx = 0.6, dy = 0.6;
-    if (ux.length > 1) { const diffs = []; for (let i=1;i<ux.length;i++) diffs.push(ux[i]-ux[i-1]); dx = Math.max(0.45*Math.min(...diffs), 0.3); }
-    if (uy.length > 1) { const diffs = []; for (let i=1;i<uy.length;i++) diffs.push(uy[i]-uy[i-1]); dy = Math.max(0.45*Math.min(...diffs), 0.3); }
+    let barDx = xyRange * 0.04, barDy = xyRange * 0.04;
+    if (ux.length > 1) { const diffs = []; for (let i=1;i<ux.length;i++) diffs.push(ux[i]-ux[i-1]); barDx = Math.max(0.45*Math.min(...diffs), xyRange*0.02); }
+    if (uy.length > 1) { const diffs = []; for (let i=1;i<uy.length;i++) diffs.push(uy[i]-uy[i-1]); barDy = Math.max(0.45*Math.min(...diffs), xyRange*0.02); }
 
-    // 3D projection params
+    // Normalize Z axis to be proportional to XY (like Python aspect_z = 0.45)
+    // Map force values so max bar height ~ 0.45 * xyRange
+    const zScale = (xyRange * 0.55) / fAbsMax;
+
+    // 3D projection: scale XY in real coords, Z normalized
     const rX = rx3d.rotX * Math.PI/180;
     const rY = rx3d.rotY * Math.PI/180;
     const zoom = rx3d.zoom;
-    const baseScale = Math.min(W, H) / Math.max(xRange, yRange, fAbsMax * 0.5) * 0.28 * zoom;
+    const baseScale = Math.min(W, H) / xyRange * 0.32 * zoom;
 
     function project(x, y, z) {
-        // Normalize
-        const nx = x - xMid, ny = y - yMid, nz = z;
-        // Rotate Y
+        const nx = x - xMid, ny = y - yMid, nz = z * zScale;  // z normalized
+        // Rotate Y axis
         const x1 = nx * Math.cos(rY) + nz * Math.sin(rY);
         const z1 = -nx * Math.sin(rY) + nz * Math.cos(rY);
         const y1 = ny;
-        // Rotate X
+        // Rotate X axis
         const y2 = y1 * Math.cos(rX) - z1 * Math.sin(rX);
         const z2 = y1 * Math.sin(rX) + z1 * Math.cos(rX);
-        return { x: W/2 + x1 * baseScale, y: H/2 - y2 * baseScale, z: z2 };
+        return { x: W/2 + x1 * baseScale, y: H*0.55 - y2 * baseScale, z: z2 };
     }
 
     // Draw ground plane
+    const pad = xyRange * 0.12;
     const gp = [
-        project(xMin - xRange*0.1, yMin - yRange*0.1, 0),
-        project(xMax + xRange*0.1, yMin - yRange*0.1, 0),
-        project(xMax + xRange*0.1, yMax + yRange*0.1, 0),
-        project(xMin - xRange*0.1, yMax + yRange*0.1, 0)
+        project(xMin - pad, yMin - pad, 0), project(xMax + pad, yMin - pad, 0),
+        project(xMax + pad, yMax + pad, 0), project(xMin - pad, yMax + pad, 0)
     ];
     ctx.beginPath(); ctx.moveTo(gp[0].x,gp[0].y);
     gp.slice(1).forEach(p => ctx.lineTo(p.x,p.y)); ctx.closePath();
-    ctx.fillStyle = "rgba(100,120,140,0.08)"; ctx.fill();
-    ctx.strokeStyle = "#30363d"; ctx.lineWidth = 0.5; ctx.stroke();
+    ctx.fillStyle = "rgba(100,120,140,0.1)"; ctx.fill();
+    ctx.strokeStyle = "#30363d"; ctx.lineWidth = 0.8; ctx.stroke();
 
     // Grid lines on ground
-    ctx.strokeStyle = "rgba(100,120,140,0.15)"; ctx.lineWidth = 0.5;
-    for (let i = 0; i <= 8; i++) {
-        const v = xMin + (xRange * i / 8);
-        const a = project(v, yMin - yRange*0.1, 0), b = project(v, yMax + yRange*0.1, 0);
+    ctx.strokeStyle = "rgba(100,120,140,0.18)"; ctx.lineWidth = 0.4;
+    const gridN = 10;
+    for (let i = 0; i <= gridN; i++) {
+        const v = xMin - pad + ((xRange + 2*pad) * i / gridN);
+        const a = project(v, yMin - pad, 0), b = project(v, yMax + pad, 0);
         ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
     }
-    for (let i = 0; i <= 8; i++) {
-        const v = yMin + (yRange * i / 8);
-        const a = project(xMin - xRange*0.1, v, 0), b = project(xMax + xRange*0.1, v, 0);
+    for (let i = 0; i <= gridN; i++) {
+        const v = yMin - pad + ((yRange + 2*pad) * i / gridN);
+        const a = project(xMin - pad, v, 0), b = project(xMax + pad, v, 0);
         ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
     }
+
+    // Z=0 reference line (black zero plane edge)
+    ctx.strokeStyle = "rgba(255,255,255,0.15)"; ctx.lineWidth = 1;
 
     // Sort bars by depth for painter's algorithm
     const bars = rxData.map((d, i) => {
@@ -1362,44 +1432,54 @@ function drawReaction3D() {
     }).sort((a, b) => a.depth - b.depth);
 
     // Draw bars
-    const fAbsMin = Math.min(...fs.map(Math.abs));
+    const fAbsArr = fs.map(Math.abs);
+    const fAbsMin = Math.min(...fAbsArr), fAbsMaxC = Math.max(...fAbsArr);
     for (const bar of bars) {
         const d = rxData[bar.idx];
         const [nid, x, y, z, f] = d;
-        const color = interpolateColor(Math.abs(f), fAbsMin, Math.max(...fs.map(Math.abs)));
+        const color = interpolateColor(Math.abs(f), fAbsMin, fAbsMaxC);
 
-        // Bar corners: base quad and top quad
-        const hdx = dx/2, hdy = dy/2;
+        const hdx = barDx/2, hdy = barDy/2;
+        const baseZ = f >= 0 ? 0 : f;
+        const topZ = f >= 0 ? f : 0;
+
         const base = [
-            project(x-hdx, y-hdy, 0), project(x+hdx, y-hdy, 0),
-            project(x+hdx, y+hdy, 0), project(x-hdx, y+hdy, 0)
+            project(x-hdx, y-hdy, baseZ), project(x+hdx, y-hdy, baseZ),
+            project(x+hdx, y+hdy, baseZ), project(x-hdx, y+hdy, baseZ)
         ];
         const top = [
-            project(x-hdx, y-hdy, f), project(x+hdx, y-hdy, f),
-            project(x+hdx, y+hdy, f), project(x-hdx, y+hdy, f)
+            project(x-hdx, y-hdy, topZ), project(x+hdx, y-hdy, topZ),
+            project(x+hdx, y+hdy, topZ), project(x-hdx, y+hdy, topZ)
         ];
 
-        // Draw 3 visible faces (simplified)
         // Front face
         ctx.beginPath();
         ctx.moveTo(base[0].x,base[0].y); ctx.lineTo(base[1].x,base[1].y);
         ctx.lineTo(top[1].x,top[1].y); ctx.lineTo(top[0].x,top[0].y); ctx.closePath();
-        ctx.fillStyle = color; ctx.globalAlpha = 0.9; ctx.fill();
-        ctx.globalAlpha = 1; ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.lineWidth = 0.5; ctx.stroke();
+        ctx.fillStyle = color; ctx.globalAlpha = 0.92; ctx.fill();
+        ctx.globalAlpha = 1; ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.lineWidth = 0.6; ctx.stroke();
 
-        // Right face
+        // Right face (darker shade)
         ctx.beginPath();
         ctx.moveTo(base[1].x,base[1].y); ctx.lineTo(base[2].x,base[2].y);
         ctx.lineTo(top[2].x,top[2].y); ctx.lineTo(top[1].x,top[1].y); ctx.closePath();
         ctx.fillStyle = color; ctx.globalAlpha = 0.7; ctx.fill();
-        ctx.globalAlpha = 1; ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.stroke();
+        ctx.globalAlpha = 1; ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.stroke();
 
-        // Top face
+        // Top face (brightest)
         ctx.beginPath();
         ctx.moveTo(top[0].x,top[0].y); ctx.lineTo(top[1].x,top[1].y);
         ctx.lineTo(top[2].x,top[2].y); ctx.lineTo(top[3].x,top[3].y); ctx.closePath();
-        ctx.fillStyle = color; ctx.globalAlpha = 0.95; ctx.fill();
-        ctx.globalAlpha = 1; ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.stroke();
+        ctx.fillStyle = color; ctx.globalAlpha = 0.97; ctx.fill();
+        ctx.globalAlpha = 1; ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.stroke();
+
+        // Node label on top of bar
+        const labelP = project(x, y, topZ);
+        ctx.fillStyle = "#c9d1d9"; ctx.font = "9px 'Consolas',monospace";
+        ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+        ctx.strokeStyle = "#0d1117"; ctx.lineWidth = 2;
+        ctx.strokeText(String(nid), labelP.x, labelP.y - 4);
+        ctx.fillText(String(nid), labelP.x, labelP.y - 4);
     }
 
     // Max / Min callout
@@ -1662,7 +1742,7 @@ async function runBeamDesign() {
             "Vpr (R)\n(kN)", "Vg (R)\n(kN)", "Ve (R)\n(kN)",
             "Mdemand (i)\n(kN.m)", "Mdemand (j)\n(kN.m)",
             "Mcap (i)\n(kN.m)", "Mcap (j)\n(kN.m)",
-            "Ratio (i)", "Ratio (j)"
+            "Ratio (i)", "Ratio (j)", "Status"
         ];
 
         const resultRows = [];
@@ -1713,6 +1793,10 @@ async function runBeamDesign() {
             const ratio_i = Mcap_i > 0 ? Mdemand_i / Mcap_i : 0;
             const ratio_j = Mcap_j > 0 ? Mdemand_j / Mcap_j : 0;
 
+            // Pass/Fail: both ratios must be <= 1.0
+            const pass = (ratio_i <= 1.0 && ratio_j <= 1.0);
+            const statusLabel = pass ? "PASS" : "FAIL";
+
             resultRows.push([
                 elem, h.toFixed(0), bw.toFixed(0), fc.toFixed(3), fy.toFixed(3),
                 db, dbs, effDepth.toFixed(1), steelArea.toFixed(2),
@@ -1721,7 +1805,7 @@ async function runBeamDesign() {
                 Mpr_iR.toFixed(2), Mpr_jR.toFixed(2), Vpr_R.toFixed(2), Vg_R.toFixed(2), Ve_R.toFixed(2),
                 Mdemand_i.toFixed(2), Mdemand_j.toFixed(2),
                 Mcap_i.toFixed(2), Mcap_j.toFixed(2),
-                ratio_i.toFixed(3), ratio_j.toFixed(3)
+                ratio_i.toFixed(3), ratio_j.toFixed(3), statusLabel
             ]);
         }
 
