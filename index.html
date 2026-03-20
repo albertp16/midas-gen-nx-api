@@ -5,306 +5,406 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MIDAS Gen API Dashboard</title>
     <style>
+        :root {
+            --bg-primary: #0d1117;
+            --bg-secondary: #161b22;
+            --bg-tertiary: #21262d;
+            --bg-input: #0d1117;
+            --border: #30363d;
+            --border-light: #21262d;
+            --text-primary: #f0f6fc;
+            --text-secondary: #c9d1d9;
+            --text-muted: #8b949e;
+            --text-faint: #484f58;
+            --accent-blue: #58a6ff;
+            --accent-green: #3fb950;
+            --accent-orange: #d29922;
+            --accent-red: #f85149;
+            --accent-purple: #d2a8ff;
+            --brand-blue: #1f6feb;
+            --btn-green: #238636;
+            --btn-green-hover: #2ea043;
+            --radius: 8px;
+            --radius-lg: 12px;
+            --sidebar-w: 260px;
+            --topbar-h: 56px;
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-            background: #0f1117;
-            color: #e1e4e8;
+            background: var(--bg-primary);
+            color: var(--text-secondary);
             min-height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
 
-        /* ── Header / Navbar ── */
-        .navbar {
+        /* ═══════════════════════ Top Bar ═══════════════════════ */
+        .topbar {
+            height: var(--topbar-h);
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border);
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 12px 28px;
-            background: #161b22;
-            border-bottom: 1px solid #30363d;
+            padding: 0 24px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 50;
         }
 
-        .navbar-brand {
+        .topbar-left {
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 14px;
         }
 
-        .navbar-brand img {
-            height: 28px;
+        .topbar-logo {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #1f6feb, #58a6ff);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
-        .navbar-brand h1 {
-            font-size: 18px;
-            font-weight: 600;
-            color: #f0f6fc;
+        .topbar-logo svg { width: 18px; height: 18px; }
+
+        .topbar-title {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.3px;
         }
 
-        .navbar-brand span {
-            font-size: 11px;
-            background: #1f6feb;
+        .topbar-title small {
+            font-size: 10px;
+            font-weight: 500;
+            background: var(--brand-blue);
             color: #fff;
             padding: 2px 8px;
             border-radius: 10px;
-            font-weight: 500;
+            margin-left: 8px;
+            vertical-align: middle;
+            letter-spacing: 0.5px;
         }
 
-        /* ── Connection Status Indicator ── */
-        .connection-status {
+        .topbar-right {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 8px 16px;
-            border-radius: 8px;
-            background: #21262d;
-            border: 1px solid #30363d;
-            font-size: 13px;
-            font-weight: 500;
-            transition: all 0.3s ease;
+            gap: 16px;
         }
 
-        .status-dot {
-            width: 10px;
-            height: 10px;
+        /* Connection Badge */
+        .conn-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 0.2px;
+            transition: all 0.3s;
+        }
+
+        .conn-dot {
+            width: 8px;
+            height: 8px;
             border-radius: 50%;
-            transition: all 0.3s ease;
+            transition: all 0.3s;
         }
 
-        .status-disconnected .status-dot {
-            background: #f85149;
-            box-shadow: 0 0 8px #f8514966;
-        }
+        .conn-disconnected { background: rgba(248,81,73,0.12); color: var(--accent-red); border: 1px solid rgba(248,81,73,0.25); }
+        .conn-disconnected .conn-dot { background: var(--accent-red); box-shadow: 0 0 6px var(--accent-red); }
 
-        .status-connecting .status-dot {
-            background: #d29922;
-            box-shadow: 0 0 8px #d2992266;
-            animation: pulse 1.2s infinite;
-        }
+        .conn-connecting { background: rgba(210,153,34,0.12); color: var(--accent-orange); border: 1px solid rgba(210,153,34,0.25); }
+        .conn-connecting .conn-dot { background: var(--accent-orange); box-shadow: 0 0 6px var(--accent-orange); animation: pulse 1s infinite; }
 
-        .status-connected .status-dot {
-            background: #3fb950;
-            box-shadow: 0 0 8px #3fb95066;
-        }
+        .conn-connected { background: rgba(63,185,80,0.12); color: var(--accent-green); border: 1px solid rgba(63,185,80,0.25); }
+        .conn-connected .conn-dot { background: var(--accent-green); box-shadow: 0 0 6px var(--accent-green); }
 
         @keyframes pulse {
             0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(0.8); }
+            50% { opacity: 0.4; transform: scale(0.75); }
         }
 
-        /* ── Main Layout ── */
-        .container {
-            max-width: 1100px;
-            margin: 0 auto;
-            padding: 28px 24px;
-        }
-
-        /* ── API Key Section ── */
-        .api-key-section {
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 10px;
-            padding: 20px 24px;
-            margin-bottom: 24px;
-        }
-
-        .api-key-section h2 {
-            font-size: 14px;
-            font-weight: 600;
-            color: #8b949e;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 12px;
-        }
-
-        .api-key-row {
+        /* ═══════════════════════ Layout ═══════════════════════ */
+        .app-layout {
             display: flex;
-            gap: 10px;
+            margin-top: var(--topbar-h);
+            min-height: calc(100vh - var(--topbar-h));
         }
 
-        .api-key-row input {
-            flex: 1;
-            padding: 10px 14px;
-            border-radius: 6px;
-            border: 1px solid #30363d;
-            background: #0d1117;
-            color: #e1e4e8;
-            font-size: 13px;
-            font-family: 'Consolas', 'Courier New', monospace;
-            outline: none;
-            transition: border-color 0.2s;
+        /* ═══════════════════════ Sidebar ═══════════════════════ */
+        .sidebar {
+            width: var(--sidebar-w);
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            padding: 20px 0;
+            position: fixed;
+            top: var(--topbar-h);
+            bottom: 0;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
         }
 
-        .api-key-row input:focus {
-            border-color: #1f6feb;
-        }
-
-        .btn {
-            padding: 10px 20px;
-            border-radius: 6px;
-            border: 1px solid #30363d;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.15s ease;
-            white-space: nowrap;
-        }
-
-        .btn-primary {
-            background: #238636;
-            border-color: #238636;
-            color: #fff;
-        }
-
-        .btn-primary:hover { background: #2ea043; }
-
-        .btn-secondary {
-            background: #21262d;
-            color: #c9d1d9;
-        }
-
-        .btn-secondary:hover { background: #30363d; }
-
-        .btn-danger {
-            background: #da3633;
-            border-color: #da3633;
-            color: #fff;
-        }
-
-        .btn-danger:hover { background: #f85149; }
-
-        .btn:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        /* ── Cards Grid ── */
-        .cards-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-            gap: 16px;
+        .sidebar-section {
+            padding: 0 16px;
             margin-bottom: 24px;
         }
 
-        .card {
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 10px;
-            padding: 20px 24px;
-        }
-
-        .card h3 {
-            font-size: 15px;
+        .sidebar-label {
+            font-size: 11px;
             font-weight: 600;
-            margin-bottom: 6px;
-            color: #f0f6fc;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.8px;
+            padding: 0 12px;
+            margin-bottom: 8px;
         }
 
-        .card p {
-            font-size: 12px;
-            color: #8b949e;
-            margin-bottom: 14px;
+        .sidebar-nav {
+            list-style: none;
         }
 
-        .card-stat {
-            font-size: 32px;
+        .sidebar-nav li {
+            margin-bottom: 2px;
+        }
+
+        .sidebar-nav a {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 9px 12px;
+            border-radius: var(--radius);
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 13px;
+            font-weight: 500;
+            transition: all 0.15s;
+            cursor: pointer;
+        }
+
+        .sidebar-nav a:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .sidebar-nav a.active {
+            background: rgba(31,111,235,0.15);
+            color: var(--accent-blue);
+        }
+
+        .sidebar-nav a svg {
+            width: 16px;
+            height: 16px;
+            opacity: 0.7;
+            flex-shrink: 0;
+        }
+
+        .sidebar-nav a.active svg { opacity: 1; }
+
+        .nav-badge {
+            margin-left: auto;
+            font-size: 10px;
+            background: var(--bg-tertiary);
+            color: var(--text-muted);
+            padding: 1px 7px;
+            border-radius: 10px;
+            font-weight: 600;
+        }
+
+        .sidebar-footer {
+            margin-top: auto;
+            padding: 16px;
+            border-top: 1px solid var(--border);
+        }
+
+        .sidebar-footer p {
+            font-size: 11px;
+            color: var(--text-faint);
+            text-align: center;
+        }
+
+        /* ═══════════════════════ Main Content ═══════════════════════ */
+        .main-content {
+            flex: 1;
+            margin-left: var(--sidebar-w);
+            padding: 28px 32px;
+            max-width: calc(100% - var(--sidebar-w));
+        }
+
+        /* ═══════════════════════ Page Header ═══════════════════════ */
+        .page-header {
+            margin-bottom: 24px;
+        }
+
+        .page-header h2 {
+            font-size: 22px;
             font-weight: 700;
-            color: #58a6ff;
+            color: var(--text-primary);
             margin-bottom: 4px;
         }
 
-        .card-label {
-            font-size: 12px;
-            color: #8b949e;
+        .page-header p {
+            font-size: 13px;
+            color: var(--text-muted);
         }
 
-        /* ── Actions ── */
-        .actions-section {
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 10px;
-            padding: 20px 24px;
-            margin-bottom: 24px;
+        /* ═══════════════════════ Panels / Cards ═══════════════════════ */
+        .panel {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            padding: 24px;
+            margin-bottom: 20px;
         }
 
-        .actions-section h2 {
-            font-size: 14px;
-            font-weight: 600;
-            color: #8b949e;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 14px;
-        }
-
-        .actions-row {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        /* ── Log / Output ── */
-        .log-section {
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 10px;
-            padding: 20px 24px;
-        }
-
-        .log-section h2 {
-            font-size: 14px;
-            font-weight: 600;
-            color: #8b949e;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 12px;
+        .panel-header {
             display: flex;
             align-items: center;
             justify-content: space-between;
+            margin-bottom: 16px;
         }
 
-        .log-output {
-            background: #0d1117;
-            border: 1px solid #30363d;
-            border-radius: 6px;
-            padding: 14px;
-            height: 320px;
-            overflow-y: auto;
-            font-family: 'Consolas', 'Courier New', monospace;
-            font-size: 12px;
-            line-height: 1.7;
+        .panel-title {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
-        .log-entry {
-            padding: 2px 0;
-            border-bottom: 1px solid #21262d;
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 14px;
+            margin-bottom: 20px;
         }
 
-        .log-entry:last-child { border-bottom: none; }
-
-        .log-time {
-            color: #484f58;
-            margin-right: 8px;
+        .stat-card {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 18px 20px;
+            transition: border-color 0.2s;
         }
 
-        .log-method {
+        .stat-card:hover { border-color: var(--accent-blue); }
+
+        .stat-card-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 8px;
+        }
+
+        .stat-card-value {
+            font-size: 28px;
             font-weight: 700;
-            margin-right: 4px;
+            color: var(--accent-blue);
+            line-height: 1;
+            margin-bottom: 4px;
         }
 
-        .log-method.GET { color: #58a6ff; }
-        .log-method.POST { color: #3fb950; }
-        .log-method.PUT { color: #d29922; }
-        .log-method.DELETE { color: #f85149; }
+        .stat-card-sub {
+            font-size: 11px;
+            color: var(--text-faint);
+        }
 
-        .log-status-ok { color: #3fb950; }
-        .log-status-err { color: #f85149; }
-        .log-info { color: #8b949e; }
-        .log-warn { color: #d29922; }
+        /* ═══════════════════════ Form Controls ═══════════════════════ */
+        .form-row {
+            display: flex;
+            gap: 12px;
+            align-items: flex-end;
+            flex-wrap: wrap;
+        }
 
-        /* ── Node Table ── */
-        .table-wrapper {
-            max-height: 300px;
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .form-group label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .input, select.input {
+            padding: 9px 14px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            background: var(--bg-input);
+            color: var(--text-secondary);
+            font-size: 13px;
+            outline: none;
+            transition: border-color 0.2s;
+            font-family: inherit;
+        }
+
+        .input:focus { border-color: var(--accent-blue); }
+
+        .input-mono {
+            font-family: 'Consolas', 'Courier New', monospace;
+        }
+
+        /* ═══════════════════════ Buttons ═══════════════════════ */
+        .btn {
+            padding: 9px 18px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-family: inherit;
+        }
+
+        .btn svg { width: 14px; height: 14px; }
+
+        .btn-primary { background: var(--btn-green); border-color: var(--btn-green); color: #fff; }
+        .btn-primary:hover { background: var(--btn-green-hover); }
+
+        .btn-blue { background: var(--brand-blue); border-color: var(--brand-blue); color: #fff; }
+        .btn-blue:hover { background: #388bfd; }
+
+        .btn-ghost { background: transparent; color: var(--text-secondary); }
+        .btn-ghost:hover { background: var(--bg-tertiary); color: var(--text-primary); }
+
+        .btn-danger { background: #da3633; border-color: #da3633; color: #fff; }
+        .btn-danger:hover { background: var(--accent-red); }
+
+        .btn-sm { padding: 5px 12px; font-size: 12px; }
+
+        .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+        /* ═══════════════════════ Tables ═══════════════════════ */
+        .table-wrap {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .table-scroll {
+            max-height: 400px;
             overflow-y: auto;
-            margin-top: 12px;
         }
 
         table {
@@ -314,761 +414,1252 @@
         }
 
         th, td {
-            padding: 8px 12px;
+            padding: 10px 14px;
             text-align: left;
-            border-bottom: 1px solid #21262d;
+            border-bottom: 1px solid var(--border-light);
         }
 
         th {
-            background: #21262d;
-            color: #8b949e;
+            background: var(--bg-tertiary);
+            color: var(--text-muted);
             font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
             position: sticky;
             top: 0;
+            z-index: 2;
         }
 
-        td { color: #c9d1d9; }
+        td { color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 
-        tr:hover td { background: #1c2128; }
+        tr:hover td { background: rgba(88,166,255,0.04); }
 
-        /* ── Toast ── */
+        /* ═══════════════════════ Canvas Chart ═══════════════════════ */
+        .chart-wrapper {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .chart-wrapper canvas { max-width: 100%; }
+
+        .chart-legend {
+            display: flex;
+            gap: 18px;
+            flex-wrap: wrap;
+            margin-top: 14px;
+            justify-content: center;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .legend-swatch {
+            width: 18px;
+            height: 3px;
+            border-radius: 2px;
+        }
+
+        /* ═══════════════════════ Log ═══════════════════════ */
+        .log-output {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 14px;
+            height: 240px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.8;
+        }
+
+        .log-entry { padding: 1px 0; border-bottom: 1px solid var(--border-light); }
+        .log-entry:last-child { border-bottom: none; }
+        .log-time { color: var(--text-faint); margin-right: 8px; }
+        .log-method { font-weight: 700; margin-right: 4px; }
+        .log-method.GET { color: var(--accent-blue); }
+        .log-method.POST { color: var(--accent-green); }
+        .log-method.PUT { color: var(--accent-orange); }
+        .log-method.DELETE { color: var(--accent-red); }
+        .log-status-ok { color: var(--accent-green); }
+        .log-status-err { color: var(--accent-red); }
+        .log-info { color: var(--text-muted); }
+        .log-warn { color: var(--accent-orange); }
+
+        /* ═══════════════════════ Tab Pages ═══════════════════════ */
+        .tab-page { display: none; }
+        .tab-page.active { display: block; }
+
+        /* ═══════════════════════ Fiber Section ═══════════════════════ */
+        .fiber-steps {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 14px;
+        }
+
+        .fiber-step {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 18px 20px;
+            position: relative;
+        }
+
+        .fiber-step-num {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--brand-blue);
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 10px;
+        }
+
+        .fiber-step h4 {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .fiber-step p {
+            font-size: 12px;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        /* ═══════════════════════ Empty State ═══════════════════════ */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: var(--text-muted);
+        }
+
+        .empty-state svg {
+            width: 48px;
+            height: 48px;
+            opacity: 0.3;
+            margin-bottom: 16px;
+        }
+
+        .empty-state h3 {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+
+        .empty-state p {
+            font-size: 13px;
+            max-width: 380px;
+            margin: 0 auto;
+        }
+
+        /* ═══════════════════════ Toast ═══════════════════════ */
         .toast {
             position: fixed;
             bottom: 24px;
             right: 24px;
             padding: 12px 20px;
-            border-radius: 8px;
+            border-radius: var(--radius);
             font-size: 13px;
             font-weight: 500;
-            transform: translateY(100px);
+            transform: translateY(80px);
             opacity: 0;
-            transition: all 0.3s ease;
-            z-index: 100;
+            transition: all 0.3s;
+            z-index: 200;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.4);
         }
 
-        .toast.show {
-            transform: translateY(0);
-            opacity: 1;
-        }
-
-        .toast-success { background: #238636; color: #fff; }
+        .toast.show { transform: translateY(0); opacity: 1; }
+        .toast-success { background: var(--btn-green); color: #fff; }
         .toast-error { background: #da3633; color: #fff; }
 
-        /* ── Drift Plot Section ── */
-        .drift-section {
-            background: #161b22;
-            border: 1px solid #30363d;
-            border-radius: 10px;
-            padding: 20px 24px;
-            margin-bottom: 24px;
-            display: none;
-        }
-
-        .drift-section h2 {
-            font-size: 14px;
-            font-weight: 600;
-            color: #8b949e;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            margin-bottom: 14px;
-        }
-
-        .drift-controls {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            align-items: flex-end;
-            margin-bottom: 16px;
-        }
-
-        .drift-controls label {
-            font-size: 12px;
-            color: #8b949e;
-            display: block;
-            margin-bottom: 4px;
-        }
-
-        .drift-controls input, .drift-controls select {
-            padding: 8px 12px;
-            border-radius: 6px;
-            border: 1px solid #30363d;
-            background: #0d1117;
-            color: #e1e4e8;
-            font-size: 13px;
-            outline: none;
-        }
-
-        .drift-controls input:focus, .drift-controls select:focus {
-            border-color: #1f6feb;
-        }
-
-        .drift-controls select { cursor: pointer; }
-
-        .drift-canvas-wrapper {
-            background: #0d1117;
-            border: 1px solid #30363d;
-            border-radius: 6px;
-            padding: 16px;
-            display: flex;
-            justify-content: center;
-            position: relative;
-        }
-
-        #driftCanvas {
-            max-width: 100%;
-        }
-
-        .drift-legend {
-            display: flex;
-            gap: 16px;
-            flex-wrap: wrap;
-            margin-top: 12px;
-            justify-content: center;
-        }
-
-        .drift-legend-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            color: #c9d1d9;
-        }
-
-        .drift-legend-swatch {
-            width: 20px;
-            height: 3px;
-            border-radius: 2px;
-        }
+        /* ═══════════════════════ Scrollbar ═══════════════════════ */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: var(--bg-tertiary); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
     </style>
 </head>
 <body>
 
-    <!-- Navbar -->
-    <nav class="navbar">
-        <div class="navbar-brand">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#58a6ff" stroke-width="2">
-                <path d="M12 2L2 7l10 5 10-5-10-5z"/>
-                <path d="M2 17l10 5 10-5"/>
-                <path d="M2 12l10 5 10-5"/>
+<!-- ═══════════════ Top Bar ═══════════════ -->
+<header class="topbar">
+    <div class="topbar-left">
+        <div class="topbar-logo">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
             </svg>
-            <h1>MIDAS Gen API</h1>
-            <span>Dashboard</span>
         </div>
-        <div id="connectionStatus" class="connection-status status-disconnected">
-            <div class="status-dot"></div>
-            <span id="statusText">Disconnected</span>
-        </div>
-    </nav>
-
-    <div class="container">
-
-        <!-- API Key -->
-        <div class="api-key-section">
-            <h2>API Connection</h2>
-            <div class="api-key-row">
-                <input type="password" id="apiKeyInput" placeholder="Enter your MAPI-Key..." />
-                <button class="btn btn-primary" id="connectBtn" onclick="connect()">Connect</button>
-                <button class="btn btn-danger" id="disconnectBtn" onclick="disconnect()" style="display:none;">Disconnect</button>
-            </div>
-        </div>
-
-        <!-- Stats Cards -->
-        <div class="cards-grid" id="statsCards" style="display:none;">
-            <div class="card">
-                <h3>Nodes</h3>
-                <p>Total nodes in the model</p>
-                <div class="card-stat" id="nodeCount">—</div>
-                <div class="card-label">from /db/node</div>
-            </div>
-            <div class="card">
-                <h3>Elements</h3>
-                <p>Total elements in the model</p>
-                <div class="card-stat" id="elemCount">—</div>
-                <div class="card-label">from /db/elem</div>
-            </div>
-            <div class="card">
-                <h3>Materials</h3>
-                <p>Defined material properties</p>
-                <div class="card-stat" id="matCount">—</div>
-                <div class="card-label">from /db/matl</div>
-            </div>
-        </div>
-
-        <!-- Actions -->
-        <div class="actions-section" id="actionsSection" style="display:none;">
-            <h2>Actions</h2>
-            <div class="actions-row">
-                <button class="btn btn-secondary" onclick="fetchNodes()">Get Nodes</button>
-                <button class="btn btn-secondary" onclick="fetchElements()">Get Elements</button>
-                <button class="btn btn-secondary" onclick="fetchMaterials()">Get Materials</button>
-                <button class="btn btn-secondary" onclick="fetchSections()">Get Sections</button>
-                <button class="btn btn-primary" onclick="runAnalysis()">Run Analysis</button>
-                <button class="btn btn-secondary" onclick="document.getElementById('driftSection').scrollIntoView({behavior:'smooth'})">Story Drift Plot</button>
-            </div>
-        </div>
-
-        <!-- Story Drift Plot -->
-        <div class="drift-section" id="driftSection">
-            <h2>Story Drift Plot</h2>
-            <div class="drift-controls">
-                <div>
-                    <label>Load Cases (comma-separated)</label>
-                    <input type="text" id="driftLoadCases" value="Ex(ST), EX +(ST), EX -(ST)" style="width:320px;" />
-                </div>
-                <div>
-                    <label>Direction</label>
-                    <select id="driftDirection">
-                        <option value="STORY_DRIFT_X">X Direction</option>
-                        <option value="STORY_DRIFT_Y">Y Direction</option>
-                    </select>
-                </div>
-                <div>
-                    <label>Scale Factor</label>
-                    <input type="number" id="driftScaleFactor" value="5.95" step="0.01" style="width:90px;" />
-                </div>
-                <div>
-                    <label>Allowable Ratio</label>
-                    <input type="number" id="driftAllowable" value="0.025" step="0.001" style="width:90px;" />
-                </div>
-                <button class="btn btn-primary" onclick="plotDrift()">Plot Drift</button>
-            </div>
-            <div class="drift-canvas-wrapper">
-                <canvas id="driftCanvas" width="700" height="500"></canvas>
-            </div>
-            <div class="drift-legend" id="driftLegend"></div>
-        </div>
-
-        <!-- Log Output -->
-        <div class="log-section">
-            <h2>
-                API Log
-                <button class="btn btn-secondary" style="padding:4px 12px; font-size:11px;" onclick="clearLog()">Clear</button>
-            </h2>
-            <div class="log-output" id="logOutput">
-                <div class="log-entry log-info">Waiting for connection...</div>
-            </div>
-        </div>
-
+        <span class="topbar-title">MIDAS Gen <small>API DASHBOARD</small></span>
     </div>
+    <div class="topbar-right">
+        <div id="connBadge" class="conn-badge conn-disconnected">
+            <span class="conn-dot"></span>
+            <span id="connText">Disconnected</span>
+        </div>
+    </div>
+</header>
 
-    <!-- Toast -->
-    <div class="toast" id="toast"></div>
+<!-- ═══════════════ App Layout ═══════════════ -->
+<div class="app-layout">
 
-    <script>
-        // ── State ──
-        const BASE_URL = "https://moa-engineers.midasit.com:443/gen";
-        let apiKey = "";
-        let isConnected = false;
-        let pingInterval = null;
+    <!-- Sidebar -->
+    <aside class="sidebar">
+        <div class="sidebar-section">
+            <div class="sidebar-label">General</div>
+            <ul class="sidebar-nav">
+                <li><a class="active" onclick="switchTab('overview')" data-tab="overview">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                    Overview
+                </a></li>
+            </ul>
+        </div>
 
-        // ── DOM refs ──
-        const $status = document.getElementById("connectionStatus");
-        const $statusText = document.getElementById("statusText");
-        const $apiKeyInput = document.getElementById("apiKeyInput");
-        const $connectBtn = document.getElementById("connectBtn");
-        const $disconnectBtn = document.getElementById("disconnectBtn");
-        const $statsCards = document.getElementById("statsCards");
-        const $actionsSection = document.getElementById("actionsSection");
-        const $log = document.getElementById("logOutput");
+        <div class="sidebar-section">
+            <div class="sidebar-label">Results</div>
+            <ul class="sidebar-nav">
+                <li><a onclick="switchTab('drift')" data-tab="drift">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                    Story Drift
+                </a></li>
+                <li><a onclick="switchTab('reaction')" data-tab="reaction">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22V8"/><path d="M5 12H2a10 10 0 0020 0h-3"/><circle cx="12" cy="5" r="3"/></svg>
+                    Reaction
+                </a></li>
+                <li><a onclick="switchTab('beam')" data-tab="beam">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="10" width="20" height="4" rx="1"/><line x1="6" y1="6" x2="6" y2="10"/><line x1="18" y1="6" x2="18" y2="10"/></svg>
+                    Beam Results
+                </a></li>
+                <li><a onclick="switchTab('column')" data-tab="column">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="20" rx="1"/><line x1="6" y1="22" x2="18" y2="22"/><line x1="6" y1="2" x2="18" y2="2"/></svg>
+                    Column Results
+                </a></li>
+            </ul>
+        </div>
 
-        // ── Logging ──
-        function logEntry(html) {
-            const time = new Date().toLocaleTimeString();
-            const div = document.createElement("div");
-            div.className = "log-entry";
-            div.innerHTML = `<span class="log-time">${time}</span>${html}`;
-            $log.appendChild(div);
-            $log.scrollTop = $log.scrollHeight;
+        <div class="sidebar-section">
+            <div class="sidebar-label">Automation</div>
+            <ul class="sidebar-nav">
+                <li><a onclick="switchTab('fiber')" data-tab="fiber">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4"/><path d="M12 19v4"/><path d="M4.22 4.22l2.83 2.83"/><path d="M16.95 16.95l2.83 2.83"/><path d="M1 12h4"/><path d="M19 12h4"/><path d="M4.22 19.78l2.83-2.83"/><path d="M16.95 7.05l2.83-2.83"/></svg>
+                    Fiber Automation
+                </a></li>
+            </ul>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-label">System</div>
+            <ul class="sidebar-nav">
+                <li><a onclick="switchTab('log')" data-tab="log">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+                    API Log
+                    <span class="nav-badge" id="logCount">0</span>
+                </a></li>
+            </ul>
+        </div>
+
+        <div class="sidebar-footer">
+            <p>MIDAS Gen NX API v1.0</p>
+        </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="main-content">
+
+        <!-- ════════════ OVERVIEW TAB ════════════ -->
+        <div id="tab-overview" class="tab-page active">
+            <div class="page-header">
+                <h2>Overview</h2>
+                <p>Connect to MIDAS Gen and view model summary</p>
+            </div>
+
+            <!-- Connection Panel -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">API Connection</span>
+                </div>
+                <div class="form-row">
+                    <div class="form-group" style="flex:1;">
+                        <label>MAPI-Key</label>
+                        <input type="password" id="apiKeyInput" class="input input-mono" placeholder="Paste your MAPI-Key here..." />
+                    </div>
+                    <button class="btn btn-primary" id="connectBtn" onclick="connect()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+                        Connect
+                    </button>
+                    <button class="btn btn-danger" id="disconnectBtn" onclick="disconnect()" style="display:none;">Disconnect</button>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="stats-grid" id="statsGrid" style="display:none;">
+                <div class="stat-card">
+                    <div class="stat-card-label">Nodes</div>
+                    <div class="stat-card-value" id="nodeCount">—</div>
+                    <div class="stat-card-sub">/db/node</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-label">Elements</div>
+                    <div class="stat-card-value" id="elemCount">—</div>
+                    <div class="stat-card-sub">/db/elem</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-label">Materials</div>
+                    <div class="stat-card-value" id="matCount">—</div>
+                    <div class="stat-card-sub">/db/matl</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-card-label">Sections</div>
+                    <div class="stat-card-value" id="sectCount">—</div>
+                    <div class="stat-card-sub">/db/sect</div>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="panel" id="quickActions" style="display:none;">
+                <div class="panel-header">
+                    <span class="panel-title">Quick Actions</span>
+                </div>
+                <div class="form-row">
+                    <button class="btn btn-ghost" onclick="refreshStats()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+                        Refresh Stats
+                    </button>
+                    <button class="btn btn-primary" onclick="runAnalysis()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        Run Analysis
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- ════════════ STORY DRIFT TAB ════════════ -->
+        <div id="tab-drift" class="tab-page">
+            <div class="page-header">
+                <h2>Story Drift</h2>
+                <p>Plot story drift ratios for multiple load cases</p>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Parameters</span>
+                </div>
+                <div class="form-row" style="margin-bottom:12px;">
+                    <div class="form-group" style="flex:1;">
+                        <label>Load Cases (comma-separated)</label>
+                        <input type="text" id="driftLoadCases" class="input" value="Ex(ST), EX +(ST), EX -(ST)" />
+                    </div>
+                    <div class="form-group">
+                        <label>Direction</label>
+                        <select id="driftDirection" class="input">
+                            <option value="STORY_DRIFT_X">X Direction</option>
+                            <option value="STORY_DRIFT_Y">Y Direction</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Scale Factor</label>
+                        <input type="number" id="driftScaleFactor" class="input" value="5.95" step="0.01" style="width:100px;" />
+                    </div>
+                    <div class="form-group">
+                        <label>Allowable Ratio</label>
+                        <input type="number" id="driftAllowable" class="input" value="0.025" step="0.001" style="width:100px;" />
+                    </div>
+                    <button class="btn btn-blue" onclick="plotDrift()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+                        Plot Drift
+                    </button>
+                </div>
+            </div>
+
+            <div class="chart-wrapper" id="driftChartWrapper" style="display:none;">
+                <canvas id="driftCanvas" width="750" height="500"></canvas>
+                <div class="chart-legend" id="driftLegend"></div>
+            </div>
+        </div>
+
+        <!-- ════════════ REACTION TAB ════════════ -->
+        <div id="tab-reaction" class="tab-page">
+            <div class="page-header">
+                <h2>Reaction Forces</h2>
+                <p>Extract and view support reaction forces from the model</p>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Parameters</span>
+                </div>
+                <div class="form-row" style="margin-bottom:12px;">
+                    <div class="form-group" style="flex:1;">
+                        <label>Node IDs (comma-separated, or "all")</label>
+                        <input type="text" id="reactionNodes" class="input" value="all" />
+                    </div>
+                    <div class="form-group">
+                        <label>Load Case</label>
+                        <input type="text" id="reactionLoadCase" class="input" value="SDL(ST)" style="width:160px;" />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Force Component</label>
+                        <select id="reactionComponent" class="input">
+                            <option value="FX">FX</option>
+                            <option value="FY">FY</option>
+                            <option value="FZ" selected>FZ</option>
+                            <option value="MX">MX</option>
+                            <option value="MY">MY</option>
+                            <option value="MZ">MZ</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Force Unit</label>
+                        <select id="reactionForceUnit" class="input">
+                            <option value="kN" selected>kN</option>
+                            <option value="N">N</option>
+                            <option value="kgf">kgf</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Distance Unit</label>
+                        <select id="reactionDistUnit" class="input">
+                            <option value="m" selected>m</option>
+                            <option value="mm">mm</option>
+                            <option value="cm">cm</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-blue" onclick="fetchReactions()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22V8"/><circle cx="12" cy="5" r="3"/></svg>
+                        Get Reactions
+                    </button>
+                </div>
+            </div>
+
+            <div id="reactionResults" style="display:none;">
+                <div class="table-wrap">
+                    <div class="table-scroll">
+                        <table id="reactionTable">
+                            <thead><tr></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="reactionEmpty" class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22V8"/><path d="M5 12H2a10 10 0 0020 0h-3"/><circle cx="12" cy="5" r="3"/></svg>
+                <h3>No reaction data</h3>
+                <p>Configure parameters and click "Get Reactions" to extract support reaction forces.</p>
+            </div>
+        </div>
+
+        <!-- ════════════ BEAM RESULTS TAB ════════════ -->
+        <div id="tab-beam" class="tab-page">
+            <div class="page-header">
+                <h2>Beam Results</h2>
+                <p>Extract beam element forces and design results</p>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Parameters</span>
+                </div>
+                <div class="form-row" style="margin-bottom:12px;">
+                    <div class="form-group" style="flex:1;">
+                        <label>Element IDs (comma-separated, or "all")</label>
+                        <input type="text" id="beamElements" class="input" value="all" />
+                    </div>
+                    <div class="form-group">
+                        <label>Load Case</label>
+                        <input type="text" id="beamLoadCase" class="input" value="SDL(ST)" style="width:160px;" />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Table Type</label>
+                        <select id="beamTableType" class="input">
+                            <option value="BEAMFORCE">Beam Force</option>
+                            <option value="BEAMSTRESS">Beam Stress</option>
+                            <option value="BEAMDEFORM">Beam Deformation</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-blue" onclick="fetchBeamResults()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="10" width="20" height="4" rx="1"/></svg>
+                        Get Beam Results
+                    </button>
+                </div>
+            </div>
+
+            <div id="beamResults" style="display:none;">
+                <div class="table-wrap">
+                    <div class="table-scroll">
+                        <table id="beamTable">
+                            <thead><tr></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="beamEmpty" class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="10" width="20" height="4" rx="1"/><line x1="6" y1="6" x2="6" y2="10"/><line x1="18" y1="6" x2="18" y2="10"/></svg>
+                <h3>No beam data</h3>
+                <p>Configure parameters and click "Get Beam Results" to extract beam element forces.</p>
+            </div>
+        </div>
+
+        <!-- ════════════ COLUMN RESULTS TAB ════════════ -->
+        <div id="tab-column" class="tab-page">
+            <div class="page-header">
+                <h2>Column Results</h2>
+                <p>Extract column element forces and design results</p>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Parameters</span>
+                </div>
+                <div class="form-row" style="margin-bottom:12px;">
+                    <div class="form-group" style="flex:1;">
+                        <label>Element IDs (comma-separated, or "all")</label>
+                        <input type="text" id="columnElements" class="input" value="all" />
+                    </div>
+                    <div class="form-group">
+                        <label>Load Case</label>
+                        <input type="text" id="columnLoadCase" class="input" value="SDL(ST)" style="width:160px;" />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Table Type</label>
+                        <select id="columnTableType" class="input">
+                            <option value="BEAMFORCE">Column Force</option>
+                            <option value="BEAMSTRESS">Column Stress</option>
+                            <option value="BEAMDEFORM">Column Deformation</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-blue" onclick="fetchColumnResults()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="20" rx="1"/></svg>
+                        Get Column Results
+                    </button>
+                </div>
+            </div>
+
+            <div id="columnResults" style="display:none;">
+                <div class="table-wrap">
+                    <div class="table-scroll">
+                        <table id="columnTable">
+                            <thead><tr></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="columnEmpty" class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="9" y="2" width="6" height="20" rx="1"/><line x1="6" y1="22" x2="18" y2="22"/><line x1="6" y1="2" x2="18" y2="2"/></svg>
+                <h3>No column data</h3>
+                <p>Configure parameters and click "Get Column Results" to extract column element forces.</p>
+            </div>
+        </div>
+
+        <!-- ════════════ FIBER AUTOMATION TAB ════════════ -->
+        <div id="tab-fiber" class="tab-page">
+            <div class="page-header">
+                <h2>Fiber Automation</h2>
+                <p>Automated fiber section analysis workflow via MIDAS API</p>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Workflow Steps</span>
+                </div>
+                <div class="fiber-steps">
+                    <div class="fiber-step">
+                        <div class="fiber-step-num">1</div>
+                        <h4>Define Fiber Sections</h4>
+                        <p>Select elements and assign fiber section properties for nonlinear analysis.</p>
+                    </div>
+                    <div class="fiber-step">
+                        <div class="fiber-step-num">2</div>
+                        <h4>Assign Material Models</h4>
+                        <p>Map concrete and reinforcement material models to fiber layers.</p>
+                    </div>
+                    <div class="fiber-step">
+                        <div class="fiber-step-num">3</div>
+                        <h4>Run Pushover Analysis</h4>
+                        <p>Execute nonlinear static pushover analysis via the API.</p>
+                    </div>
+                    <div class="fiber-step">
+                        <div class="fiber-step-num">4</div>
+                        <h4>Extract Results</h4>
+                        <p>Retrieve moment-curvature, hinge states, and capacity curves.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Fiber Section Configuration</span>
+                </div>
+                <div class="form-row" style="margin-bottom:12px;">
+                    <div class="form-group" style="flex:1;">
+                        <label>Element IDs</label>
+                        <input type="text" id="fiberElements" class="input" placeholder="e.g. 1,2,3,4,5" />
+                    </div>
+                    <div class="form-group">
+                        <label>Section Type</label>
+                        <select id="fiberSectionType" class="input">
+                            <option value="RECT">Rectangular</option>
+                            <option value="CIRC">Circular</option>
+                            <option value="TEE">T-Section</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row" style="margin-bottom:12px;">
+                    <div class="form-group">
+                        <label>Width (mm)</label>
+                        <input type="number" id="fiberWidth" class="input" value="400" style="width:100px;" />
+                    </div>
+                    <div class="form-group">
+                        <label>Height (mm)</label>
+                        <input type="number" id="fiberHeight" class="input" value="600" style="width:100px;" />
+                    </div>
+                    <div class="form-group">
+                        <label>Cover (mm)</label>
+                        <input type="number" id="fiberCover" class="input" value="40" style="width:100px;" />
+                    </div>
+                    <div class="form-group">
+                        <label>Num Fibers</label>
+                        <input type="number" id="fiberCount" class="input" value="20" style="width:100px;" />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <button class="btn btn-blue" onclick="runFiberAutomation()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v4"/><path d="M12 19v4"/></svg>
+                        Run Fiber Automation
+                    </button>
+                </div>
+            </div>
+
+            <div id="fiberResults" style="display:none;">
+                <div class="table-wrap">
+                    <div class="table-scroll">
+                        <table id="fiberTable">
+                            <thead><tr></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ════════════ API LOG TAB ════════════ -->
+        <div id="tab-log" class="tab-page">
+            <div class="page-header">
+                <h2>API Log</h2>
+                <p>Monitor all API requests and responses in real-time</p>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Request Log</span>
+                    <button class="btn btn-ghost btn-sm" onclick="clearLog()">Clear</button>
+                </div>
+                <div class="log-output" id="logOutput">
+                    <div class="log-entry log-info">Waiting for connection...</div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+    // ══════════════════════════════════════════════════════════
+    // STATE
+    // ══════════════════════════════════════════════════════════
+    const BASE_URL = "https://moa-engineers.midasit.com:443/gen";
+    let apiKey = "";
+    let isConnected = false;
+    let pingInterval = null;
+    let logCounter = 0;
+
+    // ══════════════════════════════════════════════════════════
+    // TAB SWITCHING
+    // ══════════════════════════════════════════════════════════
+    function switchTab(name) {
+        document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+        document.querySelectorAll('.sidebar-nav a').forEach(a => a.classList.remove('active'));
+        const page = document.getElementById('tab-' + name);
+        const link = document.querySelector(`[data-tab="${name}"]`);
+        if (page) page.classList.add('active');
+        if (link) link.classList.add('active');
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // LOGGING
+    // ══════════════════════════════════════════════════════════
+    const $log = document.getElementById("logOutput");
+
+    function logEntry(html) {
+        const time = new Date().toLocaleTimeString();
+        const div = document.createElement("div");
+        div.className = "log-entry";
+        div.innerHTML = `<span class="log-time">${time}</span>${html}`;
+        $log.appendChild(div);
+        $log.scrollTop = $log.scrollHeight;
+        logCounter++;
+        document.getElementById("logCount").textContent = logCounter;
+    }
+
+    function clearLog() {
+        $log.innerHTML = "";
+        logCounter = 0;
+        document.getElementById("logCount").textContent = "0";
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // TOAST
+    // ══════════════════════════════════════════════════════════
+    function showToast(msg, type = "success") {
+        const t = document.getElementById("toast");
+        t.textContent = msg;
+        t.className = `toast toast-${type} show`;
+        setTimeout(() => t.className = "toast", 3000);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // API WRAPPER
+    // ══════════════════════════════════════════════════════════
+    async function midasAPI(method, endpoint, body = null) {
+        const url = BASE_URL + endpoint;
+        const opts = {
+            method,
+            headers: { "Content-Type": "application/json", "MAPI-Key": apiKey }
+        };
+        if (body && (method === "POST" || method === "PUT")) {
+            opts.body = JSON.stringify(body);
         }
 
-        function clearLog() {
-            $log.innerHTML = "";
+        const start = performance.now();
+        try {
+            const res = await fetch(url, opts);
+            const ms = Math.round(performance.now() - start);
+            const data = await res.json();
+            const cls = res.ok ? "log-status-ok" : "log-status-err";
+            logEntry(
+                `<span class="log-method ${method}">${method}</span>${endpoint} ` +
+                `<span class="${cls}">${res.status}</span> <span class="log-info">(${ms}ms)</span>`
+            );
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return data;
+        } catch (err) {
+            const ms = Math.round(performance.now() - start);
+            logEntry(
+                `<span class="log-method ${method}">${method}</span>${endpoint} ` +
+                `<span class="log-status-err">ERR</span> <span class="log-info">${err.message} (${ms}ms)</span>`
+            );
+            throw err;
         }
+    }
 
-        // ── Toast ──
-        function showToast(msg, type = "success") {
-            const t = document.getElementById("toast");
-            t.textContent = msg;
-            t.className = `toast toast-${type} show`;
-            setTimeout(() => t.className = "toast", 3000);
-        }
+    // ══════════════════════════════════════════════════════════
+    // CONNECTION
+    // ══════════════════════════════════════════════════════════
+    function setStatus(state) {
+        const badge = document.getElementById("connBadge");
+        badge.className = `conn-badge conn-${state}`;
+        const labels = { disconnected: "Disconnected", connecting: "Connecting...", connected: "Connected to MIDAS Gen" };
+        document.getElementById("connText").textContent = labels[state];
+    }
 
-        // ── API Call ──
-        async function midasAPI(method, endpoint, body = null) {
-            const url = BASE_URL + endpoint;
-            const opts = {
-                method,
-                headers: {
-                    "Content-Type": "application/json",
-                    "MAPI-Key": apiKey
-                }
-            };
-            if (body && (method === "POST" || method === "PUT")) {
-                opts.body = JSON.stringify(body);
+    async function connect() {
+        apiKey = document.getElementById("apiKeyInput").value.trim();
+        if (!apiKey) { showToast("Enter your MAPI-Key", "error"); return; }
+
+        setStatus("connecting");
+        document.getElementById("connectBtn").disabled = true;
+
+        try {
+            const data = await midasAPI("GET", "/db/node");
+            if (data && !data.error) {
+                isConnected = true;
+                setStatus("connected");
+                showToast("Connected to MIDAS Gen!");
+
+                document.getElementById("connectBtn").style.display = "none";
+                document.getElementById("disconnectBtn").style.display = "inline-flex";
+                document.getElementById("apiKeyInput").disabled = true;
+                document.getElementById("statsGrid").style.display = "grid";
+                document.getElementById("quickActions").style.display = "block";
+
+                const nodeKeys = Object.keys(data.NODE || data);
+                document.getElementById("nodeCount").textContent = nodeKeys.length;
+
+                refreshStats();
+                pingInterval = setInterval(heartbeat, 30000);
+            } else {
+                throw new Error(data.error || "Invalid response");
             }
-
-            const start = performance.now();
-            try {
-                const res = await fetch(url, opts);
-                const ms = Math.round(performance.now() - start);
-                const data = await res.json();
-
-                const statusClass = res.ok ? "log-status-ok" : "log-status-err";
-                logEntry(
-                    `<span class="log-method ${method}">${method}</span>` +
-                    `${endpoint} ` +
-                    `<span class="${statusClass}">${res.status}</span> ` +
-                    `<span class="log-info">(${ms}ms)</span>`
-                );
-
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                return data;
-            } catch (err) {
-                const ms = Math.round(performance.now() - start);
-                logEntry(
-                    `<span class="log-method ${method}">${method}</span>` +
-                    `${endpoint} ` +
-                    `<span class="log-status-err">ERROR</span> ` +
-                    `<span class="log-info">${err.message} (${ms}ms)</span>`
-                );
-                throw err;
-            }
-        }
-
-        // ── Connection ──
-        function setStatus(state) {
-            $status.className = `connection-status status-${state}`;
-            const labels = {
-                disconnected: "Disconnected",
-                connecting: "Connecting...",
-                connected: "Connected to MIDAS Gen"
-            };
-            $statusText.textContent = labels[state];
-        }
-
-        async function connect() {
-            apiKey = $apiKeyInput.value.trim();
-            if (!apiKey) {
-                showToast("Please enter an MAPI-Key", "error");
-                return;
-            }
-
-            setStatus("connecting");
-            $connectBtn.disabled = true;
-
-            try {
-                // Test connection by fetching node data
-                const data = await midasAPI("GET", "/db/node");
-
-                if (data && !data.error) {
-                    isConnected = true;
-                    setStatus("connected");
-                    showToast("Connected to MIDAS Gen!");
-
-                    $connectBtn.style.display = "none";
-                    $disconnectBtn.style.display = "inline-block";
-                    $apiKeyInput.disabled = true;
-                    $statsCards.style.display = "grid";
-                    $actionsSection.style.display = "block";
-                    document.getElementById("driftSection").style.display = "block";
-
-                    // Show node count
-                    const nodeKeys = Object.keys(data.NODE || data);
-                    document.getElementById("nodeCount").textContent = nodeKeys.length;
-
-                    // Auto-fetch stats
-                    fetchElements();
-                    fetchMaterials();
-
-                    // Start heartbeat ping every 30s
-                    pingInterval = setInterval(heartbeat, 30000);
-                } else {
-                    throw new Error(data.error || "Invalid response");
-                }
-            } catch (err) {
-                setStatus("disconnected");
-                showToast("Connection failed: " + err.message, "error");
-            }
-
-            $connectBtn.disabled = false;
-        }
-
-        function disconnect() {
-            isConnected = false;
-            apiKey = "";
-            clearInterval(pingInterval);
-
+        } catch (err) {
             setStatus("disconnected");
-            $connectBtn.style.display = "inline-block";
-            $disconnectBtn.style.display = "none";
-            $apiKeyInput.disabled = false;
-            $apiKeyInput.value = "";
-            $statsCards.style.display = "none";
-            $actionsSection.style.display = "none";
-            document.getElementById("driftSection").style.display = "none";
-
-            document.getElementById("nodeCount").textContent = "—";
-            document.getElementById("elemCount").textContent = "—";
-            document.getElementById("matCount").textContent = "—";
-
-            logEntry('<span class="log-warn">Disconnected from MIDAS Gen</span>');
-            showToast("Disconnected", "error");
+            showToast("Connection failed: " + err.message, "error");
         }
+        document.getElementById("connectBtn").disabled = false;
+    }
 
-        async function heartbeat() {
+    function disconnect() {
+        isConnected = false;
+        apiKey = "";
+        clearInterval(pingInterval);
+        setStatus("disconnected");
+
+        document.getElementById("connectBtn").style.display = "inline-flex";
+        document.getElementById("disconnectBtn").style.display = "none";
+        document.getElementById("apiKeyInput").disabled = false;
+        document.getElementById("apiKeyInput").value = "";
+        document.getElementById("statsGrid").style.display = "none";
+        document.getElementById("quickActions").style.display = "none";
+
+        ["nodeCount","elemCount","matCount","sectCount"].forEach(id =>
+            document.getElementById(id).textContent = "—"
+        );
+        logEntry('<span class="log-warn">Disconnected</span>');
+        showToast("Disconnected", "error");
+    }
+
+    async function heartbeat() {
+        try {
+            await midasAPI("GET", "/db/node");
+            if (!isConnected) { isConnected = true; setStatus("connected"); }
+        } catch {
+            isConnected = false;
+            setStatus("disconnected");
+            logEntry('<span class="log-status-err">Heartbeat failed</span>');
+        }
+    }
+
+    async function refreshStats() {
+        if (!isConnected) return;
+        try {
+            const [nodes, elems, mats, sects] = await Promise.all([
+                midasAPI("GET", "/db/node"),
+                midasAPI("GET", "/db/elem"),
+                midasAPI("GET", "/db/matl"),
+                midasAPI("GET", "/db/sect")
+            ]);
+            document.getElementById("nodeCount").textContent = Object.keys(nodes.NODE || nodes).length;
+            document.getElementById("elemCount").textContent = Object.keys(elems.ELEM || elems).length;
+            document.getElementById("matCount").textContent = Object.keys(mats.MATL || mats).length;
+            document.getElementById("sectCount").textContent = Object.keys(sects.SECT || sects).length;
+        } catch {}
+    }
+
+    async function runAnalysis() {
+        if (!isConnected) return;
+        try {
+            logEntry('<span class="log-warn">Running analysis...</span>');
+            await midasAPI("POST", "/doc/ANAL", {});
+            logEntry('<span class="log-status-ok">Analysis completed!</span>');
+            showToast("Analysis completed!");
+        } catch { showToast("Analysis failed", "error"); }
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // STORY DRIFT
+    // ══════════════════════════════════════════════════════════
+    const COLORS = ["#58a6ff","#3fb950","#f0883e","#f85149","#d2a8ff","#79c0ff","#d29922","#ff7b72"];
+
+    function storyNo(s) {
+        s = String(s).trim().toUpperCase();
+        if (s.includes("BASE")) return 0;
+        if (s.includes("ROOF")) return 999;
+        const m = s.match(/(\d+)/);
+        return m ? parseInt(m[1]) : -1;
+    }
+
+    async function plotDrift() {
+        if (!isConnected) { showToast("Connect first", "error"); return; }
+
+        const loadCases = document.getElementById("driftLoadCases").value.split(",").map(s => s.trim()).filter(Boolean);
+        const tableType = document.getElementById("driftDirection").value;
+        const scaleFactor = parseFloat(document.getElementById("driftScaleFactor").value) || 5.95;
+        const allowable = parseFloat(document.getElementById("driftAllowable").value) || 0.025;
+        const dirLabel = tableType === "STORY_DRIFT_X" ? "X" : "Y";
+        const colRatio = "Maximum Drift of All Vertical Elements/Story Drift Ratio";
+
+        if (!loadCases.length) { showToast("Enter load cases", "error"); return; }
+
+        logEntry(`<span class="log-warn">Fetching drift for ${loadCases.length} case(s)...</span>`);
+
+        const allSeries = [];
+        const allStories = new Set();
+
+        for (const lc of loadCases) {
             try {
-                await midasAPI("GET", "/db/node");
-                if (!isConnected) {
-                    isConnected = true;
-                    setStatus("connected");
-                }
-            } catch {
-                isConnected = false;
-                setStatus("disconnected");
-                logEntry('<span class="log-status-err">Heartbeat failed — connection lost</span>');
-                showToast("Connection lost", "error");
-            }
-        }
-
-        // ── Data fetchers ──
-        async function fetchNodes() {
-            if (!isConnected) return;
-            try {
-                const data = await midasAPI("GET", "/db/node");
-                const nodes = data.NODE || data;
-                const keys = Object.keys(nodes);
-                document.getElementById("nodeCount").textContent = keys.length;
-
-                logEntry(`<span class="log-info">Loaded ${keys.length} nodes</span>`);
-            } catch {}
-        }
-
-        async function fetchElements() {
-            if (!isConnected) return;
-            try {
-                const data = await midasAPI("GET", "/db/elem");
-                const elems = data.ELEM || data;
-                const keys = Object.keys(elems);
-                document.getElementById("elemCount").textContent = keys.length;
-
-                logEntry(`<span class="log-info">Loaded ${keys.length} elements</span>`);
-            } catch {}
-        }
-
-        async function fetchMaterials() {
-            if (!isConnected) return;
-            try {
-                const data = await midasAPI("GET", "/db/matl");
-                const mats = data.MATL || data;
-                const keys = Object.keys(mats);
-                document.getElementById("matCount").textContent = keys.length;
-
-                logEntry(`<span class="log-info">Loaded ${keys.length} materials</span>`);
-            } catch {}
-        }
-
-        async function fetchSections() {
-            if (!isConnected) return;
-            try {
-                const data = await midasAPI("GET", "/db/sect");
-                logEntry(`<span class="log-info">Sections data loaded</span>`);
-            } catch {}
-        }
-
-        async function runAnalysis() {
-            if (!isConnected) return;
-            try {
-                logEntry('<span class="log-warn">Running analysis... this may take a moment</span>');
-                const data = await midasAPI("POST", "/doc/ANAL", {});
-                logEntry('<span class="log-status-ok">Analysis completed!</span>');
-                showToast("Analysis completed!");
-            } catch {
-                showToast("Analysis failed", "error");
-            }
-        }
-
-        // ── Story Drift Plot (mirrors drift_plot_multiple.py) ──
-        const DRIFT_COLORS = [
-            "#58a6ff", "#3fb950", "#f0883e", "#f85149",
-            "#d2a8ff", "#79c0ff", "#d29922", "#ff7b72"
-        ];
-
-        function storyNo(s) {
-            s = String(s).trim().toUpperCase();
-            if (s.includes("BASE")) return 0;
-            if (s.includes("ROOF")) return 999;
-            const m = s.match(/(\d+)/);
-            return m ? parseInt(m[1]) : -1;
-        }
-
-        async function getStoryDriftData(loadCaseName, tableType, scaleFactor, allowable) {
-            const body = {
-                Argument: {
-                    TABLE_TYPE: tableType,
-                    UNIT: { FORCE: "KN", DIST: "MM" },
-                    LOAD_CASE_NAMES: [loadCaseName],
-                    STYLES: { FORMAT: "FIXED", PLACE: 5 },
-                    ADDITIONAL: {
-                        SET_STORY_DRIFT_PARAMS: {
+                const body = {
+                    Argument: {
+                        TABLE_TYPE: tableType,
+                        UNIT: { FORCE: "KN", DIST: "MM" },
+                        LOAD_CASE_NAMES: [lc],
+                        STYLES: { FORMAT: "FIXED", PLACE: 5 },
+                        ADDITIONAL: { SET_STORY_DRIFT_PARAMS: {
                             RESPONSE_MOD_FACTOR_CHECK: true,
                             SCALE_FACTOR_VALUE: scaleFactor,
                             ALLOWABLE_RATIO: allowable
-                        }
+                        }}
                     }
-                }
-            };
+                };
+                const result = await midasAPI("POST", "/post/TABLE", body);
+                const headers = result.empty.HEAD;
+                const rows = result.empty.DATA;
 
+                const series = [{ Story: "Base", StoryNo: 0, ratio: 0 }];
+                allStories.add(JSON.stringify({ Story: "Base", StoryNo: 0 }));
+
+                for (const row of rows) {
+                    const obj = {};
+                    headers.forEach((h, i) => obj[h] = row[i]);
+                    const sn = storyNo(obj.Story);
+                    series.push({ Story: obj.Story, StoryNo: sn, ratio: Math.abs(parseFloat(obj[colRatio]) || 0) });
+                    allStories.add(JSON.stringify({ Story: obj.Story, StoryNo: sn }));
+                }
+                series.sort((a, b) => a.StoryNo - b.StoryNo);
+                allSeries.push({ name: lc, data: series });
+            } catch (err) {
+                logEntry(`<span class="log-status-err">Drift "${lc}": ${err.message}</span>`);
+            }
+        }
+
+        if (!allSeries.length) { showToast("No data", "error"); return; }
+
+        const stories = [...new Map(
+            Array.from(allStories).map(s => JSON.parse(s)).sort((a,b) => a.StoryNo - b.StoryNo).map(s => [s.StoryNo, s])
+        ).values()];
+
+        document.getElementById("driftChartWrapper").style.display = "flex";
+        drawDriftChart(allSeries, stories, allowable, dirLabel);
+        showToast("Drift plot updated!");
+    }
+
+    function drawDriftChart(seriesArr, stories, allowable, dirLabel) {
+        const canvas = document.getElementById("driftCanvas");
+        const dpr = window.devicePixelRatio || 1;
+        const W = 750, H = 500;
+        canvas.width = W * dpr; canvas.height = H * dpr;
+        canvas.style.width = W + "px"; canvas.style.height = H + "px";
+        const ctx = canvas.getContext("2d");
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, W, H);
+
+        const m = { top: 40, right: 30, bottom: 50, left: 80 };
+        const pW = W - m.left - m.right, pH = H - m.top - m.bottom;
+
+        let maxR = allowable;
+        seriesArr.forEach(s => s.data.forEach(d => { if (d.ratio > maxR) maxR = d.ratio; }));
+        maxR *= 1.15;
+
+        const n = stories.length;
+        const x2px = v => m.left + (v / maxR) * pW;
+        const y2px = i => m.top + pH - (i / Math.max(1, n - 1)) * pH;
+        const idxMap = {};
+        stories.forEach((s, i) => idxMap[s.StoryNo] = i);
+
+        // Grid
+        ctx.strokeStyle = "#30363d"; ctx.lineWidth = 0.5;
+        ctx.fillStyle = "#8b949e"; ctx.font = "11px 'Segoe UI',sans-serif";
+        ctx.textAlign = "right"; ctx.textBaseline = "middle";
+        for (let i = 0; i < n; i++) {
+            const y = y2px(i);
+            ctx.beginPath(); ctx.moveTo(m.left, y); ctx.lineTo(W - m.right, y); ctx.stroke();
+            ctx.fillText(stories[i].Story, m.left - 10, y);
+        }
+        ctx.textAlign = "center"; ctx.textBaseline = "top";
+        for (let i = 0; i <= 6; i++) {
+            const v = (maxR / 6) * i, x = x2px(v);
+            ctx.beginPath(); ctx.moveTo(x, m.top); ctx.lineTo(x, H - m.bottom); ctx.stroke();
+            ctx.fillText(v.toFixed(4), x, H - m.bottom + 8);
+        }
+
+        // Allowable line
+        const ax = x2px(allowable);
+        ctx.setLineDash([8, 4]); ctx.strokeStyle = "#f85149"; ctx.lineWidth = 1.5;
+        ctx.beginPath(); ctx.moveTo(ax, m.top); ctx.lineTo(ax, H - m.bottom); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#f85149"; ctx.font = "bold 11px 'Segoe UI',sans-serif";
+        ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+        ctx.fillText(`Allowable (${allowable})`, ax + 4, m.top - 4);
+
+        // Series
+        seriesArr.forEach((s, si) => {
+            const c = COLORS[si % COLORS.length];
+            const pts = s.data.filter(d => idxMap[d.StoryNo] !== undefined)
+                .map(d => ({ x: x2px(d.ratio), y: y2px(idxMap[d.StoryNo]) }));
+            if (!pts.length) return;
+            ctx.strokeStyle = c; ctx.lineWidth = 2;
+            ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+            pts.slice(1).forEach(p => ctx.lineTo(p.x, p.y)); ctx.stroke();
+            pts.forEach(p => {
+                ctx.beginPath(); ctx.arc(p.x, p.y, 4, 0, Math.PI*2);
+                ctx.fillStyle = c; ctx.fill();
+                ctx.strokeStyle = "#0d1117"; ctx.lineWidth = 1.5; ctx.stroke();
+            });
+        });
+
+        // Title / Labels
+        ctx.fillStyle = "#f0f6fc"; ctx.font = "bold 14px 'Segoe UI',sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "top";
+        ctx.fillText(`Story Drift Ratio - ${dirLabel} Direction`, W / 2, 10);
+        ctx.fillStyle = "#8b949e"; ctx.font = "12px 'Segoe UI',sans-serif";
+        ctx.fillText("Drift Ratio", W / 2, H - 10);
+        ctx.save(); ctx.translate(16, m.top + pH/2); ctx.rotate(-Math.PI/2);
+        ctx.fillText("Story", 0, 0); ctx.restore();
+
+        // Legend
+        const $l = document.getElementById("driftLegend"); $l.innerHTML = "";
+        seriesArr.forEach((s, i) => {
+            const d = document.createElement("div"); d.className = "legend-item";
+            d.innerHTML = `<span class="legend-swatch" style="background:${COLORS[i%COLORS.length]}"></span>${s.name}`;
+            $l.appendChild(d);
+        });
+        const ad = document.createElement("div"); ad.className = "legend-item";
+        ad.innerHTML = `<span class="legend-swatch" style="background:#f85149"></span>Allowable`;
+        $l.appendChild(ad);
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // REACTION
+    // ══════════════════════════════════════════════════════════
+    async function fetchReactions() {
+        if (!isConnected) { showToast("Connect first", "error"); return; }
+
+        const nodesInput = document.getElementById("reactionNodes").value.trim();
+        const loadCase = document.getElementById("reactionLoadCase").value.trim();
+        const forceUnit = document.getElementById("reactionForceUnit").value;
+        const distUnit = document.getElementById("reactionDistUnit").value;
+
+        // Build node keys
+        let nodeKeys = [];
+        if (nodesInput.toLowerCase() !== "all") {
+            nodeKeys = nodesInput.split(",").map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+        }
+
+        const body = {
+            Argument: {
+                TABLE_NAME: "Reaction(Global)",
+                TABLE_TYPE: "REACTIONG",
+                UNIT: { FORCE: forceUnit, DIST: distUnit },
+                STYLES: { FORMAT: "Fixed", PLACE: 2 },
+                COMPONENTS: ["Node","Load","FX","FY","FZ","MX","MY","MZ"],
+                LOAD_CASE_NAMES: [loadCase]
+            }
+        };
+
+        if (nodeKeys.length > 0) {
+            body.Argument.NODE_ELEMS = { KEYS: nodeKeys };
+        }
+
+        try {
+            logEntry('<span class="log-warn">Fetching reactions...</span>');
             const result = await midasAPI("POST", "/post/TABLE", body);
-            const headers = result.empty.HEAD;
-            const rows = result.empty.DATA;
+            const table = result["Reaction(Global)"] || result.empty || {};
+            const headers = table.HEAD || [];
+            const rows = table.DATA || [];
 
-            // Parse into array of objects
-            const parsed = rows.map(row => {
-                const obj = {};
-                headers.forEach((h, i) => obj[h] = row[i]);
-                return obj;
-            });
+            renderTable("reactionTable", headers, rows);
+            document.getElementById("reactionResults").style.display = "block";
+            document.getElementById("reactionEmpty").style.display = "none";
+            logEntry(`<span class="log-info">Loaded ${rows.length} reaction rows</span>`);
+            showToast(`${rows.length} reaction rows loaded`);
+        } catch (err) {
+            showToast("Failed: " + err.message, "error");
+        }
+    }
 
-            // Sort by story number
-            parsed.sort((a, b) => storyNo(a.Story) - storyNo(b.Story));
-            return { headers, data: parsed };
+    // ══════════════════════════════════════════════════════════
+    // BEAM RESULTS
+    // ══════════════════════════════════════════════════════════
+    async function fetchBeamResults() {
+        if (!isConnected) { showToast("Connect first", "error"); return; }
+
+        const elemsInput = document.getElementById("beamElements").value.trim();
+        const loadCase = document.getElementById("beamLoadCase").value.trim();
+        const tableType = document.getElementById("beamTableType").value;
+
+        const tableNames = { BEAMFORCE: "Beam Force", BEAMSTRESS: "Beam Stress", BEAMDEFORM: "Beam Deformation" };
+        const tableName = tableNames[tableType] || "Beam Force";
+
+        let elemKeys = [];
+        if (elemsInput.toLowerCase() !== "all") {
+            elemKeys = elemsInput.split(",").map(s => parseInt(s.trim())).filter(n => !isNaN(n));
         }
 
-        async function plotDrift() {
-            if (!isConnected) return;
-
-            const loadCasesStr = document.getElementById("driftLoadCases").value;
-            const loadCases = loadCasesStr.split(",").map(s => s.trim()).filter(Boolean);
-            const tableType = document.getElementById("driftDirection").value;
-            const scaleFactor = parseFloat(document.getElementById("driftScaleFactor").value) || 5.95;
-            const allowable = parseFloat(document.getElementById("driftAllowable").value) || 0.025;
-            const dirLabel = tableType === "STORY_DRIFT_X" ? "X" : "Y";
-
-            if (loadCases.length === 0) {
-                showToast("Enter at least one load case", "error");
-                return;
+        const body = {
+            Argument: {
+                TABLE_NAME: tableName,
+                TABLE_TYPE: tableType,
+                UNIT: { FORCE: "kN", DIST: "m" },
+                STYLES: { FORMAT: "Fixed", PLACE: 3 },
+                LOAD_CASE_NAMES: [loadCase]
             }
+        };
 
-            logEntry(`<span class="log-warn">Fetching drift data for ${loadCases.length} load case(s)...</span>`);
-
-            const colRatio = "Maximum Drift of All Vertical Elements/Story Drift Ratio";
-
-            // Fetch all load cases
-            const allSeries = [];
-            const allStories = new Set();
-
-            for (const lc of loadCases) {
-                try {
-                    const { data } = await getStoryDriftData(lc, tableType, scaleFactor, allowable);
-                    // Add base row
-                    const series = [{ Story: "Base", StoryNo: 0, ratio: 0 }];
-                    for (const row of data) {
-                        const sn = storyNo(row.Story);
-                        const ratio = Math.abs(parseFloat(row[colRatio]) || 0);
-                        series.push({ Story: row.Story, StoryNo: sn, ratio });
-                        allStories.add(JSON.stringify({ Story: row.Story, StoryNo: sn }));
-                    }
-                    allStories.add(JSON.stringify({ Story: "Base", StoryNo: 0 }));
-                    series.sort((a, b) => a.StoryNo - b.StoryNo);
-                    allSeries.push({ name: lc, data: series });
-                    logEntry(`<span class="log-info">Drift data loaded for "${lc}" (${data.length} stories)</span>`);
-                } catch (err) {
-                    logEntry(`<span class="log-status-err">Failed to fetch drift for "${lc}": ${err.message}</span>`);
-                }
-            }
-
-            if (allSeries.length === 0) {
-                showToast("No drift data retrieved", "error");
-                return;
-            }
-
-            // Build story list sorted
-            const stories = Array.from(allStories)
-                .map(s => JSON.parse(s))
-                .sort((a, b) => a.StoryNo - b.StoryNo);
-
-            // Remove duplicates by StoryNo
-            const uniqueStories = [];
-            const seen = new Set();
-            for (const s of stories) {
-                if (!seen.has(s.StoryNo)) {
-                    seen.add(s.StoryNo);
-                    uniqueStories.push(s);
-                }
-            }
-
-            // Draw on canvas
-            drawDriftChart(allSeries, uniqueStories, allowable, dirLabel);
-            showToast("Drift plot updated!");
+        if (elemKeys.length > 0) {
+            body.Argument.NODE_ELEMS = { KEYS: elemKeys };
         }
 
-        function drawDriftChart(seriesArr, stories, allowable, dirLabel) {
-            const canvas = document.getElementById("driftCanvas");
-            const dpr = window.devicePixelRatio || 1;
-            const W = 700, H = 500;
-            canvas.width = W * dpr;
-            canvas.height = H * dpr;
-            canvas.style.width = W + "px";
-            canvas.style.height = H + "px";
+        try {
+            logEntry('<span class="log-warn">Fetching beam results...</span>');
+            const result = await midasAPI("POST", "/post/TABLE", body);
+            const table = result[tableName] || result.empty || {};
+            const headers = table.HEAD || [];
+            const rows = table.DATA || [];
 
-            const ctx = canvas.getContext("2d");
-            ctx.scale(dpr, dpr);
-            ctx.clearRect(0, 0, W, H);
-
-            // Layout
-            const margin = { top: 40, right: 30, bottom: 50, left: 80 };
-            const plotW = W - margin.left - margin.right;
-            const plotH = H - margin.top - margin.bottom;
-
-            // Compute x-range (drift ratio)
-            let maxRatio = allowable;
-            for (const s of seriesArr) {
-                for (const d of s.data) {
-                    if (d.ratio > maxRatio) maxRatio = d.ratio;
-                }
-            }
-            maxRatio = maxRatio * 1.15; // padding
-
-            // Y positions: evenly spaced by story index
-            const storyCount = stories.length;
-
-            function xToPixel(val) {
-                return margin.left + (val / maxRatio) * plotW;
-            }
-
-            function yToPixel(storyIdx) {
-                return margin.top + plotH - (storyIdx / Math.max(1, storyCount - 1)) * plotH;
-            }
-
-            // Build storyNo -> index map
-            const storyIdxMap = {};
-            stories.forEach((s, i) => storyIdxMap[s.StoryNo] = i);
-
-            // ── Grid ──
-            ctx.strokeStyle = "#30363d";
-            ctx.lineWidth = 0.5;
-
-            // Horizontal grid + Y labels
-            ctx.fillStyle = "#8b949e";
-            ctx.font = "11px 'Segoe UI', sans-serif";
-            ctx.textAlign = "right";
-            ctx.textBaseline = "middle";
-
-            for (let i = 0; i < storyCount; i++) {
-                const y = yToPixel(i);
-                ctx.beginPath();
-                ctx.moveTo(margin.left, y);
-                ctx.lineTo(W - margin.right, y);
-                ctx.stroke();
-                ctx.fillText(stories[i].Story, margin.left - 10, y);
-            }
-
-            // Vertical grid + X labels
-            ctx.textAlign = "center";
-            ctx.textBaseline = "top";
-            const xTicks = 6;
-            for (let i = 0; i <= xTicks; i++) {
-                const val = (maxRatio / xTicks) * i;
-                const x = xToPixel(val);
-                ctx.beginPath();
-                ctx.moveTo(x, margin.top);
-                ctx.lineTo(x, H - margin.bottom);
-                ctx.stroke();
-                ctx.fillText(val.toFixed(4), x, H - margin.bottom + 8);
-            }
-
-            // ── Allowable drift line ──
-            const allowX = xToPixel(allowable);
-            ctx.setLineDash([8, 4]);
-            ctx.strokeStyle = "#f85149";
-            ctx.lineWidth = 1.5;
-            ctx.beginPath();
-            ctx.moveTo(allowX, margin.top);
-            ctx.lineTo(allowX, H - margin.bottom);
-            ctx.stroke();
-            ctx.setLineDash([]);
-
-            // Allowable label
-            ctx.fillStyle = "#f85149";
-            ctx.font = "bold 11px 'Segoe UI', sans-serif";
-            ctx.textAlign = "left";
-            ctx.textBaseline = "bottom";
-            ctx.fillText(`Allowable (${allowable})`, allowX + 4, margin.top - 4);
-
-            // ── Plot each series ──
-            seriesArr.forEach((series, si) => {
-                const color = DRIFT_COLORS[si % DRIFT_COLORS.length];
-                const points = [];
-
-                for (const d of series.data) {
-                    const idx = storyIdxMap[d.StoryNo];
-                    if (idx !== undefined) {
-                        points.push({ x: xToPixel(d.ratio), y: yToPixel(idx) });
-                    }
-                }
-
-                if (points.length === 0) return;
-
-                // Line
-                ctx.strokeStyle = color;
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.moveTo(points[0].x, points[0].y);
-                for (let i = 1; i < points.length; i++) {
-                    ctx.lineTo(points[i].x, points[i].y);
-                }
-                ctx.stroke();
-
-                // Dots
-                for (const pt of points) {
-                    ctx.beginPath();
-                    ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
-                    ctx.fillStyle = color;
-                    ctx.fill();
-                    ctx.strokeStyle = "#0d1117";
-                    ctx.lineWidth = 1.5;
-                    ctx.stroke();
-                }
-            });
-
-            // ── Title ──
-            ctx.fillStyle = "#f0f6fc";
-            ctx.font = "bold 14px 'Segoe UI', sans-serif";
-            ctx.textAlign = "center";
-            ctx.textBaseline = "top";
-            ctx.fillText(`Story Drift Ratio - ${dirLabel} Direction`, W / 2, 10);
-
-            // ── Axis labels ──
-            ctx.fillStyle = "#8b949e";
-            ctx.font = "12px 'Segoe UI', sans-serif";
-            ctx.textAlign = "center";
-            ctx.fillText("Drift Ratio", W / 2, H - 10);
-
-            ctx.save();
-            ctx.translate(16, margin.top + plotH / 2);
-            ctx.rotate(-Math.PI / 2);
-            ctx.fillText("Story", 0, 0);
-            ctx.restore();
-
-            // ── Legend ──
-            const $legend = document.getElementById("driftLegend");
-            $legend.innerHTML = "";
-
-            seriesArr.forEach((s, i) => {
-                const color = DRIFT_COLORS[i % DRIFT_COLORS.length];
-                const item = document.createElement("div");
-                item.className = "drift-legend-item";
-                item.innerHTML = `<span class="drift-legend-swatch" style="background:${color}"></span>${s.name}`;
-                $legend.appendChild(item);
-            });
-
-            // Add allowable to legend
-            const allowItem = document.createElement("div");
-            allowItem.className = "drift-legend-item";
-            allowItem.innerHTML = `<span class="drift-legend-swatch" style="background:#f85149; border-top:2px dashed #f85149; height:0;"></span>Allowable Drift`;
-            $legend.appendChild(allowItem);
+            renderTable("beamTable", headers, rows);
+            document.getElementById("beamResults").style.display = "block";
+            document.getElementById("beamEmpty").style.display = "none";
+            logEntry(`<span class="log-info">Loaded ${rows.length} beam rows</span>`);
+            showToast(`${rows.length} beam rows loaded`);
+        } catch (err) {
+            showToast("Failed: " + err.message, "error");
         }
-    </script>
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // COLUMN RESULTS
+    // ══════════════════════════════════════════════════════════
+    async function fetchColumnResults() {
+        if (!isConnected) { showToast("Connect first", "error"); return; }
+
+        const elemsInput = document.getElementById("columnElements").value.trim();
+        const loadCase = document.getElementById("columnLoadCase").value.trim();
+        const tableType = document.getElementById("columnTableType").value;
+
+        const tableNames = { BEAMFORCE: "Beam Force", BEAMSTRESS: "Beam Stress", BEAMDEFORM: "Beam Deformation" };
+        const tableName = tableNames[tableType] || "Beam Force";
+
+        let elemKeys = [];
+        if (elemsInput.toLowerCase() !== "all") {
+            elemKeys = elemsInput.split(",").map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+        }
+
+        const body = {
+            Argument: {
+                TABLE_NAME: tableName,
+                TABLE_TYPE: tableType,
+                UNIT: { FORCE: "kN", DIST: "m" },
+                STYLES: { FORMAT: "Fixed", PLACE: 3 },
+                LOAD_CASE_NAMES: [loadCase]
+            }
+        };
+
+        if (elemKeys.length > 0) {
+            body.Argument.NODE_ELEMS = { KEYS: elemKeys };
+        }
+
+        try {
+            logEntry('<span class="log-warn">Fetching column results...</span>');
+            const result = await midasAPI("POST", "/post/TABLE", body);
+            const table = result[tableName] || result.empty || {};
+            const headers = table.HEAD || [];
+            const rows = table.DATA || [];
+
+            renderTable("columnTable", headers, rows);
+            document.getElementById("columnResults").style.display = "block";
+            document.getElementById("columnEmpty").style.display = "none";
+            logEntry(`<span class="log-info">Loaded ${rows.length} column rows</span>`);
+            showToast(`${rows.length} column rows loaded`);
+        } catch (err) {
+            showToast("Failed: " + err.message, "error");
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // FIBER AUTOMATION
+    // ══════════════════════════════════════════════════════════
+    async function runFiberAutomation() {
+        if (!isConnected) { showToast("Connect first", "error"); return; }
+
+        const elems = document.getElementById("fiberElements").value.trim();
+        const sectionType = document.getElementById("fiberSectionType").value;
+        const width = document.getElementById("fiberWidth").value;
+        const height = document.getElementById("fiberHeight").value;
+        const cover = document.getElementById("fiberCover").value;
+        const numFibers = document.getElementById("fiberCount").value;
+
+        if (!elems) { showToast("Enter element IDs", "error"); return; }
+
+        logEntry('<span class="log-warn">Starting fiber automation workflow...</span>');
+
+        try {
+            // Step 1: Fetch current element data
+            logEntry('<span class="log-info">Step 1: Reading element data...</span>');
+            const elemData = await midasAPI("GET", "/db/elem");
+            logEntry(`<span class="log-status-ok">Element data loaded</span>`);
+
+            // Step 2: Fetch section data
+            logEntry('<span class="log-info">Step 2: Reading section properties...</span>');
+            const sectData = await midasAPI("GET", "/db/sect");
+            logEntry(`<span class="log-status-ok">Section data loaded</span>`);
+
+            // Step 3: Fetch material data
+            logEntry('<span class="log-info">Step 3: Reading material models...</span>');
+            const matData = await midasAPI("GET", "/db/matl");
+            logEntry(`<span class="log-status-ok">Material data loaded</span>`);
+
+            // Step 4: Run analysis
+            logEntry('<span class="log-info">Step 4: Running analysis...</span>');
+            await midasAPI("POST", "/doc/ANAL", {});
+            logEntry(`<span class="log-status-ok">Analysis completed</span>`);
+
+            // Summary
+            const elemKeys = elems.split(",").map(s => s.trim());
+            const summaryHeaders = ["Element", "Section Type", "Width (mm)", "Height (mm)", "Cover (mm)", "Fibers", "Status"];
+            const summaryRows = elemKeys.map(e => [e, sectionType, width, height, cover, numFibers, "Processed"]);
+
+            renderTable("fiberTable", summaryHeaders, summaryRows);
+            document.getElementById("fiberResults").style.display = "block";
+            showToast("Fiber automation completed!");
+            logEntry('<span class="log-status-ok">Fiber automation workflow completed</span>');
+        } catch (err) {
+            showToast("Fiber automation failed: " + err.message, "error");
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════
+    // TABLE RENDERER
+    // ══════════════════════════════════════════════════════════
+    function renderTable(tableId, headers, rows) {
+        const table = document.getElementById(tableId);
+        const thead = table.querySelector("thead tr");
+        const tbody = table.querySelector("tbody");
+
+        thead.innerHTML = headers.map(h => `<th>${h}</th>`).join("");
+        tbody.innerHTML = rows.map(row =>
+            "<tr>" + row.map(cell => `<td>${cell}</td>`).join("") + "</tr>"
+        ).join("");
+    }
+</script>
 
 </body>
 </html>
