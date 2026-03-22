@@ -30,6 +30,47 @@
             --topbar-h: 56px;
         }
 
+        [data-theme="light"] {
+            --bg-primary: #ffffff;
+            --bg-secondary: #f6f8fa;
+            --bg-tertiary: #eaeef2;
+            --bg-input: #ffffff;
+            --border: #d0d7de;
+            --border-light: #e8ebef;
+            --text-primary: #1f2328;
+            --text-secondary: #424a53;
+            --text-muted: #656d76;
+            --text-faint: #8c959f;
+            --accent-blue: #0969da;
+            --accent-green: #1a7f37;
+            --accent-orange: #9a6700;
+            --accent-red: #cf222e;
+            --accent-purple: #8250df;
+            --brand-blue: #0969da;
+            --btn-green: #1a7f37;
+            --btn-green-hover: #218739;
+        }
+        [data-theme="light"] .topbar { background: #f6f8fa; border-color: #d0d7de; }
+        [data-theme="light"] .sidebar { background: #f6f8fa; border-color: #d0d7de; }
+        [data-theme="light"] th { background: #eaeef2; color: #1f2328; }
+        [data-theme="light"] .stat-card { background: #f6f8fa; border-color: #d0d7de; }
+        [data-theme="light"] .toast { background: #1f2328; color: #f0f6fc; }
+        [data-theme="light"] input, [data-theme="light"] select, [data-theme="light"] textarea {
+            background: #ffffff; color: #1f2328; border-color: #d0d7de;
+        }
+        [data-theme="light"] .btn { border-color: #d0d7de; }
+        [data-theme="light"] .btn-ghost { color: #424a53; }
+        [data-theme="light"] .btn-ghost:hover { background: #eaeef2; color: #1f2328; }
+        [data-theme="light"] .sticky-col th:first-child,
+        [data-theme="light"] .sticky-col td:first-child { background: #ffffff; }
+        [data-theme="light"] .progress-overlay { background: rgba(255,255,255,0.92); }
+        [data-theme="light"] .progress-box { background: #ffffff; border-color: #d0d7de; }
+        [data-theme="light"] .progress-title { color: #1f2328; }
+        [data-theme="light"] #storyRawOutput { background: #f6f8fa; color: #1a7f37; border-color: #d0d7de; }
+        .theme-toggle { display:flex; align-items:center; gap:8px; cursor:pointer; padding:6px 12px; border-radius:6px; font-size:12px; color:var(--text-muted); transition:background 0.15s; }
+        .theme-toggle:hover { background:var(--bg-tertiary); color:var(--text-primary); }
+        .theme-toggle svg { width:16px; height:16px; }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
@@ -500,7 +541,14 @@
             </ul>
         </div>
 
-        <div class="sidebar-footer"><p>MIDAS Gen NX API v1.0</p><p style="margin-top:4px;">APEC Consultancy</p></div>
+        <div class="sidebar-footer">
+            <div class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark theme">
+                <svg id="themeIconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+                <svg id="themeIconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
+                <span id="themeLabel">Dark</span>
+            </div>
+            <p style="margin-top:8px;">MIDAS Gen NX API v1.0</p><p style="margin-top:4px;">APEC Consultancy</p>
+        </div>
     </aside>
 
     <!-- Main -->
@@ -1112,6 +1160,30 @@ async function midasAPI(method, endpoint, body = null) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// THEME TOGGLE
+// ══════════════════════════════════════════════════════════════
+function toggleTheme() {
+    const html = document.documentElement;
+    const isDark = html.getAttribute("data-theme") !== "light";
+    html.setAttribute("data-theme", isDark ? "light" : "dark");
+    document.getElementById("themeIconSun").style.display = isDark ? "block" : "none";
+    document.getElementById("themeIconMoon").style.display = isDark ? "none" : "block";
+    document.getElementById("themeLabel").textContent = isDark ? "Light" : "Dark";
+    localStorage.setItem("theme", isDark ? "light" : "dark");
+}
+// Restore saved theme on load
+(function() {
+    const saved = localStorage.getItem("theme");
+    if (saved === "light") {
+        document.documentElement.setAttribute("data-theme", "light");
+        document.addEventListener("DOMContentLoaded", () => {
+            document.getElementById("themeIconSun").style.display = "block";
+            document.getElementById("themeIconMoon").style.display = "none";
+            document.getElementById("themeLabel").textContent = "Light";
+        });
+    }
+})();
+
 // CONNECTION
 // ══════════════════════════════════════════════════════════════
 function setStatus(state) {
@@ -1801,7 +1873,8 @@ function _drawBeamFrame(canvasId, beams, nodeCoords, showLabels, showNodes, labe
     const ctx = canvas.getContext("2d");
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, W, H);
-    ctx.fillStyle = "#0d1117"; ctx.fillRect(0, 0, W, H);
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+    ctx.fillStyle = isLight ? "#ffffff" : "#0d1117"; ctx.fillRect(0, 0, W, H);
 
     // Bounds
     let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
@@ -1820,9 +1893,9 @@ function _drawBeamFrame(canvasId, beams, nodeCoords, showLabels, showNodes, labe
     const toY = y => cy - (y - dataCY) * scale;
 
     // Grid
-    ctx.strokeStyle = "#21262d"; ctx.lineWidth = 0.5;
+    ctx.strokeStyle = isLight ? "#e8ebef" : "#21262d"; ctx.lineWidth = 0.5;
     const gridStep = Math.pow(10, Math.floor(Math.log10(Math.max(dataW, dataH) / 5)));
-    ctx.font = "9px 'Segoe UI',sans-serif"; ctx.fillStyle = "#484f58";
+    ctx.font = "9px 'Segoe UI',sans-serif"; ctx.fillStyle = isLight ? "#8c959f" : "#484f58";
     for (let gx = Math.floor(xMin/gridStep)*gridStep; gx <= xMax+gridStep; gx += gridStep) {
         const sx = toX(gx); if (sx < margin.left || sx > W-margin.right) continue;
         ctx.beginPath(); ctx.moveTo(sx, margin.top); ctx.lineTo(sx, H-margin.bottom); ctx.stroke();
@@ -1835,8 +1908,9 @@ function _drawBeamFrame(canvasId, beams, nodeCoords, showLabels, showNodes, labe
     }
 
     // Beams
-    const passColor = "#3fb950", failColor = "#f85149";
-    const combColor = "#58a6ff"; // blue accent for combined member indicator
+    const passColor = isLight ? "#1a7f37" : "#3fb950";
+    const failColor = isLight ? "#cf222e" : "#f85149";
+    const combColor = isLight ? "#0969da" : "#58a6ff";
     // First pass: draw combined member brackets (offset lines along the beam)
     const drawnGroups = new Set();
     beams.forEach(b => {
@@ -1889,7 +1963,7 @@ function _drawBeamFrame(canvasId, beams, nodeCoords, showLabels, showNodes, labe
             ctx.font = "bold 9px 'Consolas',monospace";
             ctx.textAlign = "center"; ctx.textBaseline = "middle";
             const tw = ctx.measureText(label).width + 6;
-            ctx.fillStyle = "rgba(13,17,23,0.85)";
+            ctx.fillStyle = isLight ? "rgba(255,255,255,0.9)" : "rgba(13,17,23,0.85)";
             const rx = mx-tw/2, ry = my-7, rw = tw, rh = 14, rr = 3;
             ctx.beginPath();
             if (ctx.roundRect) { ctx.roundRect(rx, ry, rw, rh, rr); }
@@ -1905,21 +1979,21 @@ function _drawBeamFrame(canvasId, beams, nodeCoords, showLabels, showNodes, labe
         ctx.font = "8px 'Consolas',monospace";
         for (const [nid, c] of Object.entries(nodeCoords)) {
             const sx = toX(c.x), sy = toY(c.y);
-            ctx.fillStyle = "#58a6ff"; ctx.beginPath(); ctx.arc(sx, sy, 3, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = "#8b949e"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+            ctx.fillStyle = isLight ? "#0969da" : "#58a6ff"; ctx.beginPath(); ctx.arc(sx, sy, 3, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = isLight ? "#656d76" : "#8b949e"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
             ctx.fillText(nid, sx+5, sy-3);
         }
     } else {
         for (const c of Object.values(nodeCoords)) {
             const sx = toX(c.x), sy = toY(c.y);
-            ctx.fillStyle = "#484f58"; ctx.beginPath(); ctx.arc(sx, sy, 2, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = isLight ? "#d0d7de" : "#484f58"; ctx.beginPath(); ctx.arc(sx, sy, 2, 0, Math.PI*2); ctx.fill();
         }
     }
 
     // Title & subtitle
-    ctx.fillStyle = "#f0f6fc"; ctx.font = "bold 14px 'Segoe UI',sans-serif";
+    ctx.fillStyle = isLight ? "#1f2328" : "#f0f6fc"; ctx.font = "bold 14px 'Segoe UI',sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.fillText(title, W/2, 12);
-    ctx.fillStyle = "#8b949e"; ctx.font = "11px 'Segoe UI',sans-serif";
+    ctx.fillStyle = isLight ? "#656d76" : "#8b949e"; ctx.font = "11px 'Segoe UI',sans-serif";
     ctx.fillText(subtitle, W/2, 30);
 
     // Legend: PASS / FAIL / Combined
@@ -1930,12 +2004,12 @@ function _drawBeamFrame(canvasId, beams, nodeCoords, showLabels, showNodes, labe
     let legX = W - (hasCombined ? 230 : 150);
     ctx.strokeStyle = passColor; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.moveTo(legX, legY); ctx.lineTo(legX+18, legY); ctx.stroke();
-    ctx.fillStyle = "#8b949e"; ctx.textAlign = "left"; ctx.fillText("PASS", legX+22, legY);
+    ctx.fillStyle = isLight ? "#656d76" : "#8b949e"; ctx.textAlign = "left"; ctx.fillText("PASS", legX+22, legY);
     // FAIL
     legX += 60;
     ctx.strokeStyle = failColor; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.moveTo(legX, legY); ctx.lineTo(legX+18, legY); ctx.stroke();
-    ctx.fillStyle = "#8b949e"; ctx.fillText("FAIL", legX+22, legY);
+    ctx.fillStyle = isLight ? "#656d76" : "#8b949e"; ctx.fillText("FAIL", legX+22, legY);
     // Combined
     if (hasCombined) {
         legX += 60;
@@ -1946,11 +2020,11 @@ function _drawBeamFrame(canvasId, beams, nodeCoords, showLabels, showNodes, labe
         ctx.strokeStyle = combColor; ctx.lineWidth = 1.5; ctx.setLineDash([4,3]);
         ctx.beginPath(); ctx.moveTo(legX+12, legY); ctx.lineTo(legX+26, legY); ctx.stroke();
         ctx.setLineDash([]);
-        ctx.fillStyle = "#8b949e"; ctx.fillText("Combined", legX+30, legY);
+        ctx.fillStyle = isLight ? "#656d76" : "#8b949e"; ctx.fillText("Combined", legX+30, legY);
     }
 
     // Axis labels
-    ctx.fillStyle = "#8b949e"; ctx.font = "11px 'Segoe UI',sans-serif";
+    ctx.fillStyle = isLight ? "#656d76" : "#8b949e"; ctx.font = "11px 'Segoe UI',sans-serif";
     ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.fillText("X (m)", W/2, H-12);
     ctx.save(); ctx.translate(14, margin.top+plotH/2); ctx.rotate(-Math.PI/2);
     ctx.fillText("Y (m)", 0, 0); ctx.restore();
