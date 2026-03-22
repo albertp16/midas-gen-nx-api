@@ -550,14 +550,51 @@
         <!-- ════════════ STORY DATA ════════════ -->
         <div id="tab-story" class="tab-page">
             <div class="page-header"><h2>Story Data</h2><p>Fetch and display building story definitions from MIDAS Gen</p></div>
+
+            <!-- Option 1: Fetch from API -->
             <div class="panel">
-                <div class="panel-header"><span class="panel-title">Story Information</span></div>
+                <div class="panel-header"><span class="panel-title">Fetch from API</span></div>
                 <div class="form-row">
                     <button class="btn btn-blue" onclick="fetchStoryData()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="17" width="18" height="4" rx="1"/></svg>
                         Fetch Story Data
                     </button>
+                    <button class="btn btn-ghost" onclick="fetchStoryDataDebug()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+                        Debug Raw Response
+                    </button>
                 </div>
+            </div>
+
+            <!-- Option 2: Manual Entry -->
+            <div class="panel" style="margin-top:12px;">
+                <div class="panel-header"><span class="panel-title">Manual Entry</span>
+                    <span style="font-size:10px;color:var(--text-muted);margin-left:8px;">If API fetch fails, enter story data manually matching your MIDAS model</span>
+                </div>
+                <div style="margin-bottom:10px;">
+                    <textarea id="manualStoryInput" class="input" rows="8" style="width:100%;font-family:'Consolas',monospace;font-size:12px;resize:vertical;" placeholder="Enter one story per line: StoryName, Level(m), Height(m), Diaphragm
+Example:
+Roof, 15.00, 0.00, Consider
+4F, 11.25, 3.75, Consider
+3F, 7.50, 3.75, Consider
+2F, 3.75, 3.75, Consider
+1F, 0.00, 3.75, Do not consider"></textarea>
+                </div>
+                <div class="form-row">
+                    <button class="btn btn-primary" onclick="applyManualStoryData()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;"><polyline points="20 6 9 17 4 12"/></svg>
+                        Apply Manual Story Data
+                    </button>
+                    <button class="btn btn-ghost" onclick="fillSampleStory()">Fill Sample</button>
+                </div>
+            </div>
+
+            <!-- Raw API Response (debug) -->
+            <div id="storyRawPanel" class="panel" style="margin-top:12px;display:none;">
+                <div class="panel-header"><span class="panel-title">Raw API Response</span>
+                    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('storyRawPanel').style.display='none'" style="margin-left:auto;">Close</button>
+                </div>
+                <pre id="storyRawOutput" style="background:var(--bg-primary);border:1px solid var(--border);border-radius:var(--radius);padding:12px;overflow:auto;max-height:400px;font-size:11px;color:var(--accent-green);white-space:pre-wrap;word-break:break-all;"></pre>
             </div>
 
             <div id="storyResults" style="display:none;">
@@ -577,7 +614,7 @@
             <div id="storyEmpty" class="empty-state">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="17" width="18" height="4" rx="1"/></svg>
                 <h3>No story data</h3>
-                <p>Click "Fetch Story Data" to load building story definitions and identify in-plane beam elements per floor.</p>
+                <p>Click "Fetch Story Data" to load from API, or use Manual Entry to define stories yourself.</p>
             </div>
         </div>
 
@@ -1163,6 +1200,92 @@ let allBeamHeaders = [];
 // ══════════════════════════════════════════════════════════════
 // STORY DATA
 // ══════════════════════════════════════════════════════════════
+
+// Deep search: extract story array from any nested MIDAS response
+function extractStoriesFromResponse(data) {
+    const stories = [];
+
+    // Helper: extract a single story entry from an object
+    function parseStoryObj(obj, fallbackName) {
+        const name = obj.sNAME || obj.NAME || obj.name || obj.STORY_NAME || obj.StoryName || fallbackName || "?";
+        const level = parseFloat(obj.dLEVEL || obj.LEVEL || obj.level || obj.Level || 0);
+        const height = parseFloat(obj.dHEIGHT || obj.HEIGHT || obj.height || obj.Height || 0);
+        // Diaphragm: various possible keys and value formats
+        let diaphragm = "-";
+        if (obj.bDIAPHRAGM !== undefined) diaphragm = obj.bDIAPHRAGM ? "Consider" : "Do not consider";
+        else if (obj.DIAPHRAGM !== undefined) diaphragm = String(obj.DIAPHRAGM);
+        else if (obj.bDIAPH !== undefined) diaphragm = obj.bDIAPH ? "Consider" : "Do not consider";
+        else if (obj.iDIAPH !== undefined) diaphragm = obj.iDIAPH > 0 ? "Consider" : "Do not consider";
+
+        return { name, level, height, diaphragm };
+    }
+
+    // Strategy 1: data has vSTRY array (common MIDAS format)
+    function findVstry(obj) {
+        if (!obj || typeof obj !== "object") return null;
+        if (Array.isArray(obj.vSTRY)) return obj.vSTRY;
+        if (Array.isArray(obj.VSTRY)) return obj.VSTRY;
+        // Search one level deeper
+        for (const val of Object.values(obj)) {
+            if (val && typeof val === "object") {
+                if (Array.isArray(val.vSTRY)) return val.vSTRY;
+                if (Array.isArray(val.VSTRY)) return val.VSTRY;
+            }
+        }
+        return null;
+    }
+
+    const vStry = findVstry(data);
+    if (vStry) {
+        vStry.forEach((s, i) => stories.push(parseStoryObj(s, `Floor ${i+1}`)));
+        return stories;
+    }
+
+    // Strategy 2: data.STRY is an object with numbered keys { "1": {...}, "2": {...} }
+    const stryObj = data.STRY || data.Stry || data.stry || data;
+    if (typeof stryObj === "object" && !Array.isArray(stryObj)) {
+        // Check if it has a nested module (e.g., "Base": { vSTRY: [...] })
+        for (const [key, val] of Object.entries(stryObj)) {
+            if (val && typeof val === "object" && !Array.isArray(val)) {
+                const innerVstry = findVstry(val);
+                if (innerVstry) {
+                    innerVstry.forEach((s, i) => stories.push(parseStoryObj(s, `Floor ${i+1}`)));
+                    return stories;
+                }
+            }
+        }
+
+        // Flat numbered keys: { "1": { NAME: "1F", LEVEL: 0, ... }, ... }
+        const skipKeys = new Set(["STORY_X", "STORY_Y", "STORY_Z", "iGROUND", "iMODULE", "GROUND", "MODULE"]);
+        for (const [id, val] of Object.entries(stryObj)) {
+            if (skipKeys.has(id)) continue;
+            if (typeof val !== "object" || val === null || Array.isArray(val)) continue;
+            // Check it looks like a story (has at least a level or name)
+            const hasLevel = val.dLEVEL !== undefined || val.LEVEL !== undefined || val.level !== undefined || val.Level !== undefined;
+            const hasName = val.sNAME !== undefined || val.NAME !== undefined || val.name !== undefined;
+            if (hasLevel || hasName) {
+                stories.push(parseStoryObj(val, `Floor ${id}`));
+            }
+        }
+    }
+
+    return stories;
+}
+
+async function fetchStoryDataDebug() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+    try {
+        const stryData = await midasAPI("GET", "/db/stry");
+        const raw = JSON.stringify(stryData, null, 2);
+        document.getElementById("storyRawOutput").textContent = raw;
+        document.getElementById("storyRawPanel").style.display = "block";
+        logEntry(`<span class="log-info">Raw /db/stry response logged (${raw.length} chars). Check Story Data tab.</span>`);
+        showToast("Raw response displayed below. Check the keys to debug parsing.");
+    } catch (err) {
+        showToast("Failed: " + err.message, "error");
+    }
+}
+
 async function fetchStoryData() {
     if (!isConnected) { showToast("Connect first", "error"); return; }
 
@@ -1173,6 +1296,13 @@ async function fetchStoryData() {
         // Step 1: Fetch story data
         const stryData = await midasAPI("GET", "/db/stry");
         updateProgress(30, "Step 2/3: Reading nodes...");
+
+        // Log raw keys for debugging
+        logEntry(`<span class="log-info">STRY response top-level keys: ${JSON.stringify(Object.keys(stryData))}</span>`);
+        const stryInner = stryData.STRY || stryData;
+        if (typeof stryInner === "object") {
+            logEntry(`<span class="log-info">STRY inner keys: ${JSON.stringify(Object.keys(stryInner)).substring(0, 200)}</span>`);
+        }
 
         // Step 2: Fetch nodes and elements for beam-to-floor mapping
         const nodeData = await midasAPI("GET", "/db/node");
@@ -1185,63 +1315,55 @@ async function fetchStoryData() {
         cachedNodeDict = nodeDict;
         cachedElemDict = elemDict;
 
-        // Parse story data - MIDAS returns STRY object
-        const stryObj = stryData.STRY || stryData;
-        const stories = [];
+        // Parse story data using deep extraction
+        const stories = extractStoriesFromResponse(stryData);
 
-        // MIDAS STRY typically has structure like:
-        // { "1": { "NAME": "1F", "LEVEL": 0.0, "HEIGHT": 3.5, ... }, ... }
-        // Or it may have vSTRY array format
-        if (stryObj.vSTRY && Array.isArray(stryObj.vSTRY)) {
-            // Array format
-            stryObj.vSTRY.forEach((s, i) => {
-                stories.push({
-                    name: s.sNAME || s.NAME || s.name || `Floor ${i+1}`,
-                    level: parseFloat(s.dLEVEL || s.LEVEL || s.level || 0),
-                    height: parseFloat(s.dHEIGHT || s.HEIGHT || s.height || 0),
-                    diaphragm: s.bDIAPHRAGM !== undefined ? (s.bDIAPHRAGM ? "Yes" : "No") : "-"
-                });
-            });
-        } else {
-            // Object format with numbered keys
-            for (const [id, val] of Object.entries(stryObj)) {
-                if (typeof val !== "object" || val === null) continue;
-                // Skip metadata keys
-                if (id === "STORY_X" || id === "STORY_Y" || id === "STORY_Z") continue;
-                stories.push({
-                    name: val.sNAME || val.NAME || val.name || `Floor ${id}`,
-                    level: parseFloat(val.dLEVEL || val.LEVEL || val.level || 0),
-                    height: parseFloat(val.dHEIGHT || val.HEIGHT || val.height || 0),
-                    diaphragm: val.bDIAPHRAGM !== undefined ? (val.bDIAPHRAGM ? "Yes" : "No") :
-                               (val.DIAPHRAGM !== undefined ? String(val.DIAPHRAGM) : "-")
-                });
-            }
+        if (stories.length === 0) {
+            // Show raw response for debugging and suggest manual entry
+            const raw = JSON.stringify(stryData, null, 2);
+            document.getElementById("storyRawOutput").textContent = raw;
+            document.getElementById("storyRawPanel").style.display = "block";
+            logEntry(`<span class="log-status-err">Could not parse stories from API response. Raw response shown. Use Manual Entry instead.</span>`);
+            hideProgress();
+            showToast("No stories parsed from API. Check raw response or use Manual Entry.", "error");
+            return;
         }
 
         // Sort by level ascending
         stories.sort((a, b) => a.level - b.level);
-        storyDataCache = stories;
 
-        updateProgress(85, "Mapping beams to floors...");
+        // Process and render
+        processAndRenderStories(stories, nodeDict, elemDict);
 
-        // Build story-beam map: find in-plane beams at each story level
-        // A beam is "in-plane" at a story level if BOTH its nodes have Z ≈ story level (tolerance)
-        const Z_TOLERANCE = 0.1; // 0.1m tolerance for matching
-        storyBeamMap = {};
-        const storyLevels = stories.map(s => s.level);
+        updateProgress(100, "Done!");
+    } catch (err) {
+        showToast("Failed: " + err.message, "error");
+        logEntry(`<span class="log-status-err">Story data error: ${err.message}</span>`);
+    }
+    setTimeout(hideProgress, 400);
+}
 
-        for (const story of stories) {
-            storyBeamMap[story.name] = [];
-        }
+function processAndRenderStories(stories, nodeDict, elemDict) {
+    storyDataCache = stories;
+    cachedNodeDict = nodeDict || cachedNodeDict;
+    cachedElemDict = elemDict || cachedElemDict;
 
-        let totalInPlaneBeams = 0;
-        for (const [eid, e] of Object.entries(elemDict)) {
+    // Build story-beam map: find in-plane beams at each story level
+    const Z_TOLERANCE = 0.15; // 0.15m tolerance
+    storyBeamMap = {};
+    for (const story of stories) {
+        storyBeamMap[story.name] = [];
+    }
+
+    let totalInPlaneBeams = 0;
+    if (cachedElemDict && cachedNodeDict) {
+        for (const [eid, e] of Object.entries(cachedElemDict)) {
             const etype = e.TYPE || "";
             if (etype !== "BEAM") continue;
             const conn = e.NODE || [];
             if (conn.length < 2) continue;
-            const ni = nodeDict[String(conn[0])] || nodeDict[conn[0]];
-            const nj = nodeDict[String(conn[1])] || nodeDict[conn[1]];
+            const ni = cachedNodeDict[String(conn[0])] || cachedNodeDict[conn[0]];
+            const nj = cachedNodeDict[String(conn[1])] || cachedNodeDict[conn[1]];
             if (!ni || !nj) continue;
 
             const zi = parseFloat(ni.Z);
@@ -1250,7 +1372,7 @@ async function fetchStoryData() {
             // In-plane check: both nodes at same Z level (horizontal beam)
             if (Math.abs(zi - zj) > Z_TOLERANCE) continue;
 
-            // Find which story this beam belongs to (match Z to story level)
+            // Find which story this beam belongs to
             const beamZ = (zi + zj) / 2;
             for (const story of stories) {
                 if (Math.abs(beamZ - story.level) <= Z_TOLERANCE) {
@@ -1260,43 +1382,83 @@ async function fetchStoryData() {
                 }
             }
         }
-
-        // Render story table
-        const storyHeaders = ["Story", "Level (m)", "Height (m)", "Diaphragm", "In-Plane Beams"];
-        const storyRows = stories.map(s => [
-            s.name,
-            s.level.toFixed(3),
-            s.height.toFixed(3),
-            s.diaphragm,
-            storyBeamMap[s.name] ? storyBeamMap[s.name].length : 0
-        ]);
-        // Show from top floor to bottom
-        storyRows.reverse();
-
-        renderTable("storyTable", storyHeaders, storyRows);
-        document.getElementById("storyCountBadge").textContent = `${stories.length} stories, ${totalInPlaneBeams} in-plane beams`;
-        document.getElementById("storyResults").style.display = "block";
-        document.getElementById("storyEmpty").style.display = "none";
-
-        // Populate beam floor filter dropdown
-        const bmFilter = document.getElementById("bmFloorFilter");
-        bmFilter.innerHTML = '<option value="ALL">All Floors</option>';
-        // Top floor first in dropdown
-        [...stories].reverse().forEach(s => {
-            const opt = document.createElement("option");
-            opt.value = s.name;
-            opt.textContent = `${s.name} (${storyBeamMap[s.name] ? storyBeamMap[s.name].length : 0} beams)`;
-            bmFilter.appendChild(opt);
-        });
-
-        updateProgress(100, "Done!");
-        showToast(`${stories.length} stories loaded, ${totalInPlaneBeams} in-plane beams mapped`);
-        logEntry(`<span class="log-info">Story data: ${stories.length} stories, ${totalInPlaneBeams} in-plane beam elements</span>`);
-    } catch (err) {
-        showToast("Failed: " + err.message, "error");
-        logEntry(`<span class="log-status-err">Story data error: ${err.message}</span>`);
     }
-    setTimeout(hideProgress, 400);
+
+    // Render story table
+    const storyHeaders = ["Story", "Level (m)", "Height (m)", "Diaphragm", "In-Plane Beams"];
+    const storyRows = stories.map(s => [
+        s.name,
+        s.level.toFixed(3),
+        s.height.toFixed(3),
+        s.diaphragm,
+        storyBeamMap[s.name] ? storyBeamMap[s.name].length : 0
+    ]);
+    storyRows.reverse(); // top floor first
+
+    renderTable("storyTable", storyHeaders, storyRows);
+    document.getElementById("storyCountBadge").textContent = `${stories.length} stories, ${totalInPlaneBeams} in-plane beams`;
+    document.getElementById("storyResults").style.display = "block";
+    document.getElementById("storyEmpty").style.display = "none";
+
+    // Populate beam floor filter dropdown
+    const bmFilter = document.getElementById("bmFloorFilter");
+    bmFilter.innerHTML = '<option value="ALL">All Floors</option>';
+    [...stories].reverse().forEach(s => {
+        const opt = document.createElement("option");
+        opt.value = s.name;
+        opt.textContent = `${s.name} (${storyBeamMap[s.name] ? storyBeamMap[s.name].length : 0} beams)`;
+        bmFilter.appendChild(opt);
+    });
+
+    showToast(`${stories.length} stories loaded, ${totalInPlaneBeams} in-plane beams mapped`);
+    logEntry(`<span class="log-info">Story data: ${stories.length} stories, ${totalInPlaneBeams} in-plane beam elements</span>`);
+}
+
+function fillSampleStory() {
+    document.getElementById("manualStoryInput").value =
+`Roof, 15.00, 0.00, Consider
+4F, 11.25, 3.75, Consider
+3F, 7.50, 3.75, Consider
+2F, 3.75, 3.75, Consider
+1F, 0.00, 3.75, Do not consider`;
+}
+
+async function applyManualStoryData() {
+    const input = document.getElementById("manualStoryInput").value.trim();
+    if (!input) { showToast("Enter story data in the text area", "error"); return; }
+
+    const lines = input.split("\n").map(l => l.trim()).filter(l => l && !l.startsWith("//") && !l.startsWith("#"));
+    const stories = [];
+    for (const line of lines) {
+        const parts = line.split(",").map(s => s.trim());
+        if (parts.length < 3) { showToast(`Invalid line: "${line}" — need at least Name, Level, Height`, "error"); return; }
+        stories.push({
+            name: parts[0],
+            level: parseFloat(parts[1]) || 0,
+            height: parseFloat(parts[2]) || 0,
+            diaphragm: parts[3] || "-"
+        });
+    }
+
+    if (!stories.length) { showToast("No valid stories parsed", "error"); return; }
+
+    stories.sort((a, b) => a.level - b.level);
+
+    // If connected, fetch nodes & elements for beam mapping; otherwise just render stories
+    if (isConnected && !cachedNodeDict) {
+        showProgress("Manual Story Data", "Fetching nodes and elements for beam mapping...", "Reading...");
+        try {
+            const nodeData = await midasAPI("GET", "/db/node");
+            const elemData = await midasAPI("GET", "/db/elem");
+            cachedNodeDict = nodeData.NODE || nodeData;
+            cachedElemDict = elemData.ELEM || elemData;
+        } catch (err) {
+            logEntry(`<span class="log-status-err">Could not fetch elements: ${err.message}. Story table shown without beam mapping.</span>`);
+        }
+        hideProgress();
+    }
+
+    processAndRenderStories(stories, cachedNodeDict, cachedElemDict);
 }
 
 function copyStoryTable() {
