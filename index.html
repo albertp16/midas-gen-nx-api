@@ -372,6 +372,18 @@
         }
         .canvas-3d-controls button:hover { background: var(--bg-tertiary); }
 
+        /* ═══════════════════════ Editable cells ═══════════════════════ */
+        td.editable {
+            cursor: text; position: relative;
+        }
+        td.editable:hover { background: rgba(88,166,255,0.08) !important; outline: 1px solid var(--accent-blue); outline-offset: -1px; }
+        td.editable input {
+            width: 60px; background: var(--bg-input); border: 1px solid var(--accent-blue);
+            color: var(--text-primary); font-family: 'Consolas',monospace; font-size: 11px;
+            padding: 2px 4px; border-radius: 3px; text-align: right; outline: none;
+        }
+        td.edited { color: var(--accent-blue) !important; font-weight: 700 !important; }
+
         /* ═══════════════════════ Pass/Fail highlight rows ═══════════════════════ */
         tr[data-status="FAIL"] td { background: rgba(248,81,73,0.06); }
 
@@ -507,15 +519,16 @@
             </div>
             <div class="panel" id="quickActions" style="display:none;">
                 <div class="panel-header"><span class="panel-title">Quick Actions</span></div>
-                <div class="form-row">
+                <div class="form-row" style="align-items:center;">
                     <button class="btn btn-ghost" onclick="refreshStats()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
                         Refresh Stats
                     </button>
-                    <button class="btn btn-primary" onclick="runAnalysisWithProgress()">
+                    <button class="btn btn-primary" id="runAnalysisBtn" onclick="runAnalysisWithProgress()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                         Run Analysis
                     </button>
+                    <span id="analysisStatus" style="display:none;font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;"></span>
                 </div>
             </div>
         </div>
@@ -670,7 +683,12 @@
             </div>
 
             <div id="beamResults" style="display:none;">
-                <div style="display:flex; gap:8px; margin-bottom:12px; justify-content:flex-end;">
+                <div style="display:flex; gap:8px; margin-bottom:12px; justify-content:flex-end; align-items:center;">
+                    <span style="font-size:11px;color:var(--text-muted);margin-right:auto;">Edit Height/Width in table, then click Rerun to recalculate</span>
+                    <button class="btn btn-blue btn-sm" onclick="rerunBeamDesign()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+                        Rerun Design
+                    </button>
                     <button class="btn btn-ghost btn-sm" onclick="copyBeamTable()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                         Copy to Clipboard
@@ -770,7 +788,7 @@ let logCounter = 0;
 
 // Reaction data cache
 let rxData = [];  // [[node, X, Y, Z, force], ...]
-let rx3d = { rotX: 30, rotY: -35, zoom: 1.0 };
+let rx3d = { rotX: 25, rotY: -45, zoom: 1.0 };
 
 // ══════════════════════════════════════════════════════════════
 // PROGRESS MODAL
@@ -936,16 +954,46 @@ async function refreshStats() {
     } catch {}
 }
 
+function setAnalysisStatus(state) {
+    const el = document.getElementById("analysisStatus");
+    if (state === "completed") {
+        el.style.display = "inline-flex";
+        el.style.background = "rgba(63,185,80,0.12)";
+        el.style.color = "var(--accent-green)";
+        el.style.border = "1px solid rgba(63,185,80,0.25)";
+        el.innerHTML = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-green);margin-right:6px;"></span>Analysis Completed';
+    } else if (state === "failed") {
+        el.style.display = "inline-flex";
+        el.style.background = "rgba(248,81,73,0.12)";
+        el.style.color = "var(--accent-red)";
+        el.style.border = "1px solid rgba(248,81,73,0.25)";
+        el.innerHTML = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-red);margin-right:6px;"></span>Analysis Failed';
+    } else if (state === "running") {
+        el.style.display = "inline-flex";
+        el.style.background = "rgba(210,153,34,0.12)";
+        el.style.color = "var(--accent-orange)";
+        el.style.border = "1px solid rgba(210,153,34,0.25)";
+        el.innerHTML = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-orange);margin-right:6px;animation:pulse 1s infinite;"></span>Running...';
+    } else {
+        el.style.display = "none";
+    }
+}
+
 async function runAnalysisWithProgress() {
     if (!isConnected) return;
+    setAnalysisStatus("running");
     showProgress("Running Analysis", "MIDAS Gen is performing structural analysis...", "POST /doc/ANAL");
     updateProgress(-1, "Analysis in progress...");
     try {
         await midasAPI("POST", "/doc/ANAL", {});
         updateProgress(100, "Analysis completed!");
+        setAnalysisStatus("completed");
         showToast("Analysis completed!");
         await new Promise(r => setTimeout(r, 600));
-    } catch { showToast("Analysis failed", "error"); }
+    } catch {
+        setAnalysisStatus("failed");
+        showToast("Analysis failed", "error");
+    }
     hideProgress();
 }
 
@@ -973,6 +1021,8 @@ function renderTable(tableId, headers, rows) {
 
 // Store last beam table data for copy/export
 let lastBeamHeaders = [], lastBeamRows = [];
+// Store beam force data for rerun
+let cachedBeamForces = null;
 
 function copyBeamTable() {
     const table = document.getElementById("beamTable");
@@ -1474,6 +1524,29 @@ function drawReaction3D() {
         return { idx: i, depth: p.z };
     }).sort((a, b) => a.depth - b.depth);
 
+    // Helper: parse rgb string to components
+    function parseRGB(c) {
+        const m = c.match(/(\d+)/g);
+        return m ? [+m[0],+m[1],+m[2]] : [128,128,128];
+    }
+    function shadeColor(c, factor) {
+        const [r,g,b] = parseRGB(c);
+        return `rgb(${Math.round(r*factor)},${Math.round(g*factor)},${Math.round(b*factor)})`;
+    }
+
+    // Face normal visibility: compute face normal in screen space
+    function faceNormalZ(p0, p1, p2) {
+        return (p1.x - p0.x) * (p2.y - p0.y) - (p1.y - p0.y) * (p2.x - p0.x);
+    }
+    function drawFace(pts, fillColor, alpha) {
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+        ctx.closePath();
+        ctx.fillStyle = fillColor; ctx.globalAlpha = alpha; ctx.fill();
+        ctx.globalAlpha = 1; ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.lineWidth = 0.7; ctx.stroke();
+    }
+
     // Draw bars
     const fAbsArr = fs.map(Math.abs);
     const fAbsMin = Math.min(...fAbsArr), fAbsMaxC = Math.max(...fAbsArr);
@@ -1486,35 +1559,31 @@ function drawReaction3D() {
         const baseZ = f >= 0 ? 0 : f;
         const topZ = f >= 0 ? f : 0;
 
-        const base = [
+        // 8 corners of the box: bottom 0-3 (CCW from -x,-y), top 4-7
+        const v = [
             project(x-hdx, y-hdy, baseZ), project(x+hdx, y-hdy, baseZ),
-            project(x+hdx, y+hdy, baseZ), project(x-hdx, y+hdy, baseZ)
-        ];
-        const top = [
-            project(x-hdx, y-hdy, topZ), project(x+hdx, y-hdy, topZ),
-            project(x+hdx, y+hdy, topZ), project(x-hdx, y+hdy, topZ)
+            project(x+hdx, y+hdy, baseZ), project(x-hdx, y+hdy, baseZ),
+            project(x-hdx, y-hdy, topZ),  project(x+hdx, y-hdy, topZ),
+            project(x+hdx, y+hdy, topZ),  project(x-hdx, y+hdy, topZ)
         ];
 
-        // Front face
-        ctx.beginPath();
-        ctx.moveTo(base[0].x,base[0].y); ctx.lineTo(base[1].x,base[1].y);
-        ctx.lineTo(top[1].x,top[1].y); ctx.lineTo(top[0].x,top[0].y); ctx.closePath();
-        ctx.fillStyle = color; ctx.globalAlpha = 0.92; ctx.fill();
-        ctx.globalAlpha = 1; ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.lineWidth = 0.6; ctx.stroke();
+        // 6 faces: [vertices, shade factor]
+        const faces = [
+            { pts: [v[0],v[1],v[2],v[3]], shade: 0.50 }, // bottom
+            { pts: [v[4],v[7],v[6],v[5]], shade: 1.00 }, // top
+            { pts: [v[0],v[1],v[5],v[4]], shade: 0.70 }, // front (-Y)
+            { pts: [v[2],v[3],v[7],v[6]], shade: 0.80 }, // back (+Y)
+            { pts: [v[0],v[3],v[7],v[4]], shade: 0.60 }, // left (-X)
+            { pts: [v[1],v[2],v[6],v[5]], shade: 0.75 }, // right (+X)
+        ];
 
-        // Right face (darker shade)
-        ctx.beginPath();
-        ctx.moveTo(base[1].x,base[1].y); ctx.lineTo(base[2].x,base[2].y);
-        ctx.lineTo(top[2].x,top[2].y); ctx.lineTo(top[1].x,top[1].y); ctx.closePath();
-        ctx.fillStyle = color; ctx.globalAlpha = 0.7; ctx.fill();
-        ctx.globalAlpha = 1; ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.stroke();
-
-        // Top face (brightest)
-        ctx.beginPath();
-        ctx.moveTo(top[0].x,top[0].y); ctx.lineTo(top[1].x,top[1].y);
-        ctx.lineTo(top[2].x,top[2].y); ctx.lineTo(top[3].x,top[3].y); ctx.closePath();
-        ctx.fillStyle = color; ctx.globalAlpha = 0.97; ctx.fill();
-        ctx.globalAlpha = 1; ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.stroke();
+        // Only draw faces whose normal points toward the camera (back-face culling)
+        for (const face of faces) {
+            const nz = faceNormalZ(face.pts[0], face.pts[1], face.pts[2]);
+            if (nz > 0) {
+                drawFace(face.pts, shadeColor(color, face.shade), 0.95);
+            }
+        }
 
         // Node label on top of bar
         const labelP = project(x, y, topZ);
@@ -1834,97 +1903,162 @@ async function runBeamDesign() {
         const gravForces = parseBeamForces(gravHead, gravRows);
         const seisForces = parseBeamForces(seisHead, seisRows);
 
-        // Beam design calculations (from beam_solver.py)
+        // Cache forces for rerun
+        cachedBeamForces = { gravForces, seisForces, elemLengths, elemTypes };
+
+        updateProgress(80, "Computing ACI beam design...");
+        computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes);
+
+        updateProgress(100, "Done!");
+        showToast(`Beam designs computed`);
+    } catch (err) {
+        showToast("Beam design failed: " + err.message, "error");
+    }
+    setTimeout(hideProgress, 400);
+}
+
+function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, dimOverrides) {
+    const h0 = parseFloat(document.getElementById("bmHeight").value);
+    const bw0 = parseFloat(document.getElementById("bmWidth").value);
+    const fc = parseFloat(document.getElementById("bmFc").value);
+    const fy = parseFloat(document.getElementById("bmFy").value);
+    const db = parseFloat(document.getElementById("bmDb").value);
+    const dbs = parseFloat(document.getElementById("bmDbs").value);
+    const cover = parseFloat(document.getElementById("bmCover").value);
+    const aprR = parseFloat(document.getElementById("bmAprR").value);
+    const frameType = document.getElementById("bmFrameType").value;
+
+    const headers = [
+        "Beam ID", "Length\n(m)", "Beam Height\n(mm)", "Beam Width\n(mm)", "f'c\n(MPa)", "fy\n(MPa)",
+        "db", "dbs", "eff. depth\n(mm)", "Steel Area\n(sq.mm)",
+        "aprR", "Mpr_i (L)\n(kN.m)", "Mpr_j (L)\n(kN.m)",
+        "Vpr (L)\n(kN)", "Vg (L)\n(kN)", "Ve (L)\n(kN)",
+        "Mpr_i (R)\n(kN.m)", "Mpr_j (R)\n(kN.m)",
+        "Vpr (R)\n(kN)", "Vg (R)\n(kN)", "Ve (R)\n(kN)",
+        "Mdemand (i)\n(kN.m)", "Mdemand (j)\n(kN.m)",
+        "Mcap (i)\n(kN.m)", "Mcap (j)\n(kN.m)",
+        "Ratio (i)", "Ratio (j)", "Status"
+    ];
+
+    const resultRows = [];
+    const allElems = new Set([...Object.keys(seisForces), ...Object.keys(gravForces)]);
+    // Track which elems have overrides for highlighting
+    const editedElems = new Set();
+
+    for (const elem of allElems) {
+        if (elemTypes[elem] && elemTypes[elem] !== "BEAM") continue;
+
+        // Per-element dimension overrides
+        const ovr = dimOverrides ? dimOverrides[elem] : null;
+        const h = ovr ? ovr.h : h0;
+        const bw = ovr ? ovr.bw : bw0;
+        if (ovr) editedElems.add(elem);
+
+        const sf = seisForces[elem] || { Mi: 0, Mj: 0 };
+        const gf = gravForces[elem] || { Vi: 0, Vj: 0 };
+        const Mi_seis = Math.abs(sf.Mi || 0);
+        const Mj_seis = Math.abs(sf.Mj || 0);
+
         const effDepth = BS.depth(h, cover, dbs, db);
         const steelArea = BS.dbarArea(db);
         const sp = BS.rebarSp(db, 20);
         const maxPerLayer = BS.nlayersMax(bw, cover, dbs, db, sp);
 
-        const headers = [
-            "Beam ID", "Length\n(m)", "Beam Height\n(mm)", "Beam Width\n(mm)", "f'c\n(MPa)", "fy\n(MPa)",
-            "db", "dbs", "eff. depth\n(mm)", "Steel Area\n(sq.mm)",
-            "aprR", "Mpr_i (L)\n(kN.m)", "Mpr_j (L)\n(kN.m)",
-            "Vpr (L)\n(kN)", "Vg (L)\n(kN)", "Ve (L)\n(kN)",
-            "Mpr_i (R)\n(kN.m)", "Mpr_j (R)\n(kN.m)",
-            "Vpr (R)\n(kN)", "Vg (R)\n(kN)", "Ve (R)\n(kN)",
-            "Mdemand (i)\n(kN.m)", "Mdemand (j)\n(kN.m)",
-            "Mcap (i)\n(kN.m)", "Mcap (j)\n(kN.m)",
-            "Ratio (i)", "Ratio (j)", "Status"
-        ];
+        const nbarsI = BS.nbarDesign(Mi_seis, fc, fy, bw, h, db, frameType);
+        const nbarsJ = BS.nbarDesign(Mj_seis, fc, fy, bw, h, db, frameType);
+        const nI = Math.max(nbarsI, 2);
+        const nJ = Math.max(nbarsJ, 2);
+        const capI = BS.flexcap(fc, fy, bw, h, dbs, db, maxPerLayer, Math.ceil(nI/2), nI);
+        const capJ = BS.flexcap(fc, fy, bw, h, dbs, db, maxPerLayer, Math.ceil(nJ/2), nJ);
 
-        const resultRows = [];
-        const allElems = new Set([...Object.keys(seisForces), ...Object.keys(gravForces)]);
+        const Mpr_iL = capI.Mn * aprR;
+        const Mpr_jL = capJ.Mn * aprR;
+        const Mpr_iR = capI.Mn * aprR;
+        const Mpr_jR = capJ.Mn * aprR;
 
-        for (const elem of allElems) {
-            // Only process BEAM type elements
-            if (elemTypes[elem] && elemTypes[elem] !== "BEAM") continue;
+        const Ln = elemLengths[elem] || elemLengths[String(elem)] || Math.max(h * 5 / 1000, 3.0);
 
-            const sf = seisForces[elem] || { Mi: 0, Mj: 0 };
-            const gf = gravForces[elem] || { Vi: 0, Vj: 0 };
+        const Vpr_L = (Mpr_iL + Mpr_jL) / Ln;
+        const Vpr_R = (Mpr_iR + Mpr_jR) / Ln;
+        const Vg_L = Math.abs(gf.Vi || 0);
+        const Vg_R = Math.abs(gf.Vj || Vg_L);
+        const Ve_L = Vpr_L + Vg_L;
+        const Ve_R = Vpr_R + Vg_R;
 
-            const Mi_seis = Math.abs(sf.Mi || 0);
-            const Mj_seis = Math.abs(sf.Mj || 0);
+        const Mdemand_i = Mi_seis, Mdemand_j = Mj_seis;
+        const Mcap_i = capI.Mn, Mcap_j = capJ.Mn;
+        const ratio_i = Mcap_i > 0 ? Mdemand_i / Mcap_i : 0;
+        const ratio_j = Mcap_j > 0 ? Mdemand_j / Mcap_j : 0;
+        const pass = (ratio_i <= 1.0 && ratio_j <= 1.0);
 
-            // Design bars needed (from beam_solver.nbardesign)
-            const nbarsI = BS.nbarDesign(Mi_seis, fc, fy, bw, h, db, frameType);
-            const nbarsJ = BS.nbarDesign(Mj_seis, fc, fy, bw, h, db, frameType);
-
-            // Flexural capacity (from beam_solver.flexcap)
-            const nI = Math.max(nbarsI, 2);
-            const nJ = Math.max(nbarsJ, 2);
-            const capI = BS.flexcap(fc, fy, bw, h, dbs, db, maxPerLayer, Math.ceil(nI/2), nI);
-            const capJ = BS.flexcap(fc, fy, bw, h, dbs, db, maxPerLayer, Math.ceil(nJ/2), nJ);
-
-            // Probable moment Mpr = Mn * aprR (alpha factor)
-            const Mpr_iL = capI.Mn * aprR;
-            const Mpr_jL = capJ.Mn * aprR;
-            const Mpr_iR = capI.Mn * aprR;
-            const Mpr_jR = capJ.Mn * aprR;
-
-            // Use actual element length from node coordinates (like beam.py)
-            const Ln = elemLengths[elem] || elemLengths[String(elem)] || Math.max(h * 5 / 1000, 3.0);
-
-            // Shear from probable moments: Vpr = (Mpr_i + Mpr_j) / Ln
-            const Vpr_L = (Mpr_iL + Mpr_jL) / Ln;
-            const Vpr_R = (Mpr_iR + Mpr_jR) / Ln;
-
-            const Vg_L = Math.abs(gf.Vi || 0);
-            const Vg_R = Math.abs(gf.Vj || Vg_L);
-            const Ve_L = Vpr_L + Vg_L;
-            const Ve_R = Vpr_R + Vg_R;
-
-            const Mdemand_i = Mi_seis;
-            const Mdemand_j = Mj_seis;
-            const Mcap_i = capI.Mn;
-            const Mcap_j = capJ.Mn;
-            const ratio_i = Mcap_i > 0 ? Mdemand_i / Mcap_i : 0;
-            const ratio_j = Mcap_j > 0 ? Mdemand_j / Mcap_j : 0;
-
-            // Pass/Fail: both ratios must be <= 1.0
-            const pass = (ratio_i <= 1.0 && ratio_j <= 1.0);
-            const statusLabel = pass ? "PASS" : "FAIL";
-
-            resultRows.push([
-                elem, Ln.toFixed(3), h.toFixed(0), bw.toFixed(0), fc.toFixed(3), fy.toFixed(3),
-                db, dbs, effDepth.toFixed(1), steelArea.toFixed(2),
-                aprR.toFixed(2),
-                Mpr_iL.toFixed(2), Mpr_jL.toFixed(2), Vpr_L.toFixed(2), Vg_L.toFixed(2), Ve_L.toFixed(2),
-                Mpr_iR.toFixed(2), Mpr_jR.toFixed(2), Vpr_R.toFixed(2), Vg_R.toFixed(2), Ve_R.toFixed(2),
-                Mdemand_i.toFixed(2), Mdemand_j.toFixed(2),
-                Mcap_i.toFixed(2), Mcap_j.toFixed(2),
-                ratio_i.toFixed(3), ratio_j.toFixed(3), statusLabel
-            ]);
-        }
-
-        updateProgress(100, `${resultRows.length} beams computed`);
-        renderTable("beamTable", headers, resultRows);
-        document.getElementById("beamResults").style.display = "block";
-        document.getElementById("beamEmpty").style.display = "none";
-        showToast(`${resultRows.length} beam designs computed`);
-    } catch (err) {
-        showToast("Beam design failed: " + err.message, "error");
+        resultRows.push([
+            elem, Ln.toFixed(3), h.toFixed(0), bw.toFixed(0), fc.toFixed(3), fy.toFixed(3),
+            db, dbs, effDepth.toFixed(1), steelArea.toFixed(2),
+            aprR.toFixed(2),
+            Mpr_iL.toFixed(2), Mpr_jL.toFixed(2), Vpr_L.toFixed(2), Vg_L.toFixed(2), Ve_L.toFixed(2),
+            Mpr_iR.toFixed(2), Mpr_jR.toFixed(2), Vpr_R.toFixed(2), Vg_R.toFixed(2), Ve_R.toFixed(2),
+            Mdemand_i.toFixed(2), Mdemand_j.toFixed(2),
+            Mcap_i.toFixed(2), Mcap_j.toFixed(2),
+            ratio_i.toFixed(3), ratio_j.toFixed(3), pass ? "PASS" : "FAIL"
+        ]);
     }
-    setTimeout(hideProgress, 400);
+
+    renderTable("beamTable", headers, resultRows);
+
+    // Make Height (col 2) and Width (col 3) editable
+    const tbody = document.getElementById("beamTable").querySelector("tbody");
+    const rows = tbody.querySelectorAll("tr");
+    rows.forEach((tr, ri) => {
+        const tds = tr.querySelectorAll("td");
+        // Column indices: 0=ID, 1=Length, 2=Height, 3=Width
+        [2, 3].forEach(ci => {
+            const td = tds[ci];
+            if (!td) return;
+            td.classList.add("editable");
+            const origVal = td.textContent;
+            const elemId = tds[0].textContent.trim();
+            const edited = editedElems.has(elemId);
+            if (edited) td.classList.add("edited");
+            td.addEventListener("dblclick", function() {
+                if (td.querySelector("input")) return;
+                const val = td.textContent;
+                td.innerHTML = `<input type="number" value="${val}" />`;
+                const inp = td.querySelector("input");
+                inp.focus(); inp.select();
+                inp.addEventListener("blur", () => { td.textContent = inp.value || val; td.classList.add("edited"); });
+                inp.addEventListener("keydown", e => { if (e.key === "Enter") inp.blur(); if (e.key === "Escape") { td.textContent = val; } });
+            });
+        });
+    });
+
+    document.getElementById("beamResults").style.display = "block";
+    document.getElementById("beamEmpty").style.display = "none";
+}
+
+function rerunBeamDesign() {
+    if (!cachedBeamForces) { showToast("Run beam design first", "error"); return; }
+
+    // Read per-element dimension overrides from the table
+    const tbody = document.getElementById("beamTable").querySelector("tbody");
+    const rows = tbody.querySelectorAll("tr");
+    const dimOverrides = {};
+    const h0 = parseFloat(document.getElementById("bmHeight").value);
+    const bw0 = parseFloat(document.getElementById("bmWidth").value);
+
+    rows.forEach(tr => {
+        const tds = tr.querySelectorAll("td");
+        const elemId = tds[0].textContent.trim();
+        const hVal = parseFloat(tds[2].textContent) || h0;
+        const bwVal = parseFloat(tds[3].textContent) || bw0;
+        if (hVal !== h0 || bwVal !== bw0) {
+            dimOverrides[elemId] = { h: hVal, bw: bwVal };
+        }
+    });
+
+    const { gravForces, seisForces, elemLengths, elemTypes } = cachedBeamForces;
+    computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes,
+        Object.keys(dimOverrides).length > 0 ? dimOverrides : null);
+    showToast("Beam design recalculated!");
 }
 
 // ══════════════════════════════════════════════════════════════
