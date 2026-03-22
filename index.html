@@ -549,8 +549,21 @@
             <div class="panel">
                 <div class="panel-header"><span class="panel-title">Parameters</span></div>
                 <div class="form-row" style="margin-bottom:12px;">
-                    <div class="form-group" style="flex:1;"><label>Load Cases (comma-separated)</label><input type="text" id="driftLoadCases" class="input" value="Ex(ST), EX +(ST), EX -(ST)" /></div>
-                    <div class="form-group"><label>Direction</label><select id="driftDirection" class="input"><option value="STORY_DRIFT_X">X Direction</option><option value="STORY_DRIFT_Y">Y Direction</option></select></div>
+                    <div class="form-group" style="flex:2;">
+                        <label>Load Cases <span style="font-size:10px;color:var(--text-muted)">(Ctrl/Shift+click for multiple)</span></label>
+                        <select id="driftLoadCases" class="input" multiple style="min-height:90px;">
+                            <option selected>Ex(ST)</option><option selected>EX +(ST)</option><option selected>EX -(ST)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Direction</label>
+                        <select id="driftDirection" class="input">
+                            <option value="X">X Direction</option>
+                            <option value="Y">Y Direction</option>
+                            <option value="BOTH">Both (two plots)</option>
+                            <option value="MIX">Mix (X + Y in one plot)</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group"><label>Scale Factor</label><input type="number" id="driftScaleFactor" class="input" value="5.95" step="0.01" style="width:100px;" /></div>
@@ -564,12 +577,14 @@
                         <input type="checkbox" id="driftShowValues" checked onchange="redrawDriftIfReady()" style="accent-color:var(--accent-blue);" />
                         Show Values
                     </label>
-                    <button class="btn btn-ghost btn-sm" onclick="downloadCanvas('driftCanvas','story_drift.png')">
+                    <button class="btn btn-ghost btn-sm" onclick="downloadAllDriftCanvases()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         Download Image
                     </button>
                 </div>
-                <canvas id="driftCanvas" width="750" height="500"></canvas>
+                <div id="driftCanvasContainer">
+                    <canvas id="driftCanvas" width="750" height="500"></canvas>
+                </div>
                 <div class="chart-legend" id="driftLegend"></div>
             </div>
         </div>
@@ -583,7 +598,9 @@
                 <div class="form-row" style="margin-bottom:12px;">
                     <div class="form-group" style="flex:1;">
                         <label>Load Case</label>
-                        <input type="text" id="reactionLoadCase" class="input" value="SDL(ST)" />
+                        <select id="reactionLoadCase" class="input">
+                            <option>SDL(ST)</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label>Force Component</label>
@@ -847,6 +864,10 @@ let logCounter = 0;
 // Reaction data cache
 let rxData = [];  // [[node, X, Y, Z, force], ...]
 let rx3d = { rotX: 25, rotY: -45, zoom: 1.0 };
+
+// Load case names fetched from MIDAS (populated by fetchLoads)
+let fetchedLoadCaseNames = [];
+let fetchedLcomNames = [];
 
 // ══════════════════════════════════════════════════════════════
 // PROGRESS MODAL
@@ -1126,9 +1147,9 @@ function exportBeamCSV() {
 const COLORS = ["#58a6ff","#3fb950","#f0883e","#f85149","#d2a8ff","#79c0ff","#d29922","#ff7b72"];
 
 // Cache last drift data for redraw
-let lastDriftSeries = null, lastDriftStories = null, lastDriftAllowable = 0, lastDriftDir = "";
+let lastDriftCharts = []; // array of { series, stories, allowable, dirLabel, canvasId }
 function redrawDriftIfReady() {
-    if (lastDriftSeries) drawDriftChart(lastDriftSeries, lastDriftStories, lastDriftAllowable, lastDriftDir);
+    lastDriftCharts.forEach(c => drawDriftChart(c.series, c.stories, c.allowable, c.dirLabel, c.canvasId));
 }
 
 function storyNo(s) {
@@ -1139,22 +1160,11 @@ function storyNo(s) {
     return m ? parseInt(m[1]) : -1;
 }
 
-async function plotDrift() {
-    if (!isConnected) { showToast("Connect first", "error"); return; }
-    const loadCases = document.getElementById("driftLoadCases").value.split(",").map(s => s.trim()).filter(Boolean);
-    const tableType = document.getElementById("driftDirection").value;
-    const scaleFactor = parseFloat(document.getElementById("driftScaleFactor").value) || 5.95;
-    const allowable = parseFloat(document.getElementById("driftAllowable").value) || 0.025;
-    const dirLabel = tableType === "STORY_DRIFT_X" ? "X" : "Y";
+async function fetchDriftForDirection(tableType, loadCases, scaleFactor, allowable) {
     const colRatio = "Maximum Drift of All Vertical Elements/Story Drift Ratio";
-    if (!loadCases.length) { showToast("Enter load cases", "error"); return; }
-
-    showProgress("Fetching Story Drift", `${loadCases.length} load case(s)`, "Requesting data...");
     const allSeries = [], allStories = new Set();
-
     for (let li = 0; li < loadCases.length; li++) {
         const lc = loadCases[li];
-        updateProgress(((li + 1) / loadCases.length) * 90, `Load case: ${lc}`);
         try {
             const body = { Argument: { TABLE_TYPE: tableType, UNIT: { FORCE: "KN", DIST: "MM" }, LOAD_CASE_NAMES: [lc], STYLES: { FORMAT: "FIXED", PLACE: 5 }, ADDITIONAL: { SET_STORY_DRIFT_PARAMS: { RESPONSE_MOD_FACTOR_CHECK: true, SCALE_FACTOR_VALUE: scaleFactor, ALLOWABLE_RATIO: allowable }}}};
             const result = await midasAPI("POST", "/post/TABLE", body);
@@ -1169,21 +1179,111 @@ async function plotDrift() {
             }
             series.sort((a, b) => a.StoryNo - b.StoryNo);
             allSeries.push({ name: lc, data: series });
-        } catch (err) { logEntry(`<span class="log-status-err">Drift "${lc}": ${err.message}</span>`); }
+        } catch (err) { logEntry(`<span class="log-status-err">Drift "${lc}" (${tableType}): ${err.message}</span>`); }
     }
-    hideProgress();
-    if (!allSeries.length) { showToast("No data", "error"); return; }
     const stories = [...new Map(Array.from(allStories).map(s => JSON.parse(s)).sort((a,b) => a.StoryNo - b.StoryNo).map(s => [s.StoryNo, s])).values()];
+    return { series: allSeries, stories };
+}
+
+function downloadAllDriftCanvases() {
+    const container = document.getElementById("driftCanvasContainer");
+    const canvases = container.querySelectorAll("canvas");
+    canvases.forEach((c, i) => {
+        const link = document.createElement("a");
+        link.download = canvases.length > 1 ? `story_drift_${i+1}.png` : "story_drift.png";
+        link.href = c.toDataURL("image/png");
+        link.click();
+    });
+}
+
+async function plotDrift() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+    const sel = document.getElementById("driftLoadCases");
+    const loadCases = Array.from(sel.selectedOptions).map(o => o.value);
+    const dirMode = document.getElementById("driftDirection").value; // X, Y, BOTH, MIX
+    const scaleFactor = parseFloat(document.getElementById("driftScaleFactor").value) || 5.95;
+    const allowable = parseFloat(document.getElementById("driftAllowable").value) || 0.025;
+    if (!loadCases.length) { showToast("Select load cases", "error"); return; }
+
+    const container = document.getElementById("driftCanvasContainer");
+    container.innerHTML = ""; // clear previous canvases
+    lastDriftCharts = [];
+
+    // Determine which directions to fetch
+    const directions = [];
+    if (dirMode === "X" || dirMode === "BOTH" || dirMode === "MIX") directions.push({ type: "STORY_DRIFT_X", label: "X" });
+    if (dirMode === "Y" || dirMode === "BOTH" || dirMode === "MIX") directions.push({ type: "STORY_DRIFT_Y", label: "Y" });
+
+    const totalSteps = loadCases.length * directions.length;
+    showProgress("Fetching Story Drift", `${loadCases.length} load case(s), ${directions.map(d=>d.label).join("+")} direction`, "Requesting data...");
+
+    if (dirMode === "MIX") {
+        // ═══ MIX MODE: X and Y series on one single chart ═══
+        const allSeries = [], allStories = new Set();
+        let step = 0;
+        for (const dir of directions) {
+            const result = await fetchDriftForDirection(dir.type, loadCases, scaleFactor, allowable);
+            result.series.forEach(s => {
+                allSeries.push({ name: `${s.name} (${dir.label})`, data: s.data });
+            });
+            result.stories.forEach(st => allStories.add(JSON.stringify(st)));
+            step += loadCases.length;
+            updateProgress((step / totalSteps) * 90, `Fetched ${dir.label} direction...`);
+        }
+        hideProgress();
+        if (!allSeries.length) { showToast("No data", "error"); return; }
+        const stories = [...new Map(Array.from(allStories).map(s => {
+            const p = JSON.parse(s); return [p.StoryNo, p];
+        }).sort((a,b) => a[0] - b[0])).values()];
+        const canvasId = "driftCanvas_mix";
+        const c = document.createElement("canvas"); c.id = canvasId; c.width = 750; c.height = 500;
+        container.appendChild(c);
+        document.getElementById("driftChartWrapper").style.display = "flex";
+        drawDriftChart(allSeries, stories, allowable, "X + Y (Mix)", canvasId);
+        lastDriftCharts.push({ series: allSeries, stories, allowable, dirLabel: "X + Y (Mix)", canvasId });
+
+    } else {
+        // ═══ SINGLE or BOTH MODE: separate chart per direction ═══
+        let step = 0;
+        for (const dir of directions) {
+            updateProgress((step / totalSteps) * 90, `Fetching ${dir.label} direction...`);
+            const result = await fetchDriftForDirection(dir.type, loadCases, scaleFactor, allowable);
+            step += loadCases.length;
+            if (!result.series.length) continue;
+            const canvasId = `driftCanvas_${dir.label}`;
+            const c = document.createElement("canvas"); c.id = canvasId; c.width = 750; c.height = 500;
+            if (container.children.length > 0) {
+                const spacer = document.createElement("div");
+                spacer.style.cssText = "height:24px;";
+                container.appendChild(spacer);
+            }
+            container.appendChild(c);
+            drawDriftChart(result.series, result.stories, allowable, dir.label, canvasId);
+            lastDriftCharts.push({ series: result.series, stories: result.stories, allowable, dirLabel: dir.label, canvasId });
+        }
+        hideProgress();
+    }
     document.getElementById("driftChartWrapper").style.display = "flex";
-    drawDriftChart(allSeries, stories, allowable, dirLabel);
+    // Build combined legend
+    const $l = document.getElementById("driftLegend"); $l.innerHTML = "";
+    lastDriftCharts.forEach(chart => {
+        chart.series.forEach((s,i) => {
+            const d = document.createElement("div"); d.className = "legend-item";
+            d.innerHTML = `<span class="legend-swatch" style="background:${COLORS[i%COLORS.length]}"></span>${s.name}`;
+            $l.appendChild(d);
+        });
+    });
+    const ad = document.createElement("div"); ad.className = "legend-item";
+    ad.innerHTML = `<span class="legend-swatch" style="background:#f85149"></span>Allowable`;
+    $l.appendChild(ad);
     showToast("Drift plot updated!");
 }
 
-function drawDriftChart(seriesArr, stories, allowable, dirLabel) {
-    // Cache for redraw
-    lastDriftSeries = seriesArr; lastDriftStories = stories; lastDriftAllowable = allowable; lastDriftDir = dirLabel;
+function drawDriftChart(seriesArr, stories, allowable, dirLabel, canvasId) {
+    canvasId = canvasId || "driftCanvas";
     const showValues = document.getElementById("driftShowValues") ? document.getElementById("driftShowValues").checked : true;
-    const canvas = document.getElementById("driftCanvas");
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
     const W = 750, H = 500;
     canvas.width = W*dpr; canvas.height = H*dpr;
@@ -1230,9 +1330,6 @@ function drawDriftChart(seriesArr, stories, allowable, dirLabel) {
     ctx.fillText(`Story Drift Ratio - ${dirLabel} Direction`,W/2,10);
     ctx.fillStyle="#8b949e"; ctx.font="12px 'Segoe UI',sans-serif"; ctx.fillText("Drift Ratio",W/2,H-10);
     ctx.save(); ctx.translate(16,m.top+pH/2); ctx.rotate(-Math.PI/2); ctx.fillText("Story",0,0); ctx.restore();
-    const $l = document.getElementById("driftLegend"); $l.innerHTML="";
-    seriesArr.forEach((s,i) => { const d=document.createElement("div"); d.className="legend-item"; d.innerHTML=`<span class="legend-swatch" style="background:${COLORS[i%COLORS.length]}"></span>${s.name}`; $l.appendChild(d); });
-    const ad=document.createElement("div"); ad.className="legend-item"; ad.innerHTML=`<span class="legend-swatch" style="background:#f85149"></span>Allowable`; $l.appendChild(ad);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -2234,8 +2331,38 @@ async function fetchLoads() {
         document.getElementById("loadsResultsArea").style.display = "block";
         document.getElementById("loadsEmpty").style.display = "none";
 
+        // ─── Populate Drift & Reaction dropdowns with fetched load case names ───
+        // Build name list: "Name(ST)" format matching MIDAS convention
+        fetchedLoadCaseNames = stldRows.map(r => {
+            const name = r[1];
+            return name.includes("(") ? name : `${name}(ST)`;
+        });
+        fetchedLcomNames = lcomRows.map(r => {
+            const name = r[1];
+            return name;
+        });
+        const allNames = [...fetchedLoadCaseNames, ...fetchedLcomNames];
+
+        // Populate Drift multi-select
+        const driftSelect = document.getElementById("driftLoadCases");
+        driftSelect.innerHTML = "";
+        allNames.forEach(n => {
+            const opt = document.createElement("option");
+            opt.value = n; opt.textContent = n;
+            driftSelect.appendChild(opt);
+        });
+
+        // Populate Reaction dropdown
+        const rxSelect = document.getElementById("reactionLoadCase");
+        rxSelect.innerHTML = "";
+        allNames.forEach(n => {
+            const opt = document.createElement("option");
+            opt.value = n; opt.textContent = n;
+            rxSelect.appendChild(opt);
+        });
+
         updateProgress(100, "Done!");
-        showToast(`${stldRows.length} load cases, ${lcomRows.length} combinations`);
+        showToast(`${stldRows.length} load cases, ${lcomRows.length} combinations — dropdowns updated`);
     } catch (err) {
         showToast("Failed: " + err.message, "error");
     }
