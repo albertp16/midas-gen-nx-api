@@ -527,10 +527,18 @@
                 </div>
             </div>
             <div class="stats-grid" id="statsGrid" style="display:none;">
-                <div class="stat-card"><div class="stat-card-label">Nodes</div><div class="stat-card-value" id="nodeCount">-</div><div class="stat-card-sub">/db/node</div></div>
-                <div class="stat-card"><div class="stat-card-label">Elements</div><div class="stat-card-value" id="elemCount">-</div><div class="stat-card-sub">/db/elem</div></div>
-                <div class="stat-card"><div class="stat-card-label">Materials</div><div class="stat-card-value" id="matCount">-</div><div class="stat-card-sub">/db/matl</div></div>
-                <div class="stat-card"><div class="stat-card-label">Sections</div><div class="stat-card-value" id="sectCount">-</div><div class="stat-card-sub">/db/sect</div></div>
+                <div class="stat-card" style="cursor:pointer;" onclick="showStatDetail('node')"><div class="stat-card-label">Nodes</div><div class="stat-card-value" id="nodeCount">-</div><div class="stat-card-sub">/db/node</div></div>
+                <div class="stat-card" style="cursor:pointer;" onclick="showStatDetail('elem')"><div class="stat-card-label">Elements</div><div class="stat-card-value" id="elemCount">-</div><div class="stat-card-sub">/db/elem</div></div>
+                <div class="stat-card" style="cursor:pointer;" onclick="showStatDetail('matl')"><div class="stat-card-label">Materials</div><div class="stat-card-value" id="matCount">-</div><div class="stat-card-sub">/db/matl</div></div>
+                <div class="stat-card" style="cursor:pointer;" onclick="showStatDetail('sect')"><div class="stat-card-label">Sections</div><div class="stat-card-value" id="sectCount">-</div><div class="stat-card-sub">/db/sect</div></div>
+            </div>
+            <!-- Stat Detail Panel (appears on card click) -->
+            <div id="statDetailPanel" class="panel" style="display:none;">
+                <div class="panel-header">
+                    <span class="panel-title" id="statDetailTitle">Detail</span>
+                    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('statDetailPanel').style.display='none'">Close</button>
+                </div>
+                <div class="table-wrap"><div class="table-scroll"><table id="statDetailTable"><thead><tr></tr></thead><tbody></tbody></table></div></div>
             </div>
             <div class="panel" id="quickActions" style="display:none;">
                 <div class="panel-header"><span class="panel-title">Quick Actions</span></div>
@@ -905,6 +913,17 @@ Roof, 15.00, 0.00, Consider
                     </div>
                 </div>
 
+                <!-- Response Spectrum Load Cases -->
+                <div class="panel" id="splcPanel" style="display:none;">
+                    <div class="panel-header">
+                        <span class="panel-title">Response Spectrum Load Cases</span>
+                        <span id="splcCount" style="font-size:11px;color:var(--text-muted);"></span>
+                    </div>
+                    <div class="table-wrap">
+                        <div class="table-scroll"><table id="splcTable"><thead><tr></tr></thead><tbody></tbody></table></div>
+                    </div>
+                </div>
+
                 <!-- Load Combinations -->
                 <div class="panel">
                     <div class="panel-header">
@@ -1148,6 +1167,52 @@ function disconnect() {
 async function heartbeat() {
     try { await midasAPI("GET", "/db/node"); if (!isConnected) { isConnected = true; setStatus("connected"); } }
     catch { isConnected = false; setStatus("disconnected"); }
+}
+
+async function showStatDetail(type) {
+    if (!isConnected) return;
+    const labels = { node: "Nodes", elem: "Elements", matl: "Materials", sect: "Sections" };
+    const endpoints = { node: "/db/node", elem: "/db/elem", matl: "/db/matl", sect: "/db/sect" };
+    const wrapKeys = { node: "NODE", elem: "ELEM", matl: "MATL", sect: "SECT" };
+
+    document.getElementById("statDetailTitle").textContent = `${labels[type]} Data`;
+    try {
+        const data = await midasAPI("GET", endpoints[type]);
+        const obj = data[wrapKeys[type]] || data;
+        const entries = Object.entries(obj);
+        if (!entries.length) { showToast("No data", "error"); return; }
+
+        let headers, rows;
+        if (type === "elem") {
+            headers = ["ID", "Type", "Material", "Section", "Nodes"];
+            rows = entries.map(([id, v]) => [
+                id,
+                v.TYPE || "-",
+                v.MATL || v.iMAT || "-",
+                v.SECT || v.iSEC || "-",
+                (v.NODE || []).join(", ")
+            ]);
+            // Summary by type
+            const typeCounts = {};
+            entries.forEach(([, v]) => { const t = v.TYPE || "?"; typeCounts[t] = (typeCounts[t] || 0) + 1; });
+            const summary = Object.entries(typeCounts).map(([t, c]) => `${t}: ${c}`).join(" | ");
+            document.getElementById("statDetailTitle").textContent = `Elements — ${entries.length} total (${summary})`;
+        } else if (type === "node") {
+            headers = ["ID", "X", "Y", "Z"];
+            rows = entries.map(([id, v]) => [id, v.X, v.Y, v.Z]);
+        } else if (type === "matl") {
+            headers = ["ID", "Type", "Name"];
+            rows = entries.map(([id, v]) => [id, v.TYPE || "-", v.NAME || v.P_NAME || "-"]);
+        } else if (type === "sect") {
+            headers = ["ID", "Type", "Name", "Shape"];
+            rows = entries.map(([id, v]) => [id, v.TYPE || "-", v.SNAME || v.NAME || "-", v.SHAPE || "-"]);
+        }
+        renderTable("statDetailTable", headers, rows);
+        document.getElementById("statDetailPanel").style.display = "block";
+        showToast(`${entries.length} ${labels[type].toLowerCase()} loaded`);
+    } catch (err) {
+        showToast("Failed: " + err.message, "error");
+    }
 }
 
 async function refreshStats() {
@@ -2724,7 +2789,7 @@ async function runBeamDesign() {
 // 8=nib, 9=nmb, 10=njb, 11=nit, 12=nmt, 13=njt, 14=db,
 // 15=vdb, 16=vns_i, 17=vns_m, 18=vns_j, 19=vs_i, 20=vs_m, 21=vs_j,
 // 22-24=mdi/mdm/mdj, 25-27=mci/mcm/mcj, 28-30=mri/mrm/mrj, 31=Status
-const BEAM_EDITABLE_COLS = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18];
+const BEAM_EDITABLE_COLS = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21];
 
 function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, overrides) {
     const h0 = parseFloat(document.getElementById("bmHeight").value);
@@ -2757,6 +2822,7 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
     let failCount = 0, totalCount = 0;
 
     // Generate beam tags: <floor>G<seq> per story
+    // Sort beams: horizontal (along X) first, then vertical (along Y), by position
     // Build floor assignment for each element
     const elemFloorMap = {}; // elemId -> storyName
     const floorSeqCounters = {}; // storyName -> running counter
@@ -2769,7 +2835,46 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
     let globalSeq = 0;
     beamTagMap = {}; // reset
 
-    for (const elem of allElems) {
+    // Sort elements: horizontal beams (along X, dY~0) first, then vertical (along Y, dX~0)
+    // Within each group sort by Y then X position for horizontal, X then Y for vertical
+    const sortedElems = [...allElems];
+    if (cachedNodeDict && cachedElemDict) {
+        sortedElems.sort((a, b) => {
+            const ea = cachedElemDict[a], eb = cachedElemDict[b];
+            if (!ea || !eb) return 0;
+            const ca = ea.NODE || [], cb = eb.NODE || [];
+            if (ca.length < 2 || cb.length < 2) return 0;
+            const naI = cachedNodeDict[String(ca[0])] || cachedNodeDict[ca[0]];
+            const naJ = cachedNodeDict[String(ca[1])] || cachedNodeDict[ca[1]];
+            const nbI = cachedNodeDict[String(cb[0])] || cachedNodeDict[cb[0]];
+            const nbJ = cachedNodeDict[String(cb[1])] || cachedNodeDict[cb[1]];
+            if (!naI || !naJ || !nbI || !nbJ) return 0;
+            const dxA = Math.abs(parseFloat(naJ.X) - parseFloat(naI.X));
+            const dyA = Math.abs(parseFloat(naJ.Y) - parseFloat(naI.Y));
+            const dxB = Math.abs(parseFloat(nbJ.X) - parseFloat(nbI.X));
+            const dyB = Math.abs(parseFloat(nbJ.Y) - parseFloat(nbI.Y));
+            // Horizontal = beam along X (dX > dY), Vertical = beam along Y (dY > dX)
+            const isHorizA = dxA >= dyA ? 0 : 1;
+            const isHorizB = dxB >= dyB ? 0 : 1;
+            if (isHorizA !== isHorizB) return isHorizA - isHorizB; // horizontal first
+            // Same orientation: sort by cross-axis position, then along-axis
+            const midAx = (parseFloat(naI.X) + parseFloat(naJ.X)) / 2;
+            const midAy = (parseFloat(naI.Y) + parseFloat(naJ.Y)) / 2;
+            const midBx = (parseFloat(nbI.X) + parseFloat(nbJ.X)) / 2;
+            const midBy = (parseFloat(nbI.Y) + parseFloat(nbJ.Y)) / 2;
+            if (isHorizA === 0) {
+                // Horizontal beams: sort by Y (cross-axis) then X (along-axis)
+                if (Math.abs(midAy - midBy) > 0.01) return midAy - midBy;
+                return midAx - midBx;
+            } else {
+                // Vertical beams: sort by X (cross-axis) then Y (along-axis)
+                if (Math.abs(midAx - midBx) > 0.01) return midAx - midBx;
+                return midAy - midBy;
+            }
+        });
+    }
+
+    for (const elem of sortedElems) {
         if (elemTypes[elem] && elemTypes[elem] !== "BEAM") continue;
 
         const ovr = overrides ? overrides[elem] : null;
@@ -2849,11 +2954,15 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
         const vnsI = ovr && !isNaN(ovr.vns_i) ? ovr.vns_i : 2;
         const vnsM = ovr && !isNaN(ovr.vns_m) ? ovr.vns_m : 2;
         const vnsJ = ovr && !isNaN(ovr.vns_j) ? ovr.vns_j : 2;
+        // vs = stirrup spacing (mm): default 100 for i/j, 150 for m
+        const vsI = ovr && !isNaN(ovr.vs_i) ? ovr.vs_i : 100;
+        const vsM = ovr && !isNaN(ovr.vs_m) ? ovr.vs_m : 150;
+        const vsJ = ovr && !isNaN(ovr.vs_j) ? ovr.vs_j : 100;
 
         resultRows.push([
             elem, tag, Ln.toFixed(3), bw.toFixed(0), h.toFixed(0), fc.toFixed(3), fy.toFixed(3), fys.toFixed(2),
             nI, nM, nJ, nitVal, nmtVal, njtVal, db,
-            dbs, vnsI, vnsM, vnsJ, "-", "-", "-",
+            dbs, vnsI, vnsM, vnsJ, vsI, vsM, vsJ,
             mdi.toFixed(2), mdm.toFixed(2), mdj.toFixed(2),
             mci.toFixed(2), mcm.toFixed(2), mcj.toFixed(2),
             mri.toFixed(3), mrm.toFixed(3), mrj.toFixed(3), pass ? "PASS" : "FAIL"
@@ -2949,7 +3058,10 @@ function rerunBeamDesign() {
             db: parseFloat(tds[14].textContent),
             vns_i: parseInt(tds[16].textContent),
             vns_m: parseInt(tds[17].textContent),
-            vns_j: parseInt(tds[18].textContent)
+            vns_j: parseInt(tds[18].textContent),
+            vs_i: parseInt(tds[19].textContent),
+            vs_m: parseInt(tds[20].textContent),
+            vs_j: parseInt(tds[21].textContent)
         };
     });
 
@@ -2964,15 +3076,24 @@ function rerunBeamDesign() {
 async function fetchLoads() {
     if (!isConnected) { showToast("Connect first", "error"); return; }
 
-    showProgress("Fetching Load Data", "Reading static loads and combinations...", "Step 1/2: Static load cases...");
-    updateProgress(20);
+    showProgress("Fetching Load Data", "Reading static loads, response spectrum, and combinations...", "Step 1/3: Static load cases...");
+    updateProgress(15);
 
     try {
         // Step 1: Static Load Cases - GET /db/stld
         const stldData = await midasAPI("GET", "/db/stld");
-        updateProgress(50, "Step 2/2: Load combinations...");
+        updateProgress(35, "Step 2/3: Response spectrum load cases...");
 
-        // Step 2: Load Combinations - GET /db/lcom-gen
+        // Step 2: Response Spectrum Load Cases - GET /db/splc
+        let splcData = {};
+        try {
+            splcData = await midasAPI("GET", "/db/splc");
+        } catch (e) {
+            logEntry(`<span class="log-info">No response spectrum data (GET /db/splc): ${e.message}</span>`);
+        }
+        updateProgress(55, "Step 3/3: Load combinations...");
+
+        // Step 3: Load Combinations - GET /db/lcom-gen
         const lcomData = await midasAPI("GET", "/db/lcom-gen");
 
         updateProgress(80, "Processing data...");
@@ -3030,6 +3151,34 @@ async function fetchLoads() {
         renderTable("lcomTable", lcomHeaders, lcomRows);
         document.getElementById("lcomCount").textContent = `${lcomRows.length} combinations`;
 
+        // Parse Response Spectrum Load Cases
+        const splcObj = splcData.SPLC || splcData;
+        const splcHeaders = ["ID", "Name", "Direction", "Scale Factor"];
+        const splcRows = [];
+        let fetchedSplcNames = [];
+        if (typeof splcObj === "object" && splcObj !== null) {
+            for (const [id, val] of Object.entries(splcObj)) {
+                if (typeof val !== "object" || val === null) continue;
+                const name = val.NAME || val.name || val.sNAME || `-RS${id}`;
+                const dir = val.iDIR !== undefined ? ["X","Y","Z"][val.iDIR] || String(val.iDIR) :
+                            (val.DIR || val.DIRECTION || val.direction || "-");
+                const sf = val.dSF !== undefined ? val.dSF : (val.SCALE_FACTOR || val.SF || "-");
+                splcRows.push([id, name, dir, sf]);
+            }
+            splcRows.sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+            fetchedSplcNames = splcRows.map(r => {
+                const name = r[1];
+                return name.includes("(") ? name : `${name}(RS)`;
+            });
+        }
+        if (splcRows.length > 0) {
+            renderTable("splcTable", splcHeaders, splcRows);
+            document.getElementById("splcCount").textContent = `${splcRows.length} RS load cases`;
+            document.getElementById("splcPanel").style.display = "block";
+        } else {
+            document.getElementById("splcPanel").style.display = "none";
+        }
+
         document.getElementById("loadsResultsArea").style.display = "block";
         document.getElementById("loadsEmpty").style.display = "none";
 
@@ -3043,16 +3192,49 @@ async function fetchLoads() {
             const name = r[1];
             return name;
         });
-        const allNames = [...fetchedLoadCaseNames, ...fetchedLcomNames];
+        const allNames = [...fetchedLoadCaseNames, ...fetchedSplcNames, ...fetchedLcomNames];
 
-        // Populate Drift multi-select
+        // Populate Drift multi-select — only earthquake (E) load cases, RS cases, and combos containing them
         const driftSelect = document.getElementById("driftLoadCases");
         driftSelect.innerHTML = "";
-        allNames.forEach(n => {
-            const opt = document.createElement("option");
-            opt.value = n; opt.textContent = n;
-            driftSelect.appendChild(opt);
+        // Earthquake static load cases: names containing E, EQ, EX, EY, Earthquake, seismic (case insensitive)
+        const eqPattern = /^(E[QXY]?[\s\-+]|earthquake|seismic|e[\s(])/i;
+        const eqStldNames = fetchedLoadCaseNames.filter(n => {
+            const base = n.replace(/\(ST\)$/, "").trim();
+            return eqPattern.test(base) || /^E$/i.test(base);
         });
+        // All RS load cases are earthquake by definition
+        const eqNames = [...eqStldNames, ...fetchedSplcNames];
+        // Include load combos that reference any earthquake load case
+        const eqLcomNames = [];
+        for (const [id, val] of Object.entries(lcomObj)) {
+            if (typeof val !== "object" || val === null) continue;
+            const name = val.NAME || val.name || "-";
+            const vCOMB = val.vCOMB || val.COMB || val.FACTORS || [];
+            const hasEq = Array.isArray(vCOMB) && vCOMB.some(c => {
+                const lcName = typeof c === "object" ? (c.LCNAME || c.lcname || c.NAME || c.name || "") : String(c);
+                return eqNames.some(en => lcName.includes(en.replace(/\((ST|RS)\)$/g, "").trim()));
+            });
+            // Also check if combo name itself looks like earthquake
+            if (hasEq || eqPattern.test(name) || /^E$/i.test(name)) {
+                eqLcomNames.push(name);
+            }
+        }
+        const driftNames = [...eqNames, ...eqLcomNames];
+        if (driftNames.length > 0) {
+            driftNames.forEach(n => {
+                const opt = document.createElement("option");
+                opt.value = n; opt.textContent = n;
+                driftSelect.appendChild(opt);
+            });
+        } else {
+            // Fallback: show all if no earthquake cases detected
+            allNames.forEach(n => {
+                const opt = document.createElement("option");
+                opt.value = n; opt.textContent = n;
+                driftSelect.appendChild(opt);
+            });
+        }
 
         // Populate Reaction dropdown
         const rxSelect = document.getElementById("reactionLoadCase");
@@ -3064,7 +3246,8 @@ async function fetchLoads() {
         });
 
         updateProgress(100, "Done!");
-        showToast(`${stldRows.length} load cases, ${lcomRows.length} combinations — dropdowns updated`);
+        const rsNote = splcRows.length > 0 ? `, ${splcRows.length} RS cases` : "";
+        showToast(`${stldRows.length} load cases${rsNote}, ${lcomRows.length} combinations — dropdowns updated`);
     } catch (err) {
         showToast("Failed: " + err.message, "error");
     }
