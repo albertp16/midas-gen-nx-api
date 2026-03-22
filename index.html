@@ -2740,6 +2740,9 @@ async function runBeamDesign() {
             const dx = parseFloat(nj.X) - parseFloat(ni.X);
             const dy = parseFloat(nj.Y) - parseFloat(ni.Y);
             const dz = parseFloat(nj.Z) - parseFloat(ni.Z);
+            // Skip vertical members (columns): dZ dominant over dX and dY
+            const adx = Math.abs(dx), ady = Math.abs(dy), adz = Math.abs(dz);
+            if (adz > adx && adz > ady) continue;
             elemLengths[eid] = Math.sqrt(dx*dx + dy*dy + dz*dz);
         }
 
