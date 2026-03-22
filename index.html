@@ -835,7 +835,10 @@
 // ══════════════════════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════════════════════
-const BASE_URL = "https://moa-engineers.midasit.com:443/gen";
+const MIDAS_DIRECT_URL = "https://moa-engineers.midasit.com:443/gen";
+// Use Flask proxy when served from a server, direct when opened as file
+const USE_PROXY = window.location.protocol !== "file:";
+const BASE_URL = USE_PROXY ? "" : MIDAS_DIRECT_URL;
 let apiKey = "";
 let isConnected = false;
 let pingInterval = null;
@@ -916,7 +919,9 @@ function showToast(msg, type = "success") {
 // API WRAPPER
 // ══════════════════════════════════════════════════════════════
 async function midasAPI(method, endpoint, body = null) {
-    const url = BASE_URL + endpoint;
+    const url = USE_PROXY
+        ? `/api/proxy?endpoint=${encodeURIComponent(endpoint)}`
+        : MIDAS_DIRECT_URL + endpoint;
     const opts = { method, headers: { "Content-Type": "application/json", "MAPI-Key": apiKey } };
     if (body && (method === "POST" || method === "PUT")) opts.body = JSON.stringify(body);
     const start = performance.now();
