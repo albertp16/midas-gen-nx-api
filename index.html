@@ -523,6 +523,10 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                     Story Drift
                 </a></li>
+                <li><a onclick="switchTab('displacement')" data-tab="displacement">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 22V8l7-6 7 6v14"/><line x1="10" y1="6" x2="10" y2="22"/><path d="M10 12l4 2"/><path d="M10 16l4 2"/></svg>
+                    Displacement
+                </a></li>
                 <li><a onclick="switchTab('reaction')" data-tab="reaction">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22V8"/><path d="M5 12H2a10 10 0 0020 0h-3"/><circle cx="12" cy="5" r="3"/></svg>
                     Reaction
@@ -707,7 +711,7 @@ Roof, 15.00, 0.00, Consider
                     </div>
                     <div class="form-group">
                         <label>Direction</label>
-                        <select id="driftDirection" class="input">
+                        <select id="driftDirection" class="input" onchange="updateDriftLoadCases()">
                             <option value="X">X Direction</option>
                             <option value="Y">Y Direction</option>
                             <option value="BOTH">Both (two plots)</option>
@@ -736,6 +740,50 @@ Roof, 15.00, 0.00, Consider
                     <canvas id="driftCanvas" width="750" height="500"></canvas>
                 </div>
                 <div class="chart-legend" id="driftLegend"></div>
+            </div>
+        </div>
+
+        <!-- ════════════ DISPLACEMENT ════════════ -->
+        <div id="tab-displacement" class="tab-page">
+            <div class="page-header"><h2>Story Displacement</h2><p>Plot story displacement for multiple load cases</p></div>
+            <div class="panel">
+                <div class="panel-header"><span class="panel-title">Parameters</span></div>
+                <div class="form-row" style="margin-bottom:12px;">
+                    <div class="form-group" style="flex:2;">
+                        <label>Load Cases <span style="font-size:10px;color:var(--text-muted)">(Ctrl/Shift+click for multiple)</span></label>
+                        <select id="dispLoadCases" class="input" multiple style="min-height:90px;">
+                            <option selected>Ex(ST)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Direction</label>
+                        <select id="dispDirection" class="input" onchange="updateDispLoadCases()">
+                            <option value="X">X Direction</option>
+                            <option value="Y">Y Direction</option>
+                            <option value="BOTH">Both (two plots)</option>
+                            <option value="MIX">Mix (X + Y in one plot)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <button class="btn btn-blue" onclick="plotDisplacement()">Plot Displacement</button>
+                </div>
+            </div>
+            <div class="chart-wrapper" id="dispChartWrapper" style="display:none;">
+                <div style="display:flex; gap:8px; margin-bottom:8px; justify-content:flex-end; width:100%;">
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer;">
+                        <input type="checkbox" id="dispShowValues" checked onchange="redrawDispIfReady()" style="accent-color:var(--accent-blue);" />
+                        Show Values
+                    </label>
+                    <button class="btn btn-ghost btn-sm" onclick="downloadAllDispCanvases()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Download Image
+                    </button>
+                </div>
+                <div id="dispCanvasContainer">
+                    <canvas id="dispCanvas" width="750" height="500"></canvas>
+                </div>
+                <div class="chart-legend" id="dispLegend"></div>
             </div>
         </div>
 
@@ -937,22 +985,51 @@ Roof, 15.00, 0.00, Consider
 
         <!-- ════════════ COLUMN RESULTS ════════════ -->
         <div id="tab-column" class="tab-page">
-            <div class="page-header"><h2>Column Results</h2><p>Extract column element forces and design results</p></div>
+            <div class="page-header"><h2>Column Results</h2><p>Vertical column elements with section data</p></div>
             <div class="panel">
-                <div class="panel-header"><span class="panel-title">Parameters</span></div>
+                <div class="panel-header"><span class="panel-title">Column Design Parameters</span></div>
                 <div class="form-row" style="margin-bottom:12px;">
-                    <div class="form-group" style="flex:1;"><label>Element IDs (comma-separated, or "all")</label><input type="text" id="columnElements" class="input" value="all" /></div>
-                    <div class="form-group"><label>Load Case</label><input type="text" id="columnLoadCase" class="input" value="SDL(ST)" style="width:160px;" /></div>
+                    <div class="form-group"><label>f'c (MPa)</label><input type="number" id="colFc" class="input" value="27.579" step="0.001" style="width:100px;" /></div>
+                    <div class="form-group"><label>fy (MPa)</label><input type="number" id="colFy" class="input" value="413.685" step="0.001" style="width:100px;" /></div>
+                    <div class="form-group"><label>Main Bar (mm)</label><input type="number" id="colDb" class="input" value="25" style="width:80px;" /></div>
+                    <div class="form-group"><label>Tie Bar (mm)</label><input type="number" id="colDbs" class="input" value="12" style="width:80px;" /></div>
+                    <div class="form-group"><label>Cover (mm)</label><input type="number" id="colCover" class="input" value="40" style="width:80px;" /></div>
                 </div>
                 <div class="form-row">
-                    <div class="form-group"><label>Table Type</label><select id="columnTableType" class="input"><option value="BEAMFORCE">Column Force</option><option value="BEAMSTRESS">Column Stress</option><option value="BEAMDEFORM">Column Deformation</option></select></div>
-                    <button class="btn btn-blue" onclick="fetchColumnResults()">Get Column Results</button>
+                    <div class="form-group">
+                        <label>Floor Filter</label>
+                        <select id="colFloorFilter" class="input" onchange="applyColumnFloorFilter()">
+                            <option value="ALL">All Floors</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-blue" onclick="fetchColumnData()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="20" rx="1"/></svg>
+                        Get Column Data
+                    </button>
                 </div>
             </div>
-            <div id="columnResults" style="display:none;"><div class="table-wrap"><div class="table-scroll"><table id="columnTable"><thead><tr></tr></thead><tbody></tbody></table></div></div></div>
+
+            <div id="columnResults" style="display:none;">
+                <div style="display:flex; gap:8px; margin-bottom:12px; align-items:center; flex-wrap:wrap;">
+                    <span id="colStatusBadge" style="display:none;font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;"></span>
+                    <span style="font-size:11px;color:var(--text-muted);margin-right:auto;">Double-click any editable cell to modify</span>
+                    <button class="btn btn-ghost btn-sm" onclick="copyColumnTable()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                        Copy
+                    </button>
+                    <button class="btn btn-ghost btn-sm" onclick="exportColumnCSV()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        CSV
+                    </button>
+                </div>
+                <div class="table-wrap">
+                    <div class="table-scroll"><table id="columnTable" class="sticky-col"><thead><tr></tr></thead><tbody></tbody></table></div>
+                </div>
+            </div>
+
             <div id="columnEmpty" class="empty-state">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="9" y="2" width="6" height="20" rx="1"/></svg>
-                <h3>No column data</h3><p>Configure parameters and click "Get Column Results".</p>
+                <h3>No column data</h3><p>Click "Get Column Data" to fetch vertical column elements with section dimensions.</p>
             </div>
         </div>
 
@@ -2386,7 +2463,42 @@ function exportBeamCSV() {
 }
 
 // ══════════════════════════════════════════════════════════════
-// STORY DRIFT (same logic as before)
+// ══════════════════════════════════════════════════════════════
+// DIRECTION-BASED LOAD CASE FILTERING (drift & displacement)
+// ══════════════════════════════════════════════════════════════
+function getFilteredLoadCases(dirMode) {
+    const xNames = window._eqNamesX || [];
+    const yNames = window._eqNamesY || [];
+    const allEq = window._eqNamesAll || [];
+    const allNames = window._allLoadNames || [];
+    if (dirMode === "X") return xNames.length ? xNames : allEq;
+    if (dirMode === "Y") return yNames.length ? yNames : allEq;
+    // BOTH or MIX: show all earthquake cases
+    return allEq.length ? allEq : allNames;
+}
+
+function populateSelect(selectId, names) {
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    sel.innerHTML = "";
+    names.forEach(n => {
+        const opt = document.createElement("option");
+        opt.value = n; opt.textContent = n;
+        sel.appendChild(opt);
+    });
+}
+
+function updateDriftLoadCases() {
+    const dir = document.getElementById("driftDirection").value;
+    populateSelect("driftLoadCases", getFilteredLoadCases(dir));
+}
+
+function updateDispLoadCases() {
+    const dir = document.getElementById("dispDirection").value;
+    populateSelect("dispLoadCases", getFilteredLoadCases(dir));
+}
+
+// STORY DRIFT
 // ══════════════════════════════════════════════════════════════
 const COLORS = ["#58a6ff","#3fb950","#f0883e","#f85149","#d2a8ff","#79c0ff","#d29922","#ff7b72"];
 
@@ -2573,6 +2685,176 @@ function drawDriftChart(seriesArr, stories, allowable, dirLabel, canvasId) {
     ctx.fillStyle="#f0f6fc"; ctx.font="bold 14px 'Segoe UI',sans-serif"; ctx.textAlign="center"; ctx.textBaseline="top";
     ctx.fillText(`Story Drift Ratio - ${dirLabel} Direction`,W/2,10);
     ctx.fillStyle="#8b949e"; ctx.font="12px 'Segoe UI',sans-serif"; ctx.fillText("Drift Ratio",W/2,H-10);
+    ctx.save(); ctx.translate(16,m.top+pH/2); ctx.rotate(-Math.PI/2); ctx.fillText("Story",0,0); ctx.restore();
+}
+
+// ══════════════════════════════════════════════════════════════
+// STORY DISPLACEMENT
+// ══════════════════════════════════════════════════════════════
+let lastDispCharts = [];
+function redrawDispIfReady() {
+    lastDispCharts.forEach(c => drawDispChart(c.series, c.stories, c.dirLabel, c.canvasId));
+}
+
+async function fetchDispForDirection(tableType, loadCases) {
+    const colDisp = "Maximum Displacement of All Vertical Elements/Displacement";
+    const allSeries = [], allStories = new Set();
+    for (let li = 0; li < loadCases.length; li++) {
+        const lc = loadCases[li];
+        try {
+            const body = { Argument: { TABLE_TYPE: tableType, UNIT: { FORCE: "KN", DIST: "MM" }, LOAD_CASE_NAMES: [lc], STYLES: { FORMAT: "FIXED", PLACE: 4 }}};
+            const result = await midasAPI("POST", "/post/TABLE", body);
+            const headers = result.empty.HEAD, rows = result.empty.DATA;
+            const series = [{ Story: "Base", StoryNo: 0, disp: 0 }];
+            allStories.add(JSON.stringify({ Story: "Base", StoryNo: 0 }));
+            // Find displacement column (case-insensitive partial match)
+            let dispIdx = -1;
+            for (let i = 0; i < headers.length; i++) {
+                const h = headers[i].toLowerCase();
+                if (h.includes("displacement") || h.includes("disp")) { dispIdx = i; break; }
+            }
+            // Fallback: last numeric column
+            if (dispIdx < 0) dispIdx = headers.length - 1;
+            for (const row of rows) {
+                const obj = {}; headers.forEach((h, i) => obj[h] = row[i]);
+                const sn = storyNo(obj.Story);
+                const dVal = Math.abs(parseFloat(row[dispIdx]) || 0);
+                series.push({ Story: obj.Story, StoryNo: sn, disp: dVal });
+                allStories.add(JSON.stringify({ Story: obj.Story, StoryNo: sn }));
+            }
+            series.sort((a, b) => a.StoryNo - b.StoryNo);
+            allSeries.push({ name: lc, data: series });
+        } catch (err) { logEntry(`<span class="log-status-err">Disp "${lc}" (${tableType}): ${err.message}</span>`); }
+    }
+    const stories = [...new Map(Array.from(allStories).map(s => JSON.parse(s)).sort((a,b) => a.StoryNo - b.StoryNo).map(s => [s.StoryNo, s])).values()];
+    return { series: allSeries, stories };
+}
+
+function downloadAllDispCanvases() {
+    const container = document.getElementById("dispCanvasContainer");
+    const canvases = container.querySelectorAll("canvas");
+    canvases.forEach((c, i) => {
+        const link = document.createElement("a");
+        link.download = canvases.length > 1 ? `story_disp_${i+1}.png` : "story_disp.png";
+        link.href = c.toDataURL("image/png");
+        link.click();
+    });
+}
+
+async function plotDisplacement() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+    const sel = document.getElementById("dispLoadCases");
+    const loadCases = Array.from(sel.selectedOptions).map(o => o.value);
+    const dirMode = document.getElementById("dispDirection").value;
+    if (!loadCases.length) { showToast("Select load cases", "error"); return; }
+
+    const container = document.getElementById("dispCanvasContainer");
+    container.innerHTML = "";
+    lastDispCharts = [];
+
+    const directions = [];
+    if (dirMode === "X" || dirMode === "BOTH" || dirMode === "MIX") directions.push({ type: "STORY_DISPLACEMENT_X", label: "X" });
+    if (dirMode === "Y" || dirMode === "BOTH" || dirMode === "MIX") directions.push({ type: "STORY_DISPLACEMENT_Y", label: "Y" });
+
+    const totalSteps = loadCases.length * directions.length;
+    showProgress("Fetching Story Displacement", `${loadCases.length} load case(s), ${directions.map(d=>d.label).join("+")} direction`, "Requesting data...");
+
+    if (dirMode === "MIX") {
+        const allSeries = [], allStories = new Set();
+        let step = 0;
+        for (const dir of directions) {
+            const result = await fetchDispForDirection(dir.type, loadCases);
+            result.series.forEach(s => { allSeries.push({ name: `${s.name} (${dir.label})`, data: s.data }); });
+            result.stories.forEach(st => allStories.add(JSON.stringify(st)));
+            step += loadCases.length;
+            updateProgress((step / totalSteps) * 90, `Fetched ${dir.label} direction...`);
+        }
+        hideProgress();
+        if (!allSeries.length) { showToast("No data", "error"); return; }
+        const stories = [...new Map(Array.from(allStories).map(s => { const p = JSON.parse(s); return [p.StoryNo, p]; }).sort((a,b) => a[0] - b[0])).values()];
+        const canvasId = "dispCanvas_mix";
+        const c = document.createElement("canvas"); c.id = canvasId; c.width = 750; c.height = 500;
+        container.appendChild(c);
+        document.getElementById("dispChartWrapper").style.display = "flex";
+        drawDispChart(allSeries, stories, "X + Y (Mix)", canvasId);
+        lastDispCharts.push({ series: allSeries, stories, dirLabel: "X + Y (Mix)", canvasId });
+    } else {
+        let step = 0;
+        for (const dir of directions) {
+            updateProgress((step / totalSteps) * 90, `Fetching ${dir.label} direction...`);
+            const result = await fetchDispForDirection(dir.type, loadCases);
+            step += loadCases.length;
+            if (!result.series.length) continue;
+            const canvasId = `dispCanvas_${dir.label}`;
+            const c = document.createElement("canvas"); c.id = canvasId; c.width = 750; c.height = 500;
+            if (container.children.length > 0) {
+                const spacer = document.createElement("div"); spacer.style.cssText = "height:24px;"; container.appendChild(spacer);
+            }
+            container.appendChild(c);
+            drawDispChart(result.series, result.stories, dir.label, canvasId);
+            lastDispCharts.push({ series: result.series, stories: result.stories, dirLabel: dir.label, canvasId });
+        }
+        hideProgress();
+    }
+    document.getElementById("dispChartWrapper").style.display = "flex";
+    const $l = document.getElementById("dispLegend"); $l.innerHTML = "";
+    lastDispCharts.forEach(chart => {
+        chart.series.forEach((s,i) => {
+            const d = document.createElement("div"); d.className = "legend-item";
+            d.innerHTML = `<span class="legend-swatch" style="background:${COLORS[i%COLORS.length]}"></span>${s.name}`;
+            $l.appendChild(d);
+        });
+    });
+    showToast("Displacement plot updated!");
+}
+
+function drawDispChart(seriesArr, stories, dirLabel, canvasId) {
+    canvasId = canvasId || "dispCanvas";
+    const showValues = document.getElementById("dispShowValues") ? document.getElementById("dispShowValues").checked : true;
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const dpr = window.devicePixelRatio || 1;
+    const W = 750, H = 500;
+    canvas.width = W*dpr; canvas.height = H*dpr;
+    canvas.style.width = W+"px"; canvas.style.height = H+"px";
+    const ctx = canvas.getContext("2d"); ctx.scale(dpr, dpr); ctx.clearRect(0,0,W,H);
+    const m = {top:40,right:30,bottom:50,left:80}, pW = W-m.left-m.right, pH = H-m.top-m.bottom;
+    let maxD = 0;
+    seriesArr.forEach(s => s.data.forEach(d => { if (d.disp > maxD) maxD = d.disp; }));
+    if (maxD === 0) maxD = 1;
+    maxD *= 1.15;
+    const n = stories.length;
+    const x2px = v => m.left + (v/maxD)*pW;
+    const y2px = i => m.top + pH - (i/Math.max(1,n-1))*pH;
+    const idxMap = {}; stories.forEach((s,i) => idxMap[s.StoryNo] = i);
+    ctx.strokeStyle = "#30363d"; ctx.lineWidth = 0.5;
+    ctx.fillStyle = "#8b949e"; ctx.font = "11px 'Segoe UI',sans-serif";
+    ctx.textAlign = "right"; ctx.textBaseline = "middle";
+    for (let i=0;i<n;i++) { const y=y2px(i); ctx.beginPath(); ctx.moveTo(m.left,y); ctx.lineTo(W-m.right,y); ctx.stroke(); ctx.fillText(stories[i].Story,m.left-10,y); }
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    for (let i=0;i<=6;i++) { const v=(maxD/6)*i, x=x2px(v); ctx.beginPath(); ctx.moveTo(x,m.top); ctx.lineTo(x,H-m.bottom); ctx.stroke(); ctx.fillText(v.toFixed(2),x,H-m.bottom+8); }
+    seriesArr.forEach((s,si) => {
+        const c = COLORS[si%COLORS.length];
+        const pts = s.data.filter(d => idxMap[d.StoryNo]!==undefined).map(d => ({x:x2px(d.disp),y:y2px(idxMap[d.StoryNo])}));
+        if (!pts.length) return;
+        ctx.strokeStyle=c; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
+        pts.slice(1).forEach(p => ctx.lineTo(p.x,p.y)); ctx.stroke();
+        pts.forEach((p, pi) => {
+            ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2); ctx.fillStyle=c; ctx.fill(); ctx.strokeStyle="#0d1117"; ctx.lineWidth=1.5; ctx.stroke();
+            if (showValues) {
+                const d = s.data.filter(d => idxMap[d.StoryNo]!==undefined)[pi];
+                if (d && d.disp > 0) {
+                    ctx.fillStyle=c; ctx.font="bold 9px 'Consolas',monospace"; ctx.textAlign="left"; ctx.textBaseline="middle";
+                    ctx.strokeStyle="#0d1117"; ctx.lineWidth=2;
+                    const txt = d.disp.toFixed(2);
+                    ctx.strokeText(txt, p.x+7, p.y); ctx.fillText(txt, p.x+7, p.y);
+                }
+            }
+        });
+    });
+    ctx.fillStyle="#f0f6fc"; ctx.font="bold 14px 'Segoe UI',sans-serif"; ctx.textAlign="center"; ctx.textBaseline="top";
+    ctx.fillText(`Story Displacement - ${dirLabel} Direction`,W/2,10);
+    ctx.fillStyle="#8b949e"; ctx.font="12px 'Segoe UI',sans-serif"; ctx.fillText("Displacement (mm)",W/2,H-10);
     ctx.save(); ctx.translate(16,m.top+pH/2); ctx.rotate(-Math.PI/2); ctx.fillText("Story",0,0); ctx.restore();
 }
 
@@ -3920,18 +4202,16 @@ async function fetchLoads() {
         });
         const allNames = [...fetchedLoadCaseNames, ...fetchedSplcNames, ...fetchedLcomNames];
 
-        // Populate Drift multi-select — only earthquake (E) load cases, RS cases, and combos containing them
-        const driftSelect = document.getElementById("driftLoadCases");
-        driftSelect.innerHTML = "";
-        // Earthquake static load cases: names containing E, EQ, EX, EY, Earthquake, seismic (case insensitive)
+        // Build earthquake load case lists by direction
+        // X-direction: Ex, RM patterns; Y-direction: Ey, EO patterns
         const eqPattern = /^(E[QXY]?[\s\-+]|earthquake|seismic|e[\s(])/i;
+        const exPattern = /^(Ex|RM)/i;
+        const eyPattern = /^(Ey|EO)/i;
         const eqStldNames = fetchedLoadCaseNames.filter(n => {
             const base = n.replace(/\(ST\)$/, "").trim();
             return eqPattern.test(base) || /^E$/i.test(base);
         });
-        // All RS load cases are earthquake by definition
         const eqNames = [...eqStldNames, ...fetchedSplcNames];
-        // Include load combos that reference any earthquake load case
         const eqLcomNames = [];
         for (const [id, val] of Object.entries(lcomObj)) {
             if (typeof val !== "object" || val === null) continue;
@@ -3941,26 +4221,20 @@ async function fetchLoads() {
                 const lcName = typeof c === "object" ? (c.LCNAME || c.lcname || c.NAME || c.name || "") : String(c);
                 return eqNames.some(en => lcName.includes(en.replace(/\((ST|RS)\)$/g, "").trim()));
             });
-            // Also check if combo name itself looks like earthquake
             if (hasEq || eqPattern.test(name) || /^E$/i.test(name)) {
                 eqLcomNames.push(name);
             }
         }
-        const driftNames = [...eqNames, ...eqLcomNames];
-        if (driftNames.length > 0) {
-            driftNames.forEach(n => {
-                const opt = document.createElement("option");
-                opt.value = n; opt.textContent = n;
-                driftSelect.appendChild(opt);
-            });
-        } else {
-            // Fallback: show all if no earthquake cases detected
-            allNames.forEach(n => {
-                const opt = document.createElement("option");
-                opt.value = n; opt.textContent = n;
-                driftSelect.appendChild(opt);
-            });
-        }
+        const allEqNames = [...eqNames, ...eqLcomNames];
+        // Store globally for direction-based filtering
+        window._eqNamesX = allEqNames.filter(n => { const base = n.replace(/\((ST|RS)\)$/, "").trim(); return exPattern.test(base); });
+        window._eqNamesY = allEqNames.filter(n => { const base = n.replace(/\((ST|RS)\)$/, "").trim(); return eyPattern.test(base); });
+        window._eqNamesAll = allEqNames;
+        window._allLoadNames = allNames;
+
+        // Populate drift & displacement dropdowns based on current direction
+        updateDriftLoadCases();
+        updateDispLoadCases();
 
         // Populate Reaction dropdown
         const rxSelect = document.getElementById("reactionLoadCase");
@@ -3981,41 +4255,234 @@ async function fetchLoads() {
 }
 
 // ══════════════════════════════════════════════════════════════
-// COLUMN RESULTS
+// COLUMN RESULTS (vertical elements only, beam-like input table)
 // ══════════════════════════════════════════════════════════════
-async function fetchColumnResults() {
+let allColumnRows = [];
+let allColumnHeaders = [];
+let columnTagMap = {};
+// Editable columns: 1=tag, 3=B, 4=H, 5=db, 6=n
+const COL_EDITABLE_COLS = [1, 3, 4, 5, 6];
+
+async function fetchColumnData() {
     if (!isConnected) { showToast("Connect first", "error"); return; }
-    const elemsInput = document.getElementById("columnElements").value.trim();
-    const loadCase = document.getElementById("columnLoadCase").value.trim();
-    const tableType = document.getElementById("columnTableType").value;
-    const tableNames = { BEAMFORCE: "Beam Force", BEAMSTRESS: "Beam Stress", BEAMDEFORM: "Beam Deformation" };
-    const tableName = tableNames[tableType] || "Beam Force";
 
-    let elemKeys = [];
-    if (elemsInput.toLowerCase() !== "all") elemKeys = elemsInput.split(",").map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+    const fc0 = parseFloat(document.getElementById("colFc").value);
+    const fy0 = parseFloat(document.getElementById("colFy").value);
+    const db0 = parseFloat(document.getElementById("colDb").value);
 
-    const body = { Argument: {
-        TABLE_NAME: tableType === "BEAMFORCE" ? "BeamForce" : tableName,
-        TABLE_TYPE: tableType,
-        UNIT: { FORCE: "kN", DIST: "m" },
-        STYLES: { FORMAT: "Fixed", PLACE: 3 },
-        LOAD_CASE_NAMES: [loadCase],
-        COMPONENTS: ["Elem","Load","Part","Axial","Shear-y","Shear-z","Torsion","Moment-y","Moment-z"],
-        PARTS: ["PartI", "PartJ"]
-    }};
-    if (elemKeys.length) body.Argument.NODE_ELEMS = { KEYS: elemKeys };
-
-    showProgress("Fetching Column Results", tableName, "Requesting data...");
-    updateProgress(-1);
+    showProgress("Fetching Column Data", "Identifying vertical elements", "Step 1/3: Reading nodes...");
     try {
-        const result = await midasAPI("POST", "/post/TABLE", body);
-        const table = result[tableName] || result.empty || {};
-        renderTable("columnTable", table.HEAD || [], table.DATA || []);
-        document.getElementById("columnResults").style.display = "block";
-        document.getElementById("columnEmpty").style.display = "none";
-        showToast(`${(table.DATA||[]).length} column rows loaded`);
-    } catch (err) { showToast("Failed: " + err.message, "error"); }
-    hideProgress();
+        // Step 1: Fetch nodes and elements
+        updateProgress(15, "Step 1/3: Reading nodes...");
+        const nodeData = await midasAPI("GET", "/db/node");
+        const nodeDict = nodeData.NODE || nodeData;
+        updateProgress(35, "Step 2/3: Reading elements...");
+        const elemData = await midasAPI("GET", "/db/elem");
+        const elemDict = elemData.ELEM || elemData;
+        updateProgress(55, "Step 3/3: Reading sections...");
+        const sectData = await midasAPI("GET", "/db/sect");
+        const sectDict = sectData.SECT || sectData;
+
+        // Cache for floor filter
+        cachedNodeDict = nodeDict;
+        cachedElemDict = elemDict;
+
+        // Filter vertical elements only: dZ > dX and dZ > dY
+        const verticalElems = {};
+        const columnFloorMap = {}; // elemId -> storyName
+        for (const [eid, e] of Object.entries(elemDict)) {
+            if ((e.TYPE || "") !== "BEAM") continue;
+            const conn = e.NODE || [];
+            if (conn.length < 2) continue;
+            const ni = nodeDict[String(conn[0])] || nodeDict[conn[0]];
+            const nj = nodeDict[String(conn[1])] || nodeDict[conn[1]];
+            if (!ni || !nj) continue;
+            const adx = Math.abs(parseFloat(nj.X) - parseFloat(ni.X));
+            const ady = Math.abs(parseFloat(nj.Y) - parseFloat(ni.Y));
+            const adz = Math.abs(parseFloat(nj.Z) - parseFloat(ni.Z));
+            // Vertical: dZ dominant
+            if (adz > adx && adz > ady) {
+                verticalElems[eid] = e;
+            }
+        }
+
+        if (Object.keys(verticalElems).length === 0) {
+            hideProgress();
+            showToast("No vertical column elements found", "error");
+            return;
+        }
+
+        // Map section dimensions for vertical elements
+        const colSections = {};
+        for (const [eid, e] of Object.entries(verticalElems)) {
+            const secId = e.SECT || e.iSEC || e.SEC;
+            if (!secId) continue;
+            const sec = sectDict[String(secId)] || sectDict[secId];
+            if (!sec) continue;
+            const sectBefore = sec.SECT_BEFORE || {};
+            const sectI = sectBefore.SECT_I || {};
+            const vsize = sectI.vSIZE || [];
+            if (vsize.length >= 2) {
+                colSections[eid] = { B: Math.round(vsize[1] * 1000), H: Math.round(vsize[0] * 1000) };
+            }
+        }
+
+        // Assign floor tags for columns
+        columnTagMap = {};
+        const floorSeq = {};
+        if (storyDataCache.length > 0) {
+            // Assign each vertical element to the nearest story level based on lower node Z
+            const sortedStories = [...storyDataCache].sort((a, b) => a.level - b.level);
+            for (const eid of Object.keys(verticalElems)) {
+                const e = verticalElems[eid];
+                const conn = e.NODE || [];
+                const ni = nodeDict[String(conn[0])] || nodeDict[conn[0]];
+                const nj = nodeDict[String(conn[1])] || nodeDict[conn[1]];
+                if (!ni || !nj) continue;
+                const minZ = Math.min(parseFloat(ni.Z), parseFloat(nj.Z));
+                // Find closest story level at or below minZ
+                let bestStory = sortedStories[0]?.name || "?";
+                for (const st of sortedStories) {
+                    if (st.level <= minZ + 0.01) bestStory = st.name;
+                }
+                columnFloorMap[eid] = bestStory;
+            }
+        }
+
+        // Build result rows: ID, Tag, length(m), B(mm), H(mm), db(mm), n
+        const headers = ["id", "tag", "length\n(m)", "B\n(mm)", "H\n(mm)", "db\n(mm)", "n"];
+
+        // Sort by floor then position
+        const sortedIds = Object.keys(verticalElems).sort((a, b) => {
+            const fa = columnFloorMap[a] || "", fb = columnFloorMap[b] || "";
+            if (fa !== fb) return fa.localeCompare(fb, undefined, { numeric: true });
+            return parseInt(a) - parseInt(b);
+        });
+
+        // Generate tags and rows
+        const rows = [];
+        for (const eid of sortedIds) {
+            const e = verticalElems[eid];
+            const conn = e.NODE || [];
+            const ni = nodeDict[String(conn[0])] || nodeDict[conn[0]];
+            const nj = nodeDict[String(conn[1])] || nodeDict[conn[1]];
+            const dx = parseFloat(nj.X) - parseFloat(ni.X);
+            const dy = parseFloat(nj.Y) - parseFloat(ni.Y);
+            const dz = parseFloat(nj.Z) - parseFloat(ni.Z);
+            const length = Math.sqrt(dx*dx + dy*dy + dz*dz).toFixed(3);
+
+            const floor = columnFloorMap[eid] || "?";
+            if (!floorSeq[floor]) floorSeq[floor] = 0;
+            floorSeq[floor]++;
+            const tag = `${floor}C${floorSeq[floor]}`;
+            columnTagMap[eid] = tag;
+
+            const sec = colSections[eid] || {};
+            const B = sec.B || 400;
+            const H = sec.H || 400;
+
+            rows.push([eid, tag, length, B, H, db0, 8]);
+        }
+
+        allColumnHeaders = headers;
+        allColumnRows = rows;
+
+        // Populate floor filter
+        const floorSelect = document.getElementById("colFloorFilter");
+        floorSelect.innerHTML = '<option value="ALL">All Floors</option>';
+        const floors = [...new Set(Object.values(columnFloorMap))].sort((a,b) => a.localeCompare(b, undefined, {numeric:true}));
+        floors.forEach(f => {
+            const opt = document.createElement("option");
+            opt.value = f; opt.textContent = f;
+            floorSelect.appendChild(opt);
+        });
+
+        renderColumnTable(headers, rows);
+
+        updateProgress(100, "Done!");
+        showToast(`${rows.length} vertical column elements loaded`);
+    } catch (err) {
+        showToast("Failed: " + err.message, "error");
+    }
+    setTimeout(hideProgress, 400);
+}
+
+function renderColumnTable(headers, rows) {
+    renderTable("columnTable", headers, rows);
+
+    // Make editable columns
+    const tbody = document.getElementById("columnTable").querySelector("tbody");
+    const trs = tbody.querySelectorAll("tr");
+    trs.forEach(tr => {
+        const tds = tr.querySelectorAll("td");
+        COL_EDITABLE_COLS.forEach(ci => {
+            const td = tds[ci];
+            if (!td) return;
+            td.classList.add("editable");
+            td.addEventListener("dblclick", function() {
+                if (td.querySelector("input")) return;
+                const val = td.textContent;
+                const inputType = ci === 1 ? "text" : "number";
+                td.innerHTML = `<input type="${inputType}" value="${val}" style="${ci===1?'width:70px;':''}"/>`;
+                const inp = td.querySelector("input");
+                inp.focus(); inp.select();
+                inp.addEventListener("blur", () => { td.textContent = inp.value || val; td.classList.add("edited"); });
+                inp.addEventListener("keydown", e => { if (e.key === "Enter") inp.blur(); if (e.key === "Escape") { td.textContent = val; } });
+            });
+        });
+    });
+
+    // Status badge
+    const badge = document.getElementById("colStatusBadge");
+    badge.style.display = "inline-flex";
+    badge.style.background = "rgba(63,185,80,0.12)";
+    badge.style.color = "var(--accent-green)";
+    badge.style.border = "1px solid rgba(63,185,80,0.25)";
+    badge.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-green);margin-right:6px;"></span>${rows.length} columns`;
+
+    document.getElementById("columnResults").style.display = "block";
+    document.getElementById("columnEmpty").style.display = "none";
+}
+
+function applyColumnFloorFilter() {
+    const filter = document.getElementById("colFloorFilter").value;
+    if (filter === "ALL") {
+        renderColumnTable(allColumnHeaders, allColumnRows);
+    } else {
+        const filtered = allColumnRows.filter(r => {
+            const tag = r[1];
+            return tag.startsWith(filter + "C");
+        });
+        renderColumnTable(allColumnHeaders, filtered);
+    }
+}
+
+function copyColumnTable() {
+    const table = document.getElementById("columnTable");
+    if (!table) return;
+    const rows = [];
+    table.querySelectorAll("tr").forEach(tr => {
+        const cells = [];
+        tr.querySelectorAll("th, td").forEach(c => cells.push(c.textContent.replace(/\n/g, " ").trim()));
+        rows.push(cells.join("\t"));
+    });
+    navigator.clipboard.writeText(rows.join("\n")).then(() => showToast("Copied!")).catch(() => showToast("Copy failed", "error"));
+}
+
+function exportColumnCSV() {
+    const table = document.getElementById("columnTable");
+    if (!table) return;
+    const rows = [];
+    table.querySelectorAll("tr").forEach(tr => {
+        const cells = [];
+        tr.querySelectorAll("th, td").forEach(c => cells.push('"' + c.textContent.replace(/\n/g, " ").replace(/"/g, '""').trim() + '"'));
+        rows.push(cells.join(","));
+    });
+    const blob = new Blob([rows.join("\n")], { type: "text/csv" });
+    const link = document.createElement("a");
+    link.download = "column_data.csv";
+    link.href = URL.createObjectURL(blob);
+    link.click();
 }
 
 // ══════════════════════════════════════════════════════════════
