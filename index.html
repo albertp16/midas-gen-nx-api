@@ -748,6 +748,12 @@ Roof, 15.00, 0.00, Consider
                         </div>
                     </div>
                     <div id="rxViewTable" class="reaction-chart-panel">
+                        <div style="display:flex; justify-content:flex-end; padding:4px 8px;">
+                            <button class="btn btn-ghost btn-sm" onclick="copyReactionTable()">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:14px;height:14px;vertical-align:middle;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                                Copy Table
+                            </button>
+                        </div>
                         <div class="table-wrap" style="border:none; border-radius:0;">
                             <div class="table-scroll"><table id="reactionTable"><thead><tr></tr></thead><tbody></tbody></table></div>
                         </div>
@@ -768,16 +774,11 @@ Roof, 15.00, 0.00, Consider
             <div class="panel">
                 <div class="panel-header"><span class="panel-title">Beam Design Parameters</span></div>
                 <div class="form-row" style="margin-bottom:12px;">
-                    <div class="form-group"><label>Beam Height (mm)</label><input type="number" id="bmHeight" class="input" value="600" style="width:90px;" /></div>
-                    <div class="form-group"><label>Beam Width (mm)</label><input type="number" id="bmWidth" class="input" value="400" style="width:90px;" /></div>
                     <div class="form-group"><label>f'c (MPa)</label><input type="number" id="bmFc" class="input" value="27.579" step="0.001" style="width:100px;" /></div>
                     <div class="form-group"><label>fy (MPa)</label><input type="number" id="bmFy" class="input" value="413.685" step="0.001" style="width:100px;" /></div>
-                </div>
-                <div class="form-row" style="margin-bottom:12px;">
                     <div class="form-group"><label>Main Bar (mm)</label><input type="number" id="bmDb" class="input" value="25" style="width:80px;" /></div>
                     <div class="form-group"><label>Tie Bar (mm)</label><input type="number" id="bmDbs" class="input" value="12" style="width:80px;" /></div>
                     <div class="form-group"><label>Cover (mm)</label><input type="number" id="bmCover" class="input" value="40" style="width:80px;" /></div>
-                    <div class="form-group"><label>Scale Factor (aprR)</label><input type="number" id="bmAprR" class="input" value="1.25" step="0.01" style="width:90px;" /></div>
                     <div class="form-group"><label>Frame Type</label><select id="bmFrameType" class="input"><option value="SMRF">SMRF</option><option value="IMRF">IMRF</option><option value="OMRF">OMRF</option></select></div>
                 </div>
                 <div class="form-row" style="margin-bottom:12px;">
@@ -1857,6 +1858,25 @@ function copyBeamTable() {
     });
 }
 
+function copyReactionTable() {
+    const table = document.getElementById("reactionTable");
+    if (!table) return;
+    const headers = [...table.querySelectorAll("thead th")].map(th => th.textContent.replace(/\n/g, " "));
+    const rows = [...table.querySelectorAll("tbody tr")].map(tr =>
+        [...tr.querySelectorAll("td")].map(td => td.textContent)
+    );
+    const tsv = [headers.join("\t"), ...rows.map(r => r.join("\t"))].join("\n");
+    navigator.clipboard.writeText(tsv).then(() => {
+        showToast("Reaction table copied to clipboard!");
+    }).catch(() => {
+        const ta = document.createElement("textarea");
+        ta.value = tsv; document.body.appendChild(ta);
+        ta.select(); document.execCommand("copy");
+        document.body.removeChild(ta);
+        showToast("Copied to clipboard!");
+    });
+}
+
 function exportBeamCSV() {
     const table = document.getElementById("beamTable");
     if (!table) return;
@@ -2683,14 +2703,11 @@ const BS = {
 async function runBeamDesign() {
     if (!isConnected) { showToast("Connect first", "error"); return; }
 
-    const h = parseFloat(document.getElementById("bmHeight").value);
-    const bw = parseFloat(document.getElementById("bmWidth").value);
     const fc = parseFloat(document.getElementById("bmFc").value);
     const fy = parseFloat(document.getElementById("bmFy").value);
     const db = parseFloat(document.getElementById("bmDb").value);
     const dbs = parseFloat(document.getElementById("bmDbs").value);
     const cover = parseFloat(document.getElementById("bmCover").value);
-    const aprR = parseFloat(document.getElementById("bmAprR").value);
     const frameType = document.getElementById("bmFrameType").value;
     const lcGravity = document.getElementById("bmLoadCaseGravity").value.trim();
     const lcSeismic = document.getElementById("bmLoadCaseSeismic").value.trim();
@@ -2860,14 +2877,11 @@ async function runBeamDesign() {
 const BEAM_EDITABLE_COLS = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21];
 
 function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, overrides, elemSections) {
-    const h0 = parseFloat(document.getElementById("bmHeight").value);
-    const bw0 = parseFloat(document.getElementById("bmWidth").value);
     const fc0 = parseFloat(document.getElementById("bmFc").value);
     const fy0 = parseFloat(document.getElementById("bmFy").value);
     const db0 = parseFloat(document.getElementById("bmDb").value);
     const dbs = parseFloat(document.getElementById("bmDbs").value);
     const cover = parseFloat(document.getElementById("bmCover").value);
-    const aprR = parseFloat(document.getElementById("bmAprR").value);
     const frameType = document.getElementById("bmFrameType").value;
     const fys = 275.79; // shear rebar yield strength (default)
 
@@ -2948,8 +2962,8 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
         const ovr = overrides ? overrides[elem] : null;
         // B and H: override > section API data > form default
         const secDim = elemSections ? elemSections[elem] : null;
-        const bw = ovr && !isNaN(ovr.bw) ? ovr.bw : (secDim ? secDim.bw : bw0);
-        const h  = ovr && !isNaN(ovr.h)  ? ovr.h  : (secDim ? secDim.h  : h0);
+        const bw = ovr && !isNaN(ovr.bw) ? ovr.bw : (secDim ? secDim.bw : 300);
+        const h  = ovr && !isNaN(ovr.h)  ? ovr.h  : (secDim ? secDim.h  : 500);
         const fc = ovr && !isNaN(ovr.fc) ? ovr.fc : fc0;
         const fy = ovr && !isNaN(ovr.fy) ? ovr.fy : fy0;
         const db = ovr && !isNaN(ovr.db) ? ovr.db : db0;
