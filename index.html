@@ -444,11 +444,15 @@
         </div>
 
         <div class="sidebar-section">
-            <div class="sidebar-label">Load Data</div>
+            <div class="sidebar-label">Model Data</div>
             <ul class="sidebar-nav">
                 <li><a onclick="switchTab('loads')" data-tab="loads">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/><path d="M2 12h20"/><path d="M12 2l4 4"/><path d="M12 2l-4 4"/></svg>
                     Loads &amp; Combinations
+                </a></li>
+                <li><a onclick="switchTab('story')" data-tab="story">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="17" width="18" height="4" rx="1"/></svg>
+                    Story Data
                 </a></li>
             </ul>
         </div>
@@ -540,6 +544,40 @@
                         Run Analysis
                     </button>
                 </div>
+            </div>
+        </div>
+
+        <!-- ════════════ STORY DATA ════════════ -->
+        <div id="tab-story" class="tab-page">
+            <div class="page-header"><h2>Story Data</h2><p>Fetch and display building story definitions from MIDAS Gen</p></div>
+            <div class="panel">
+                <div class="panel-header"><span class="panel-title">Story Information</span></div>
+                <div class="form-row">
+                    <button class="btn btn-blue" onclick="fetchStoryData()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="17" width="18" height="4" rx="1"/></svg>
+                        Fetch Story Data
+                    </button>
+                </div>
+            </div>
+
+            <div id="storyResults" style="display:none;">
+                <div style="display:flex; gap:8px; margin-bottom:12px; align-items:center; flex-wrap:wrap;">
+                    <span id="storyCountBadge" style="font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;background:rgba(88,166,255,0.12);color:var(--accent-blue);border:1px solid rgba(88,166,255,0.25);"></span>
+                    <span style="font-size:11px;color:var(--text-muted);margin-right:auto;">Story levels and associated beam elements (in-plane only)</span>
+                    <button class="btn btn-ghost btn-sm" onclick="copyStoryTable()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                        Copy
+                    </button>
+                </div>
+                <div class="table-wrap">
+                    <div class="table-scroll"><table id="storyTable" class="sticky-col"><thead><tr></tr></thead><tbody></tbody></table></div>
+                </div>
+            </div>
+
+            <div id="storyEmpty" class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="17" width="18" height="4" rx="1"/></svg>
+                <h3>No story data</h3>
+                <p>Click "Fetch Story Data" to load building story definitions and identify in-plane beam elements per floor.</p>
             </div>
         </div>
 
@@ -702,6 +740,12 @@
                     <div class="form-group" style="flex:1;"><label>Load Case (Seismic - Mpr)</label><input type="text" id="bmLoadCaseSeismic" class="input" value="Ex(ST)" /></div>
                 </div>
                 <div class="form-row">
+                    <div class="form-group">
+                        <label>Floor Filter</label>
+                        <select id="bmFloorFilter" class="input" onchange="applyBeamFloorFilter()">
+                            <option value="ALL">All Floors</option>
+                        </select>
+                    </div>
                     <button class="btn btn-blue" onclick="runBeamDesign()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="10" width="20" height="4" rx="1"/></svg>
                         Run Beam Design
@@ -868,6 +912,14 @@ let rx3d = { rotX: 25, rotY: -45, zoom: 1.0 };
 // Load case names fetched from MIDAS (populated by fetchLoads)
 let fetchedLoadCaseNames = [];
 let fetchedLcomNames = [];
+
+// Story data cache: [{ name, level, height, floorIdx }] sorted by level ascending
+let storyDataCache = [];
+// Map: storyName -> array of in-plane beam element IDs at that story level
+let storyBeamMap = {};
+// Cached node & element dicts for story-beam mapping
+let cachedNodeDict = null;
+let cachedElemDict = null;
 
 // ══════════════════════════════════════════════════════════════
 // PROGRESS MODAL
@@ -1104,6 +1156,219 @@ function renderTable(tableId, headers, rows) {
 let lastBeamHeaders = [], lastBeamRows = [];
 // Store beam force data for rerun
 let cachedBeamForces = null;
+// Store all beam result rows for floor filtering
+let allBeamResultRows = [];
+let allBeamHeaders = [];
+
+// ══════════════════════════════════════════════════════════════
+// STORY DATA
+// ══════════════════════════════════════════════════════════════
+async function fetchStoryData() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+
+    showProgress("Fetching Story Data", "Reading story definitions and elements...", "Step 1/3: Reading stories...");
+    updateProgress(10);
+
+    try {
+        // Step 1: Fetch story data
+        const stryData = await midasAPI("GET", "/db/stry");
+        updateProgress(30, "Step 2/3: Reading nodes...");
+
+        // Step 2: Fetch nodes and elements for beam-to-floor mapping
+        const nodeData = await midasAPI("GET", "/db/node");
+        updateProgress(50, "Step 3/3: Reading elements...");
+        const elemData = await midasAPI("GET", "/db/elem");
+        updateProgress(70, "Processing story data...");
+
+        const nodeDict = nodeData.NODE || nodeData;
+        const elemDict = elemData.ELEM || elemData;
+        cachedNodeDict = nodeDict;
+        cachedElemDict = elemDict;
+
+        // Parse story data - MIDAS returns STRY object
+        const stryObj = stryData.STRY || stryData;
+        const stories = [];
+
+        // MIDAS STRY typically has structure like:
+        // { "1": { "NAME": "1F", "LEVEL": 0.0, "HEIGHT": 3.5, ... }, ... }
+        // Or it may have vSTRY array format
+        if (stryObj.vSTRY && Array.isArray(stryObj.vSTRY)) {
+            // Array format
+            stryObj.vSTRY.forEach((s, i) => {
+                stories.push({
+                    name: s.sNAME || s.NAME || s.name || `Floor ${i+1}`,
+                    level: parseFloat(s.dLEVEL || s.LEVEL || s.level || 0),
+                    height: parseFloat(s.dHEIGHT || s.HEIGHT || s.height || 0),
+                    diaphragm: s.bDIAPHRAGM !== undefined ? (s.bDIAPHRAGM ? "Yes" : "No") : "-"
+                });
+            });
+        } else {
+            // Object format with numbered keys
+            for (const [id, val] of Object.entries(stryObj)) {
+                if (typeof val !== "object" || val === null) continue;
+                // Skip metadata keys
+                if (id === "STORY_X" || id === "STORY_Y" || id === "STORY_Z") continue;
+                stories.push({
+                    name: val.sNAME || val.NAME || val.name || `Floor ${id}`,
+                    level: parseFloat(val.dLEVEL || val.LEVEL || val.level || 0),
+                    height: parseFloat(val.dHEIGHT || val.HEIGHT || val.height || 0),
+                    diaphragm: val.bDIAPHRAGM !== undefined ? (val.bDIAPHRAGM ? "Yes" : "No") :
+                               (val.DIAPHRAGM !== undefined ? String(val.DIAPHRAGM) : "-")
+                });
+            }
+        }
+
+        // Sort by level ascending
+        stories.sort((a, b) => a.level - b.level);
+        storyDataCache = stories;
+
+        updateProgress(85, "Mapping beams to floors...");
+
+        // Build story-beam map: find in-plane beams at each story level
+        // A beam is "in-plane" at a story level if BOTH its nodes have Z ≈ story level (tolerance)
+        const Z_TOLERANCE = 0.1; // 0.1m tolerance for matching
+        storyBeamMap = {};
+        const storyLevels = stories.map(s => s.level);
+
+        for (const story of stories) {
+            storyBeamMap[story.name] = [];
+        }
+
+        let totalInPlaneBeams = 0;
+        for (const [eid, e] of Object.entries(elemDict)) {
+            const etype = e.TYPE || "";
+            if (etype !== "BEAM") continue;
+            const conn = e.NODE || [];
+            if (conn.length < 2) continue;
+            const ni = nodeDict[String(conn[0])] || nodeDict[conn[0]];
+            const nj = nodeDict[String(conn[1])] || nodeDict[conn[1]];
+            if (!ni || !nj) continue;
+
+            const zi = parseFloat(ni.Z);
+            const zj = parseFloat(nj.Z);
+
+            // In-plane check: both nodes at same Z level (horizontal beam)
+            if (Math.abs(zi - zj) > Z_TOLERANCE) continue;
+
+            // Find which story this beam belongs to (match Z to story level)
+            const beamZ = (zi + zj) / 2;
+            for (const story of stories) {
+                if (Math.abs(beamZ - story.level) <= Z_TOLERANCE) {
+                    storyBeamMap[story.name].push(eid);
+                    totalInPlaneBeams++;
+                    break;
+                }
+            }
+        }
+
+        // Render story table
+        const storyHeaders = ["Story", "Level (m)", "Height (m)", "Diaphragm", "In-Plane Beams"];
+        const storyRows = stories.map(s => [
+            s.name,
+            s.level.toFixed(3),
+            s.height.toFixed(3),
+            s.diaphragm,
+            storyBeamMap[s.name] ? storyBeamMap[s.name].length : 0
+        ]);
+        // Show from top floor to bottom
+        storyRows.reverse();
+
+        renderTable("storyTable", storyHeaders, storyRows);
+        document.getElementById("storyCountBadge").textContent = `${stories.length} stories, ${totalInPlaneBeams} in-plane beams`;
+        document.getElementById("storyResults").style.display = "block";
+        document.getElementById("storyEmpty").style.display = "none";
+
+        // Populate beam floor filter dropdown
+        const bmFilter = document.getElementById("bmFloorFilter");
+        bmFilter.innerHTML = '<option value="ALL">All Floors</option>';
+        // Top floor first in dropdown
+        [...stories].reverse().forEach(s => {
+            const opt = document.createElement("option");
+            opt.value = s.name;
+            opt.textContent = `${s.name} (${storyBeamMap[s.name] ? storyBeamMap[s.name].length : 0} beams)`;
+            bmFilter.appendChild(opt);
+        });
+
+        updateProgress(100, "Done!");
+        showToast(`${stories.length} stories loaded, ${totalInPlaneBeams} in-plane beams mapped`);
+        logEntry(`<span class="log-info">Story data: ${stories.length} stories, ${totalInPlaneBeams} in-plane beam elements</span>`);
+    } catch (err) {
+        showToast("Failed: " + err.message, "error");
+        logEntry(`<span class="log-status-err">Story data error: ${err.message}</span>`);
+    }
+    setTimeout(hideProgress, 400);
+}
+
+function copyStoryTable() {
+    const table = document.getElementById("storyTable");
+    if (!table) return;
+    const headers = [...table.querySelectorAll("thead th")].map(th => th.textContent.replace(/\n/g, " "));
+    const rows = [...table.querySelectorAll("tbody tr")].map(tr =>
+        [...tr.querySelectorAll("td")].map(td => td.textContent)
+    );
+    const tsv = [headers.join("\t"), ...rows.map(r => r.join("\t"))].join("\n");
+    navigator.clipboard.writeText(tsv).then(() => {
+        showToast("Story data copied to clipboard!");
+    });
+}
+
+function applyBeamFloorFilter() {
+    if (!allBeamResultRows.length) return;
+    const filter = document.getElementById("bmFloorFilter").value;
+
+    let filteredRows;
+    if (filter === "ALL") {
+        filteredRows = allBeamResultRows;
+    } else {
+        const allowedElems = new Set(storyBeamMap[filter] || []);
+        filteredRows = allBeamResultRows.filter(row => allowedElems.has(String(row[0])));
+    }
+
+    renderTable("beamTable", allBeamHeaders, filteredRows);
+
+    // Update status badge for filtered view
+    let failCount = 0;
+    filteredRows.forEach(r => { if (r[r.length - 1] === "FAIL") failCount++; });
+    const badge = document.getElementById("beamStatusBadge");
+    const total = filteredRows.length;
+    if (failCount > 0) {
+        badge.style.display = "inline-flex";
+        badge.style.background = "rgba(248,81,73,0.12)";
+        badge.style.color = "var(--accent-red)";
+        badge.style.border = "1px solid rgba(248,81,73,0.25)";
+        badge.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-red);margin-right:6px;"></span>${failCount}/${total} FAIL`;
+    } else {
+        badge.style.display = "inline-flex";
+        badge.style.background = "rgba(63,185,80,0.12)";
+        badge.style.color = "var(--accent-green)";
+        badge.style.border = "1px solid rgba(63,185,80,0.25)";
+        badge.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-green);margin-right:6px;"></span>${total}/${total} PASS`;
+    }
+
+    // Re-add editable listeners
+    const tbody = document.getElementById("beamTable").querySelector("tbody");
+    const trs = tbody.querySelectorAll("tr");
+    trs.forEach(tr => {
+        const tds = tr.querySelectorAll("td");
+        BEAM_EDITABLE_COLS.forEach(ci => {
+            const td = tds[ci];
+            if (!td) return;
+            td.classList.add("editable");
+            td.addEventListener("dblclick", function() {
+                if (td.querySelector("input")) return;
+                const val = td.textContent;
+                td.innerHTML = `<input type="number" value="${val}" />`;
+                const inp = td.querySelector("input");
+                inp.focus(); inp.select();
+                inp.addEventListener("blur", () => { td.textContent = inp.value || val; td.classList.add("edited"); });
+                inp.addEventListener("keydown", e => { if (e.key === "Enter") inp.blur(); if (e.key === "Escape") { td.textContent = val; } });
+            });
+        });
+    });
+
+    const filterLabel = filter === "ALL" ? "all floors" : filter;
+    showToast(`Showing ${filteredRows.length} beams (${filterLabel})`);
+}
 
 function copyBeamTable() {
     const table = document.getElementById("beamTable");
@@ -1978,10 +2243,23 @@ async function runBeamDesign() {
         const elemLengths = {};  // elemID -> length in m
         const elemTypes = {};    // elemID -> type
 
+        // Collect all in-plane beam element IDs from story data (if available)
+        const inPlaneBeamSet = new Set();
+        if (storyDataCache.length > 0) {
+            for (const beams of Object.values(storyBeamMap)) {
+                beams.forEach(eid => inPlaneBeamSet.add(String(eid)));
+            }
+        }
+        const useStoryFilter = inPlaneBeamSet.size > 0;
+
         for (const [eid, e] of Object.entries(elemDict)) {
             const etype = e.TYPE || "";
             elemTypes[eid] = etype;
             if (etype !== "BEAM") continue;
+
+            // If story data is loaded, only include in-plane beams
+            if (useStoryFilter && !inPlaneBeamSet.has(eid)) continue;
+
             const conn = e.NODE || [];
             if (conn.length < 2) continue;
             const ni = nodeDict[String(conn[0])] || nodeDict[conn[0]];
@@ -1993,7 +2271,8 @@ async function runBeamDesign() {
             elemLengths[eid] = Math.sqrt(dx*dx + dy*dy + dz*dz);
         }
 
-        logEntry(`<span class="log-info">Computed lengths for ${Object.keys(elemLengths).length} beam elements</span>`);
+        const filterNote = useStoryFilter ? " (in-plane only)" : "";
+        logEntry(`<span class="log-info">Computed lengths for ${Object.keys(elemLengths).length} beam elements${filterNote}</span>`);
         updateProgress(30, "Step 3/5: Getting gravity beam forces...");
 
         // Step 2: Fetch beam forces - correct MIDAS API format with COMPONENTS & PARTS
@@ -2177,22 +2456,36 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
         ]);
     }
 
-    renderTable("beamTable", headers, resultRows);
+    // Cache for floor filtering
+    allBeamHeaders = headers;
+    allBeamResultRows = resultRows;
 
-    // Status badge
+    // Apply floor filter if one is selected
+    const floorFilter = document.getElementById("bmFloorFilter").value;
+    let displayRows = resultRows;
+    if (floorFilter !== "ALL" && storyBeamMap[floorFilter]) {
+        const allowedElems = new Set(storyBeamMap[floorFilter]);
+        displayRows = resultRows.filter(row => allowedElems.has(String(row[0])));
+    }
+
+    renderTable("beamTable", headers, displayRows);
+
+    // Status badge (use displayRows for counts)
+    let dispFail = 0, dispTotal = displayRows.length;
+    displayRows.forEach(r => { if (r[r.length - 1] === "FAIL") dispFail++; });
     const badge = document.getElementById("beamStatusBadge");
-    if (failCount > 0) {
+    if (dispFail > 0) {
         badge.style.display = "inline-flex";
         badge.style.background = "rgba(248,81,73,0.12)";
         badge.style.color = "var(--accent-red)";
         badge.style.border = "1px solid rgba(248,81,73,0.25)";
-        badge.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-red);margin-right:6px;"></span>${failCount}/${totalCount} FAIL`;
+        badge.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-red);margin-right:6px;"></span>${dispFail}/${dispTotal} FAIL`;
     } else {
         badge.style.display = "inline-flex";
         badge.style.background = "rgba(63,185,80,0.12)";
         badge.style.color = "var(--accent-green)";
         badge.style.border = "1px solid rgba(63,185,80,0.25)";
-        badge.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-green);margin-right:6px;"></span>${totalCount}/${totalCount} PASS`;
+        badge.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-green);margin-right:6px;"></span>${dispTotal}/${dispTotal} PASS`;
     }
 
     // Make editable columns: width(2), height(3), fc(4), fy(5), nib(7), db(13)
