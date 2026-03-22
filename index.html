@@ -471,7 +471,7 @@
 
 <!-- Beam Force Detail Modal -->
 <div class="modal-overlay" id="beamForceModal" onclick="if(event.target===this)this.classList.remove('active')">
-    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;max-width:800px;width:95%;max-height:85vh;overflow:auto;">
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;max-width:1100px;width:95%;max-height:85vh;overflow:auto;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
             <h3 id="beamForceTitle" style="color:var(--text-primary);font-size:16px;">Beam Forces</h3>
             <button class="btn btn-ghost btn-sm" onclick="document.getElementById('beamForceModal').classList.remove('active')">Close</button>
@@ -483,6 +483,7 @@
         <div id="beamForceContent" style="font-size:12px;">
             <p style="color:var(--text-muted);">Select a load case to view forces.</p>
         </div>
+        <div id="beamForcePlot" style="margin-top:16px;"></div>
     </div>
 </div>
 
@@ -2124,6 +2125,7 @@ async function fetchBeamForceDetail() {
 
         if (!data.length) {
             container.innerHTML = '<p style="color:var(--text-muted);">No force data for this element/load case.</p>';
+            document.getElementById("beamForcePlot").innerHTML = "";
             return;
         }
 
@@ -2142,8 +2144,188 @@ async function fetchBeamForceDetail() {
         });
         html += '</tbody></table></div></div>';
         container.innerHTML = html;
+
+        // Draw force diagrams
+        drawBeamForcePlot(head, data, elemIds);
     } catch (err) {
         container.innerHTML = `<p style="color:var(--accent-red);">Error: ${err.message}</p>`;
+        document.getElementById("beamForcePlot").innerHTML = "";
+    }
+}
+
+function drawBeamForcePlot(head, data, elemIds) {
+    const plotDiv = document.getElementById("beamForcePlot");
+    plotDiv.innerHTML = "";
+    const isLight = document.documentElement.getAttribute("data-theme") === "light";
+
+    // Extract column indices (case-insensitive — API may return uppercase headers)
+    const headLower = head.map(h => String(h).toLowerCase());
+    const iElem = headLower.findIndex(h => h === "elem");
+    const iPart = headLower.findIndex(h => h === "part");
+    const iShearZ = headLower.findIndex(h => h === "shear-z");
+    const iMomentY = headLower.findIndex(h => h === "moment-y");
+    if (iShearZ < 0 && iMomentY < 0) { return; }
+
+    // Build ordered data points: [{x: position along beam, shear, moment, label}]
+    // Group by element, then order by Part (I before J)
+    const elemOrder = elemIds.map(String);
+    const points = [];
+    let cumLen = 0;
+
+    // Get element lengths from cachedBeamForces if available
+    const lengths = (cachedBeamForces && cachedBeamForces.elemLengths) || {};
+
+    for (const eid of elemOrder) {
+        const eidStr = String(eid);
+        const eLen = lengths[eidStr] || 1; // fallback 1m
+        const rows = data.filter(r => String(r[iElem]) === eidStr);
+        // Sort: PartI first, then PartJ (Part values like "I[151]", "J[152]", "I", "J", "PartI", etc.)
+        const partI = rows.find(r => /^I|PartI/i.test(String(r[iPart]).trim()));
+        const partJ = rows.find(r => /^J|PartJ/i.test(String(r[iPart]).trim()));
+
+        if (partI) {
+            points.push({
+                x: cumLen,
+                shear: iShearZ >= 0 ? parseFloat(partI[iShearZ]) || 0 : 0,
+                moment: iMomentY >= 0 ? parseFloat(partI[iMomentY]) || 0 : 0,
+                label: `E${eidStr}-I`
+            });
+        }
+        if (partJ) {
+            points.push({
+                x: cumLen + eLen,
+                shear: iShearZ >= 0 ? parseFloat(partJ[iShearZ]) || 0 : 0,
+                moment: iMomentY >= 0 ? parseFloat(partJ[iMomentY]) || 0 : 0,
+                label: `E${eidStr}-J`
+            });
+        }
+        cumLen += eLen;
+    }
+
+    if (points.length < 2) return;
+
+    const totalLen = cumLen;
+    const diagrams = [];
+    if (iMomentY >= 0) diagrams.push({ key: "moment", title: "Moment-y (kN.m)", color: isLight ? "#8250df" : "#d2a8ff" });
+    if (iShearZ >= 0) diagrams.push({ key: "shear", title: "Shear-z (kN)", color: isLight ? "#0969da" : "#58a6ff" });
+
+    for (const diag of diagrams) {
+        const canvas = document.createElement("canvas");
+        const W = 1040, H = 220;
+        canvas.width = W; canvas.height = H;
+        canvas.style.width = "100%"; canvas.style.maxWidth = W + "px"; canvas.style.height = "auto";
+        canvas.style.display = "block"; canvas.style.marginBottom = "8px";
+        canvas.style.borderRadius = "8px";
+        canvas.style.border = `1px solid ${isLight ? '#d0d7de' : '#30363d'}`;
+        plotDiv.appendChild(canvas);
+
+        const ctx = canvas.getContext("2d");
+        const bgColor = isLight ? "#f6f8fa" : "#161b22";
+        const textColor = isLight ? "#1f2328" : "#c9d1d9";
+        const gridColor = isLight ? "#e8ebef" : "#21262d";
+        const axisColor = isLight ? "#656d76" : "#8b949e";
+        const fillColor = diag.key === "moment"
+            ? (isLight ? "rgba(130,80,223,0.15)" : "rgba(210,168,255,0.15)")
+            : (isLight ? "rgba(9,105,218,0.15)" : "rgba(88,166,255,0.15)");
+
+        ctx.fillStyle = bgColor;
+        ctx.fillRect(0, 0, W, H);
+
+        const pad = { l: 70, r: 30, t: 30, b: 40 };
+        const pw = W - pad.l - pad.r;
+        const ph = H - pad.t - pad.b;
+
+        // Compute value range
+        const vals = points.map(p => p[diag.key]);
+        let vMin = Math.min(0, ...vals);
+        let vMax = Math.max(0, ...vals);
+        if (vMin === vMax) { vMin -= 1; vMax += 1; }
+        const vRange = vMax - vMin;
+        const margin = vRange * 0.1;
+        vMin -= margin; vMax += margin;
+
+        const xScale = (x) => pad.l + (x / totalLen) * pw;
+        const yScale = (v) => pad.t + ph - ((v - vMin) / (vMax - vMin)) * ph;
+
+        // Grid lines (horizontal)
+        ctx.strokeStyle = gridColor; ctx.lineWidth = 0.5;
+        const nGrid = 4;
+        for (let i = 0; i <= nGrid; i++) {
+            const v = vMin + (vMax - vMin) * i / nGrid;
+            const y = yScale(v);
+            ctx.beginPath(); ctx.moveTo(pad.l, y); ctx.lineTo(W - pad.r, y); ctx.stroke();
+            ctx.fillStyle = axisColor; ctx.font = "10px 'Segoe UI', sans-serif"; ctx.textAlign = "right";
+            ctx.fillText(v.toFixed(1), pad.l - 6, y + 3);
+        }
+
+        // Zero line
+        const y0 = yScale(0);
+        ctx.strokeStyle = axisColor; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(pad.l, y0); ctx.lineTo(W - pad.r, y0); ctx.stroke();
+
+        // Beam line at bottom
+        ctx.strokeStyle = isLight ? "#424a53" : "#c9d1d9"; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(xScale(0), y0); ctx.lineTo(xScale(totalLen), y0); ctx.stroke();
+
+        // Support triangles at ends
+        const triH = 8;
+        for (const sx of [xScale(0), xScale(totalLen)]) {
+            ctx.fillStyle = isLight ? "#424a53" : "#c9d1d9";
+            ctx.beginPath(); ctx.moveTo(sx, y0); ctx.lineTo(sx - 6, y0 + triH); ctx.lineTo(sx + 6, y0 + triH); ctx.closePath(); ctx.fill();
+        }
+
+        // Draw filled diagram
+        ctx.beginPath();
+        ctx.moveTo(xScale(points[0].x), y0);
+        for (const p of points) ctx.lineTo(xScale(p.x), yScale(p[diag.key]));
+        ctx.lineTo(xScale(points[points.length - 1].x), y0);
+        ctx.closePath();
+        ctx.fillStyle = fillColor; ctx.fill();
+
+        // Draw diagram line
+        ctx.strokeStyle = diag.color; ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(xScale(points[0].x), yScale(points[0][diag.key]));
+        for (let i = 1; i < points.length; i++) ctx.lineTo(xScale(points[i].x), yScale(points[i][diag.key]));
+        ctx.stroke();
+
+        // Data points and value labels
+        for (const p of points) {
+            const px = xScale(p.x), py = yScale(p[diag.key]);
+            ctx.fillStyle = diag.color;
+            ctx.beginPath(); ctx.arc(px, py, 4, 0, Math.PI * 2); ctx.fill();
+            // Value label
+            ctx.fillStyle = textColor; ctx.font = "bold 10px 'Segoe UI', sans-serif"; ctx.textAlign = "center";
+            const offset = p[diag.key] >= 0 ? -10 : 14;
+            ctx.fillText(p[diag.key].toFixed(2), px, py + offset);
+        }
+
+        // Element boundary markers
+        let cx = 0;
+        ctx.strokeStyle = isLight ? "#d0d7de" : "#30363d"; ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+        for (let i = 0; i < elemOrder.length - 1; i++) {
+            cx += lengths[elemOrder[i]] || 1;
+            const bx = xScale(cx);
+            ctx.beginPath(); ctx.moveTo(bx, pad.t); ctx.lineTo(bx, H - pad.b); ctx.stroke();
+        }
+        ctx.setLineDash([]);
+
+        // Title
+        ctx.fillStyle = textColor; ctx.font = "bold 12px 'Segoe UI', sans-serif"; ctx.textAlign = "left";
+        ctx.fillText(diag.title, pad.l, pad.t - 10);
+
+        // X-axis labels
+        ctx.fillStyle = axisColor; ctx.font = "10px 'Segoe UI', sans-serif"; ctx.textAlign = "center";
+        ctx.fillText("0", xScale(0), H - pad.b + 16);
+        ctx.fillText(totalLen.toFixed(2) + "m", xScale(totalLen), H - pad.b + 16);
+        // Intermediate element labels
+        let elCum = 0;
+        for (const eid of elemOrder) {
+            const eLen = lengths[eid] || 1;
+            const midX = xScale(elCum + eLen / 2);
+            ctx.fillText("E" + eid, midX, H - pad.b + 28);
+            elCum += eLen;
+        }
     }
 }
 
@@ -3140,17 +3322,16 @@ async function runBeamDesign() {
         const seisRows = seisTable.DATA || [];
 
         function parseBeamForces(head, rows) {
-            // Try multiple possible column names from MIDAS API
-            const iElem = Math.max(head.indexOf("Elem"), head.indexOf("Element"));
-            const iPart = head.indexOf("Part");
+            // Case-insensitive header matching (API may return uppercase)
+            const hLow = head.map(h => String(h).toLowerCase());
+            const iElem = Math.max(hLow.indexOf("elem"), hLow.indexOf("element"));
+            const iPart = hLow.indexOf("part");
             // Moment-y or My
-            let iMy = head.indexOf("Moment-y");
-            if (iMy < 0) iMy = head.indexOf("My");
-            if (iMy < 0) iMy = head.indexOf("Moment-Y");
+            let iMy = hLow.indexOf("moment-y");
+            if (iMy < 0) iMy = hLow.indexOf("my");
             // Shear-z or Fz
-            let iFz = head.indexOf("Shear-z");
-            if (iFz < 0) iFz = head.indexOf("Fz");
-            if (iFz < 0) iFz = head.indexOf("Shear-Z");
+            let iFz = hLow.indexOf("shear-z");
+            if (iFz < 0) iFz = hLow.indexOf("fz");
 
             const map = {};
             for (const row of rows) {
@@ -3213,18 +3394,18 @@ async function runBeamDesign() {
             const firstElem = elems[0], lastElem = elems[elems.length - 1];
             const sf_first = seisForces[firstElem] || { Mi: 0, Mj: 0 };
             const sf_last = seisForces[lastElem] || { Mi: 0, Mj: 0 };
-            const gf_first = gravForces[firstElem] || { Vi: 0, Vj: 0 };
-            const gf_last = gravForces[lastElem] || { Vi: 0, Vj: 0 };
+            const gf_first = gravForces[firstElem] || { Mi: 0, Mj: 0, Vi: 0, Vj: 0 };
+            const gf_last = gravForces[lastElem] || { Mi: 0, Mj: 0, Vi: 0, Vj: 0 };
             // Envelope mid moment: max absolute across all elements
             let maxMidSeis = 0, maxMidGrav = 0;
             elems.forEach(eid => {
                 const sf = seisForces[eid] || { Mi: 0, Mj: 0 };
-                const gf = gravForces[eid] || { Vi: 0, Vj: 0 };
+                const gf = gravForces[eid] || { Mi: 0, Mj: 0, Vi: 0, Vj: 0 };
                 maxMidSeis = Math.max(maxMidSeis, Math.abs(sf.Mi), Math.abs(sf.Mj));
-                maxMidGrav = Math.max(maxMidGrav, Math.abs(gf.Vi), Math.abs(gf.Vj));
+                maxMidGrav = Math.max(maxMidGrav, Math.abs(gf.Mi), Math.abs(gf.Mj));
             });
             mergedSeis[cid] = { Mi: sf_first.Mi, Mj: sf_last.Mj };
-            mergedGrav[cid] = { Vi: gf_first.Vi, Vj: gf_last.Vj };
+            mergedGrav[cid] = { Mi: gf_first.Mi, Mj: gf_last.Mj, Vi: gf_first.Vi, Vj: gf_last.Vj };
 
             // Section from first element
             if (elemSections[firstElem]) mergedSections[cid] = elemSections[firstElem];
@@ -3265,7 +3446,7 @@ async function runBeamDesign() {
 // 8=nib, 9=nmb, 10=njb, 11=nit, 12=nmt, 13=njt, 14=db,
 // 15=vdb, 16=vns_i, 17=vns_m, 18=vns_j, 19=vs_i, 20=vs_m, 21=vs_j,
 // 22-24=mdi/mdm/mdj, 25-27=mci/mcm/mcj, 28-30=mri/mrm/mrj,
-// 31=Vdi, 32=Vdj, 33=Vni, 34=Vnj, 35=vr_i, 36=vr_j, 37=Status
+// 31=Vdi, 32=Vdm, 33=Vdj, 34=Vni, 35=Vnm, 36=Vnj, 37=vr_i, 38=vr_m, 39=vr_j, 40=Status
 const BEAM_EDITABLE_COLS = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21];
 
 function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, overrides, elemSections, memberInfoMap) {
@@ -3289,7 +3470,7 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
         "mdi\n(kN.m)", "mdm\n(kN.m)", "mdj\n(kN.m)",
         "mci\n(kN.m)", "mcm\n(kN.m)", "mcj\n(kN.m)",
         "mri", "mrm", "mrj",
-        "Vdi\n(kN)", "Vdj\n(kN)", "Vni\n(kN)", "Vnj\n(kN)", "vr_i", "vr_j",
+        "Vdi\n(kN)", "Vdm\n(kN)", "Vdj\n(kN)", "Vni\n(kN)", "Vnm\n(kN)", "Vnj\n(kN)", "vr_i", "vr_m", "vr_j",
         "Status"
     ];
 
@@ -3460,23 +3641,28 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
         const Vc = (1 / 6) * Math.sqrt(fc) * bw * d_eff / 1000;
         // Av = nLegs * pi/4 * dbs^2
         const AvI = vnsI * Math.PI / 4 * dbs * dbs;
+        const AvM = vnsM * Math.PI / 4 * dbs * dbs;
         const AvJ = vnsJ * Math.PI / 4 * dbs * dbs;
         // Vs = Av * fys * d / s (in N, convert to kN)
         const VsI = vsI > 0 ? (AvI * fys * d_eff) / vsI / 1000 : 0;
+        const VsM = vsM > 0 ? (AvM * fys * d_eff) / vsM / 1000 : 0;
         const VsJ = vsJ > 0 ? (AvJ * fys * d_eff) / vsJ / 1000 : 0;
         // Vn = phi * (Vc + Vs), phi = 0.75
         const phiV = 0.75;
         const VnI = phiV * (Vc + VsI);
+        const VnM = phiV * (Vc + VsM);
         const VnJ = phiV * (Vc + VsJ);
-        // Shear demand from gravity forces
+        // Shear demand from gravity forces (midspan = average of i and j)
         const Vdi = Math.abs(gf.Vi || 0);
+        const Vdm = (Vdi + Math.abs(gf.Vj || 0)) / 2;
         const Vdj = Math.abs(gf.Vj || 0);
         // Shear DCR
         const vrI = VnI > 0 ? Vdi / VnI : 0;
+        const vrM = VnM > 0 ? Vdm / VnM : 0;
         const vrJ = VnJ > 0 ? Vdj / VnJ : 0;
 
         const passFlexure = (mri <= 1.0 && mrm <= 1.0 && mrj <= 1.0);
-        const passShear = (vrI <= 1.0 && vrJ <= 1.0);
+        const passShear = (vrI <= 1.0 && vrM <= 1.0 && vrJ <= 1.0);
         const pass = passFlexure && passShear;
 
         totalCount++;
@@ -3489,7 +3675,7 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
             mdi.toFixed(2), mdm.toFixed(2), mdj.toFixed(2),
             mci.toFixed(2), mcm.toFixed(2), mcj.toFixed(2),
             mri.toFixed(3), mrm.toFixed(3), mrj.toFixed(3),
-            Vdi.toFixed(2), Vdj.toFixed(2), VnI.toFixed(2), VnJ.toFixed(2), vrI.toFixed(3), vrJ.toFixed(3),
+            Vdi.toFixed(2), Vdm.toFixed(2), Vdj.toFixed(2), VnI.toFixed(2), VnM.toFixed(2), VnJ.toFixed(2), vrI.toFixed(3), vrM.toFixed(3), vrJ.toFixed(3),
             pass ? "PASS" : "FAIL"
         ]);
     }
