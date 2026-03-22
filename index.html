@@ -444,6 +444,16 @@
         </div>
 
         <div class="sidebar-section">
+            <div class="sidebar-label">Load Data</div>
+            <ul class="sidebar-nav">
+                <li><a onclick="switchTab('loads')" data-tab="loads">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/><path d="M2 12h20"/><path d="M12 2l4 4"/><path d="M12 2l-4 4"/></svg>
+                    Loads &amp; Combinations
+                </a></li>
+            </ul>
+        </div>
+
+        <div class="sidebar-section">
             <div class="sidebar-label">Results</div>
             <ul class="sidebar-nav">
                 <li><a onclick="switchTab('drift')" data-tab="drift">
@@ -729,6 +739,50 @@
             <div id="columnEmpty" class="empty-state">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="9" y="2" width="6" height="20" rx="1"/></svg>
                 <h3>No column data</h3><p>Configure parameters and click "Get Column Results".</p>
+            </div>
+        </div>
+
+        <!-- ════════════ LOADS & COMBINATIONS ════════════ -->
+        <div id="tab-loads" class="tab-page">
+            <div class="page-header"><h2>Loads &amp; Combinations</h2><p>Extract static load cases and load combinations from the model</p></div>
+            <div class="panel">
+                <div class="panel-header"><span class="panel-title">Actions</span></div>
+                <div class="form-row">
+                    <button class="btn btn-blue" onclick="fetchLoads()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/><path d="M2 12h20"/></svg>
+                        Fetch Load Data
+                    </button>
+                </div>
+            </div>
+
+            <div id="loadsResultsArea" style="display:none;">
+                <!-- Static Load Cases -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Static Load Cases</span>
+                        <span id="stldCount" style="font-size:11px;color:var(--text-muted);"></span>
+                    </div>
+                    <div class="table-wrap">
+                        <div class="table-scroll"><table id="stldTable"><thead><tr></tr></thead><tbody></tbody></table></div>
+                    </div>
+                </div>
+
+                <!-- Load Combinations -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Load Combinations (General)</span>
+                        <span id="lcomCount" style="font-size:11px;color:var(--text-muted);"></span>
+                    </div>
+                    <div class="table-wrap">
+                        <div class="table-scroll"><table id="lcomTable"><thead><tr></tr></thead><tbody></tbody></table></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="loadsEmpty" class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2v20"/><path d="M2 12h20"/><path d="M12 2l4 4"/><path d="M12 2l-4 4"/></svg>
+                <h3>No load data</h3>
+                <p>Click "Fetch Load Data" to extract static load cases and load combinations from the model.</p>
             </div>
         </div>
 
@@ -2098,6 +2152,89 @@ function rerunBeamDesign() {
     const { gravForces, seisForces, elemLengths, elemTypes } = cachedBeamForces;
     computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, overrides);
     showToast("Beam design recalculated!");
+}
+
+// ══════════════════════════════════════════════════════════════
+// LOADS & COMBINATIONS (GET /db/stld, GET /db/lcom-gen)
+// ══════════════════════════════════════════════════════════════
+async function fetchLoads() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+
+    showProgress("Fetching Load Data", "Reading static loads and combinations...", "Step 1/2: Static load cases...");
+    updateProgress(20);
+
+    try {
+        // Step 1: Static Load Cases - GET /db/stld
+        const stldData = await midasAPI("GET", "/db/stld");
+        updateProgress(50, "Step 2/2: Load combinations...");
+
+        // Step 2: Load Combinations - GET /db/lcom-gen
+        const lcomData = await midasAPI("GET", "/db/lcom-gen");
+
+        updateProgress(80, "Processing data...");
+
+        // Parse Static Load Cases
+        const stldObj = stldData.STLD || stldData;
+        const stldHeaders = ["ID", "Name", "Type", "Description"];
+        const stldRows = [];
+        for (const [id, val] of Object.entries(stldObj)) {
+            if (typeof val === "object" && val !== null) {
+                stldRows.push([
+                    id,
+                    val.NAME || val.name || "-",
+                    val.TYPE || val.type || "-",
+                    val.DESC || val.desc || val.DESCRIPTION || "-"
+                ]);
+            } else {
+                // Simple format: key = name string
+                stldRows.push([id, String(val), "-", "-"]);
+            }
+        }
+        stldRows.sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+        renderTable("stldTable", stldHeaders, stldRows);
+        document.getElementById("stldCount").textContent = `${stldRows.length} load cases`;
+
+        // Parse Load Combinations
+        const lcomObj = lcomData["LCOM-GEN"] || lcomData.LCOM || lcomData;
+        const lcomHeaders = ["ID", "Name", "Type", "Active", "Load Cases & Factors"];
+        const lcomRows = [];
+        for (const [id, val] of Object.entries(lcomObj)) {
+            if (typeof val !== "object" || val === null) continue;
+            const name = val.NAME || val.name || "-";
+            const type = val.iTYPE !== undefined ? ["Add","Envelope","ABS","SRSS","Range"][val.iTYPE] || String(val.iTYPE) :
+                         (val.TYPE || val.type || "-");
+            const active = val.bACTIVE !== undefined ? (val.bACTIVE ? "Yes" : "No") :
+                           (val.ACTIVE !== undefined ? String(val.ACTIVE) : "-");
+
+            // Parse load case factors
+            let factors = "-";
+            const vCOMB = val.vCOMB || val.COMB || val.FACTORS || [];
+            if (Array.isArray(vCOMB) && vCOMB.length > 0) {
+                factors = vCOMB.map(c => {
+                    if (typeof c === "object") {
+                        const lcName = c.LCNAME || c.lcname || c.NAME || c.name || "?";
+                        const fac = c.FACTOR !== undefined ? c.FACTOR : (c.factor !== undefined ? c.factor : 1);
+                        return `${fac}x${lcName}`;
+                    }
+                    return String(c);
+                }).join(" + ");
+            }
+
+            lcomRows.push([id, name, type, active, factors]);
+        }
+        lcomRows.sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+        renderTable("lcomTable", lcomHeaders, lcomRows);
+        document.getElementById("lcomCount").textContent = `${lcomRows.length} combinations`;
+
+        document.getElementById("loadsResultsArea").style.display = "block";
+        document.getElementById("loadsEmpty").style.display = "none";
+
+        updateProgress(100, "Done!");
+        showToast(`${stldRows.length} load cases, ${lcomRows.length} combinations`);
+    } catch (err) {
+        showToast("Failed: " + err.message, "error");
+    }
+    setTimeout(hideProgress, 400);
 }
 
 // ══════════════════════════════════════════════════════════════
