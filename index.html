@@ -1204,41 +1204,29 @@ async function showStatDetail(type) {
             headers = ["ID", "Type", "Name"];
             rows = entries.map(([id, v]) => [id, v.TYPE || "-", v.NAME || v.P_NAME || "-"]);
         } else if (type === "sect") {
-            headers = ["ID", "Type", "Name", "Shape", "B (mm)", "H (mm)"];
+            headers = ["ID", "Name", "Shape", "DataType", "B (mm)", "H (mm)", "Size"];
             rows = entries.map(([id, v]) => {
-                const stype = v.TYPE || "-";
-                const sname = v.SNAME || v.NAME || v.P_NAME || "-";
-                const shape = v.SHAPE || "-";
-                // Extract B & H from section data (rectangular concrete)
-                let secH = "-", secB = "-";
-                const sb = v.SECT_BEFORE || v.SECT_I || v;
-                if (sb && Array.isArray(sb.vSIZE) && sb.vSIZE.length >= 2) {
-                    secH = sb.vSIZE[0]; secB = sb.vSIZE[1];
-                } else if (v.DATA && Array.isArray(v.DATA) && v.DATA.length >= 2) {
-                    secH = v.DATA[0]; secB = v.DATA[1];
-                } else if (v.H !== undefined && v.B !== undefined) {
-                    secH = v.H; secB = v.B;
-                } else if (v.vSIZE && Array.isArray(v.vSIZE) && v.vSIZE.length >= 2) {
-                    secH = v.vSIZE[0]; secB = v.vSIZE[1];
+                const sectBefore = v.SECT_BEFORE || {};
+                const sectI = sectBefore.SECT_I || {};
+                const sname = v.SECT_NAME || v.SNAME || v.NAME || "-";
+                const shape = sectBefore.SHAPE || v.SHAPE || "-";
+                const datatype = sectBefore.DATATYPE || "-";
+                const vsize = sectI.vSIZE || [];
+                // vSIZE[0] = HEIGHT, vSIZE[1] = WIDTH (in meters)
+                let secH = "-", secB = "-", sizeText = "-";
+                if (Array.isArray(vsize) && vsize.length >= 2) {
+                    secH = Math.round(parseFloat(vsize[0]) * 1000);
+                    secB = Math.round(parseFloat(vsize[1]) * 1000);
+                    sizeText = `${secB}x${secH}`;
                 }
-                // Parse name as fallback (e.g., "300x500")
-                if (secH === "-" || secB === "-") {
-                    const m = String(sname).match(/(\d+)\s*[xX×]\s*(\d+)/);
-                    if (m) { secB = parseFloat(m[1]); secH = parseFloat(m[2]); }
-                }
-                // Convert m to mm if needed
-                if (typeof secH === "number" && secH > 0 && secH < 10) secH = (secH * 1000).toFixed(0);
-                if (typeof secB === "number" && secB > 0 && secB < 10) secB = (secB * 1000).toFixed(0);
-                if (typeof secH === "number") secH = parseFloat(secH) >= 10 ? Math.round(secH) : secH;
-                if (typeof secB === "number") secB = parseFloat(secB) >= 10 ? Math.round(secB) : secB;
-                return [id, stype, sname, shape, secB, secH];
+                return [id, sname, shape, datatype, secB, secH, sizeText];
             });
             // Log first section raw data for debugging
             if (entries.length > 0) {
-                logEntry(`<span class="log-info">Section[${entries[0][0]}] raw keys: ${JSON.stringify(Object.keys(entries[0][1]))}</span>`);
                 const first = entries[0][1];
-                const sb = first.SECT_BEFORE || first.SECT_I;
-                if (sb) logEntry(`<span class="log-info">SECT_BEFORE keys: ${JSON.stringify(Object.keys(sb))}${sb.vSIZE ? ', vSIZE=' + JSON.stringify(sb.vSIZE) : ''}</span>`);
+                const sb = first.SECT_BEFORE || {};
+                const si = sb.SECT_I || {};
+                logEntry(`<span class="log-info">Section[${entries[0][0]}] SECT_NAME=${first.SECT_NAME}, SHAPE=${sb.SHAPE}, vSIZE=${JSON.stringify(si.vSIZE)}</span>`);
             }
         }
         renderTable("statDetailTable", headers, rows);
@@ -2742,6 +2730,7 @@ async function runBeamDesign() {
         }
 
         // Build element -> section dimensions map (B, H in mm)
+        // Following section_data.py: SECT_BEFORE.SECT_I.vSIZE[0]=H, vSIZE[1]=B (in meters)
         const elemSections = {}; // elemId -> { bw, h }
         for (const [eid, e] of Object.entries(elemDict)) {
             if ((e.TYPE || "") !== "BEAM") continue;
@@ -2749,38 +2738,17 @@ async function runBeamDesign() {
             if (!secId) continue;
             const sec = sectDict[String(secId)] || sectDict[secId];
             if (!sec) continue;
-            // Extract dimensions from section data
-            // MIDAS formats: SECT_BEFORE.vSIZE=[H,B,...], or DATA array, or direct H/B keys
+            const sectBefore = sec.SECT_BEFORE || {};
+            const sectI = sectBefore.SECT_I || {};
+            const vsize = sectI.vSIZE || [];
             let secH = null, secB = null;
-            const sb = sec.SECT_BEFORE || sec.SECT_I || sec;
-            if (sb && Array.isArray(sb.vSIZE) && sb.vSIZE.length >= 2) {
-                secH = sb.vSIZE[0]; secB = sb.vSIZE[1];
-            } else if (sec.DATA && Array.isArray(sec.DATA) && sec.DATA.length >= 2) {
-                secH = sec.DATA[0]; secB = sec.DATA[1];
-            } else if (sec.H !== undefined && sec.B !== undefined) {
-                secH = sec.H; secB = sec.B;
-            } else if (sec.vSIZE && Array.isArray(sec.vSIZE) && sec.vSIZE.length >= 2) {
-                secH = sec.vSIZE[0]; secB = sec.vSIZE[1];
+            if (Array.isArray(vsize) && vsize.length >= 2) {
+                // vSIZE values are in meters, convert to mm
+                secH = Math.round(parseFloat(vsize[0]) * 1000);
+                secB = Math.round(parseFloat(vsize[1]) * 1000);
             }
-            // Parse section name for dimensions (e.g., "300x500" -> B=300, H=500)
-            if (secH === null || secB === null) {
-                const sname = sec.SNAME || sec.NAME || sec.P_NAME || "";
-                const dimMatch = sname.match(/(\d+)\s*[xX×]\s*(\d+)/);
-                if (dimMatch) {
-                    secB = parseFloat(dimMatch[1]);
-                    secH = parseFloat(dimMatch[2]);
-                }
-            }
-            if (secH !== null && secB !== null) {
-                // MIDAS may store in m, convert to mm if values look like meters
-                const hVal = parseFloat(secH), bVal = parseFloat(secB);
-                if (hVal > 0 && bVal > 0) {
-                    // If values < 10, likely in meters -> convert to mm
-                    elemSections[eid] = {
-                        bw: bVal < 10 ? bVal * 1000 : bVal,
-                        h: hVal < 10 ? hVal * 1000 : hVal
-                    };
-                }
+            if (secH !== null && secB !== null && secH > 0 && secB > 0) {
+                elemSections[eid] = { bw: secB, h: secH };
             }
         }
         logEntry(`<span class="log-info">Section dimensions mapped for ${Object.keys(elemSections).length} beam elements</span>`);
