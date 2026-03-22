@@ -1433,9 +1433,10 @@ function renderTable(tableId, headers, rows) {
             // Color PASS/FAIL status column
             if (val === "PASS") style = 'style="color:#3fb950;font-weight:700;text-align:center"';
             else if (val === "FAIL") style = 'style="color:#f85149;font-weight:700;text-align:center"';
-            // Highlight ratio > 1.0 in red
+            // Highlight DCR/ratio > 1.0 in red (mri, mrm, mrj, vr_i, vr_m, vr_j, or any "Ratio" column)
             const hdr = headers[ci] || "";
-            if (hdr.includes("Ratio") && parseFloat(val) > 1.0) style = 'style="color:#f85149;font-weight:700"';
+            if ((hdr.includes("Ratio") || /^(mr[imj]|vr_[imj])$/.test(hdr.trim())) && parseFloat(val) > 1.0)
+                style = 'style="color:var(--accent-red);font-weight:700"';
             return `<td ${style}>${cell}</td>`;
         }).join("") + "</tr>";
     }).join("");
@@ -3392,19 +3393,19 @@ async function runBeamDesign() {
 
             // Forces: i-end from first elem, j-end from last elem, mid = max of all
             const firstElem = elems[0], lastElem = elems[elems.length - 1];
-            const sf_first = seisForces[firstElem] || { Mi: 0, Mj: 0 };
-            const sf_last = seisForces[lastElem] || { Mi: 0, Mj: 0 };
+            const sf_first = seisForces[firstElem] || { Mi: 0, Mj: 0, Vi: 0, Vj: 0 };
+            const sf_last = seisForces[lastElem] || { Mi: 0, Mj: 0, Vi: 0, Vj: 0 };
             const gf_first = gravForces[firstElem] || { Mi: 0, Mj: 0, Vi: 0, Vj: 0 };
             const gf_last = gravForces[lastElem] || { Mi: 0, Mj: 0, Vi: 0, Vj: 0 };
             // Envelope mid moment: max absolute across all elements
             let maxMidSeis = 0, maxMidGrav = 0;
             elems.forEach(eid => {
-                const sf = seisForces[eid] || { Mi: 0, Mj: 0 };
+                const sf = seisForces[eid] || { Mi: 0, Mj: 0, Vi: 0, Vj: 0 };
                 const gf = gravForces[eid] || { Mi: 0, Mj: 0, Vi: 0, Vj: 0 };
                 maxMidSeis = Math.max(maxMidSeis, Math.abs(sf.Mi), Math.abs(sf.Mj));
                 maxMidGrav = Math.max(maxMidGrav, Math.abs(gf.Mi), Math.abs(gf.Mj));
             });
-            mergedSeis[cid] = { Mi: sf_first.Mi, Mj: sf_last.Mj };
+            mergedSeis[cid] = { Mi: sf_first.Mi, Mj: sf_last.Mj, Vi: sf_first.Vi || 0, Vj: sf_last.Vj || 0 };
             mergedGrav[cid] = { Mi: gf_first.Mi, Mj: gf_last.Mj, Vi: gf_first.Vi, Vj: gf_last.Vj };
 
             // Section from first element
@@ -3556,8 +3557,8 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
         const db = ovr && !isNaN(ovr.db) ? ovr.db : db0;
         if (ovr) editedElems.add(elem);
 
-        const sf = seisForces[elem] || { Mi: 0, Mj: 0 };
-        const gf = gravForces[elem] || { Vi: 0, Vj: 0 };
+        const sf = seisForces[elem] || { Mi: 0, Mj: 0, Vi: 0, Vj: 0 };
+        const gf = gravForces[elem] || { Mi: 0, Mj: 0, Vi: 0, Vj: 0 };
         const Mi_seis = Math.abs(sf.Mi || 0);
         const Mj_seis = Math.abs(sf.Mj || 0);
         const Mm_seis = (Mi_seis + Mj_seis) / 2;
@@ -3652,10 +3653,12 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
         const VnI = phiV * (Vc + VsI);
         const VnM = phiV * (Vc + VsM);
         const VnJ = phiV * (Vc + VsJ);
-        // Shear demand from gravity forces (midspan = average of i and j)
-        const Vdi = Math.abs(gf.Vi || 0);
-        const Vdm = (Vdi + Math.abs(gf.Vj || 0)) / 2;
-        const Vdj = Math.abs(gf.Vj || 0);
+        // Shear demand: max of gravity and seismic shear at each location
+        const Vdi_g = Math.abs(gf.Vi || 0), Vdj_g = Math.abs(gf.Vj || 0);
+        const Vdi_s = Math.abs(sf.Vi || 0), Vdj_s = Math.abs(sf.Vj || 0);
+        const Vdi = Math.max(Vdi_g, Vdi_s);
+        const Vdj = Math.max(Vdj_g, Vdj_s);
+        const Vdm = (Vdi + Vdj) / 2;
         // Shear DCR
         const vrI = VnI > 0 ? Vdi / VnI : 0;
         const vrM = VnM > 0 ? Vdm / VnM : 0;
