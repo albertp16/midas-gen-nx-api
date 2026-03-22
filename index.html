@@ -531,6 +531,7 @@
                 <div class="stat-card" style="cursor:pointer;" onclick="showStatDetail('elem')"><div class="stat-card-label">Elements</div><div class="stat-card-value" id="elemCount">-</div><div class="stat-card-sub">/db/elem</div></div>
                 <div class="stat-card" style="cursor:pointer;" onclick="showStatDetail('matl')"><div class="stat-card-label">Materials</div><div class="stat-card-value" id="matCount">-</div><div class="stat-card-sub">/db/matl</div></div>
                 <div class="stat-card" style="cursor:pointer;" onclick="showStatDetail('sect')"><div class="stat-card-label">Sections</div><div class="stat-card-value" id="sectCount">-</div><div class="stat-card-sub">/db/sect</div></div>
+                <div class="stat-card" style="cursor:pointer;" onclick="showStatDetail('stor')"><div class="stat-card-label">Stories</div><div class="stat-card-value" id="storCount">-</div><div class="stat-card-sub">/db/STOR</div></div>
             </div>
             <!-- Stat Detail Panel (appears on card click) -->
             <div id="statDetailPanel" class="panel" style="display:none;">
@@ -1172,9 +1173,9 @@ async function heartbeat() {
 
 async function showStatDetail(type) {
     if (!isConnected) return;
-    const labels = { node: "Nodes", elem: "Elements", matl: "Materials", sect: "Sections" };
-    const endpoints = { node: "/db/node", elem: "/db/elem", matl: "/db/matl", sect: "/db/sect" };
-    const wrapKeys = { node: "NODE", elem: "ELEM", matl: "MATL", sect: "SECT" };
+    const labels = { node: "Nodes", elem: "Elements", matl: "Materials", sect: "Sections", stor: "Stories" };
+    const endpoints = { node: "/db/node", elem: "/db/elem", matl: "/db/matl", sect: "/db/sect", stor: "/db/STOR" };
+    const wrapKeys = { node: "NODE", elem: "ELEM", matl: "MATL", sect: "SECT", stor: "STOR" };
 
     document.getElementById("statDetailTitle").textContent = `${labels[type]} Data`;
     try {
@@ -1243,6 +1244,21 @@ async function showStatDetail(type) {
                 const si = sb.SECT_I || {};
                 logEntry(`<span class="log-info">Section[${entries[0][0]}] SECT_NAME=${first.SECT_NAME}, SHAPE=${sb.SHAPE}, vSIZE=${JSON.stringify(si.vSIZE)}</span>`);
             }
+        } else if (type === "stor") {
+            // Parse using extractStoriesFromResponse for consistency
+            const stories = extractStoriesFromResponse(data);
+            if (stories.length > 0) {
+                headers = ["Story", "Level (m)", "Height (m)", "Diaphragm"];
+                rows = stories.sort((a, b) => b.level - a.level).map(s => [
+                    s.name, s.level.toFixed(3), s.height.toFixed(3), s.diaphragm
+                ]);
+                document.getElementById("statDetailTitle").textContent = `Stories — ${stories.length} total`;
+                // Also update story count on connect tab
+                document.getElementById("storCount").textContent = stories.length;
+            } else {
+                headers = ["ID", "Data"];
+                rows = entries.map(([id, v]) => [id, JSON.stringify(v).substring(0, 100)]);
+            }
         }
         renderTable("statDetailTable", headers, rows);
         document.getElementById("statDetailPanel").style.display = "block";
@@ -1255,14 +1271,18 @@ async function showStatDetail(type) {
 async function refreshStats() {
     if (!isConnected) return;
     try {
-        const [nodes, elems, mats, sects] = await Promise.all([
+        const [nodes, elems, mats, sects, stor] = await Promise.all([
             midasAPI("GET", "/db/node"), midasAPI("GET", "/db/elem"),
-            midasAPI("GET", "/db/matl"), midasAPI("GET", "/db/sect")
+            midasAPI("GET", "/db/matl"), midasAPI("GET", "/db/sect"),
+            midasAPI("GET", "/db/STOR").catch(() => ({}))
         ]);
         document.getElementById("nodeCount").textContent = Object.keys(nodes.NODE || nodes).length;
         document.getElementById("elemCount").textContent = Object.keys(elems.ELEM || elems).length;
         document.getElementById("matCount").textContent = Object.keys(mats.MATL || mats).length;
         document.getElementById("sectCount").textContent = Object.keys(sects.SECT || sects).length;
+        const storObj = stor.STOR || stor;
+        const storCount = typeof storObj === "object" ? Object.keys(storObj).length : 0;
+        document.getElementById("storCount").textContent = storCount || "-";
     } catch {}
 }
 
@@ -1350,13 +1370,14 @@ function extractStoriesFromResponse(data) {
     const stories = [];
 
     // Helper: extract a single story entry from an object
+    // STOR API format: STORY_NAME, STORY_LEVEL, bFLOOR_DIAPHRAGM
     function parseStoryObj(obj, fallbackName) {
-        const name = obj.sNAME || obj.NAME || obj.name || obj.STORY_NAME || obj.StoryName || fallbackName || "?";
-        const level = parseFloat(obj.dLEVEL || obj.LEVEL || obj.level || obj.Level || obj.STORY_LEVEL || 0);
-        const height = parseFloat(obj.dHEIGHT || obj.HEIGHT || obj.height || obj.Height || obj.STORY_HEIGHT || 0);
-        // Diaphragm: various possible keys and value formats
+        const name = obj.STORY_NAME || obj.sNAME || obj.NAME || obj.name || obj.StoryName || fallbackName || "?";
+        const level = parseFloat(obj.STORY_LEVEL !== undefined ? obj.STORY_LEVEL : (obj.dLEVEL !== undefined ? obj.dLEVEL : (obj.LEVEL !== undefined ? obj.LEVEL : 0)));
+        const height = parseFloat(obj.STORY_HEIGHT !== undefined ? obj.STORY_HEIGHT : (obj.dHEIGHT !== undefined ? obj.dHEIGHT : (obj.HEIGHT !== undefined ? obj.HEIGHT : 0)));
         let diaphragm = "-";
-        if (obj.bDIAPHRAGM !== undefined) diaphragm = obj.bDIAPHRAGM ? "Consider" : "Do not consider";
+        if (obj.bFLOOR_DIAPHRAGM !== undefined) diaphragm = obj.bFLOOR_DIAPHRAGM ? "Consider" : "Do not consider";
+        else if (obj.bDIAPHRAGM !== undefined) diaphragm = obj.bDIAPHRAGM ? "Consider" : "Do not consider";
         else if (obj.DIAPHRAGM !== undefined) diaphragm = String(obj.DIAPHRAGM);
         else if (obj.bDIAPH !== undefined) diaphragm = obj.bDIAPH ? "Consider" : "Do not consider";
         else if (obj.iDIAPH !== undefined) diaphragm = obj.iDIAPH > 0 ? "Consider" : "Do not consider";
@@ -1405,8 +1426,8 @@ function extractStoriesFromResponse(data) {
             if (skipKeys.has(id)) continue;
             if (typeof val !== "object" || val === null || Array.isArray(val)) continue;
             // Check it looks like a story (has at least a level or name)
-            const hasLevel = val.dLEVEL !== undefined || val.LEVEL !== undefined || val.level !== undefined || val.Level !== undefined;
-            const hasName = val.sNAME !== undefined || val.NAME !== undefined || val.name !== undefined;
+            const hasLevel = val.STORY_LEVEL !== undefined || val.dLEVEL !== undefined || val.LEVEL !== undefined || val.level !== undefined;
+            const hasName = val.STORY_NAME !== undefined || val.sNAME !== undefined || val.NAME !== undefined || val.name !== undefined;
             if (hasLevel || hasName) {
                 stories.push(parseStoryObj(val, `Floor ${id}`));
             }
@@ -1553,6 +1574,10 @@ function processAndRenderStories(stories, nodeDict, elemDict) {
         opt.textContent = `${s.name} (${storyBeamMap[s.name] ? storyBeamMap[s.name].length : 0} beams)`;
         bmFilter.appendChild(opt);
     });
+
+    // Update connect tab story count
+    const storCountEl = document.getElementById("storCount");
+    if (storCountEl) storCountEl.textContent = stories.length;
 
     showToast(`${stories.length} stories loaded, ${totalInPlaneBeams} in-plane beams mapped`);
     logEntry(`<span class="log-info">Story data: ${stories.length} stories, ${totalInPlaneBeams} in-plane beam elements</span>`);
