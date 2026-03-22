@@ -1184,14 +1184,28 @@ async function showStatDetail(type) {
 
         let headers, rows;
         if (type === "elem") {
-            headers = ["ID", "Type", "Material", "Section", "Nodes"];
-            rows = entries.map(([id, v]) => [
-                id,
-                v.TYPE || "-",
-                v.MATL || v.iMAT || "-",
-                v.SECT || v.iSEC || "-",
-                (v.NODE || []).join(", ")
-            ]);
+            // Also fetch section data to show B and H per element
+            let sectDict = {};
+            try {
+                const sectData = await midasAPI("GET", "/db/sect");
+                sectDict = sectData.SECT || sectData;
+            } catch (e) {}
+            headers = ["ID", "Type", "Material", "Section", "B (mm)", "H (mm)", "Nodes"];
+            rows = entries.map(([id, v]) => {
+                const secId = v.SECT || v.iSEC || "-";
+                let secB = "-", secH = "-";
+                if (secId !== "-" && sectDict[String(secId)]) {
+                    const sec = sectDict[String(secId)];
+                    const sectBefore = sec.SECT_BEFORE || {};
+                    const sectI = sectBefore.SECT_I || {};
+                    const vsize = sectI.vSIZE || [];
+                    if (Array.isArray(vsize) && vsize.length >= 2) {
+                        secH = Math.round(parseFloat(vsize[0]) * 1000);
+                        secB = Math.round(parseFloat(vsize[1]) * 1000);
+                    }
+                }
+                return [id, v.TYPE || "-", v.MATL || v.iMAT || "-", secId, secB, secH, (v.NODE || []).join(", ")];
+            });
             // Summary by type
             const typeCounts = {};
             entries.forEach(([, v]) => { const t = v.TYPE || "?"; typeCounts[t] = (typeCounts[t] || 0) + 1; });
