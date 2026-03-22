@@ -469,6 +469,23 @@
     </div>
 </div>
 
+<!-- Beam Force Detail Modal -->
+<div class="modal-overlay" id="beamForceModal" onclick="if(event.target===this)this.classList.remove('active')">
+    <div style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius-lg);padding:24px;max-width:800px;width:95%;max-height:85vh;overflow:auto;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+            <h3 id="beamForceTitle" style="color:var(--text-primary);font-size:16px;">Beam Forces</h3>
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('beamForceModal').classList.remove('active')">Close</button>
+        </div>
+        <div style="margin-bottom:12px;">
+            <label style="font-size:12px;color:var(--text-muted);">Load Case</label>
+            <select id="beamForceLcSelect" class="input" style="width:100%;margin-top:4px;" onchange="fetchBeamForceDetail()"></select>
+        </div>
+        <div id="beamForceContent" style="font-size:12px;">
+            <p style="color:var(--text-muted);">Select a load case to view forces.</p>
+        </div>
+    </div>
+</div>
+
 <!-- ═══════════════ App Layout ═══════════════ -->
 <div class="app-layout">
 
@@ -1771,6 +1788,14 @@ function applyBeamFloorFilter() {
                 inp.addEventListener("keydown", e => { if (e.key === "Enter") inp.blur(); if (e.key === "Escape") { td.textContent = val; } });
             });
         });
+        // Make ID column clickable to open force detail modal
+        const idTd = tds[0];
+        if (idTd) {
+            idTd.style.cursor = "pointer";
+            idTd.style.textDecoration = "underline";
+            idTd.style.color = "var(--accent-blue)";
+            idTd.addEventListener("click", () => openBeamForceModal(idTd.textContent.trim()));
+        }
     });
 
     const filterLabel = filter === "ALL" ? "all floors" : filter;
@@ -2028,6 +2053,98 @@ function _drawBeamFrame(canvasId, beams, nodeCoords, showLabels, showNodes, labe
     ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.fillText("X (m)", W/2, H-12);
     ctx.save(); ctx.translate(14, margin.top+plotH/2); ctx.rotate(-Math.PI/2);
     ctx.fillText("Y (m)", 0, 0); ctx.restore();
+}
+
+// ─── Beam Force Detail Modal ───
+let beamForceModalElemId = null; // current element ID(s) for modal
+
+function openBeamForceModal(displayId) {
+    beamForceModalElemId = displayId;
+    const modal = document.getElementById("beamForceModal");
+    document.getElementById("beamForceTitle").textContent = `Beam Forces — Element ${displayId}`;
+
+    // Populate load case dropdown from all fetched names
+    const select = document.getElementById("beamForceLcSelect");
+    select.innerHTML = "";
+    const allNames = [...fetchedLoadCaseNames, ...fetchedLcomNames];
+    if (allNames.length === 0) {
+        // Fallback: add the current gravity and seismic load cases
+        const lcGrav = document.getElementById("bmLoadCaseGravity").value.trim();
+        const lcSeis = document.getElementById("bmLoadCaseSeismic").value.trim();
+        [lcGrav, lcSeis].forEach(n => {
+            if (!n) return;
+            const opt = document.createElement("option"); opt.value = n; opt.textContent = n;
+            select.appendChild(opt);
+        });
+    } else {
+        allNames.forEach(n => {
+            const opt = document.createElement("option"); opt.value = n; opt.textContent = n;
+            select.appendChild(opt);
+        });
+    }
+
+    document.getElementById("beamForceContent").innerHTML = '<p style="color:var(--text-muted);">Select a load case and loading...</p>';
+    modal.classList.add("active");
+    fetchBeamForceDetail();
+}
+
+async function fetchBeamForceDetail() {
+    if (!beamForceModalElemId || !isConnected) return;
+    const lc = document.getElementById("beamForceLcSelect").value;
+    if (!lc) return;
+
+    const container = document.getElementById("beamForceContent");
+    container.innerHTML = '<p style="color:var(--text-muted);">Loading...</p>';
+
+    // Resolve element IDs (handle combined members like "101+102+103")
+    const elemIds = String(beamForceModalElemId).includes("+")
+        ? beamForceModalElemId.split("+").map(s => parseInt(s.trim())).filter(n => !isNaN(n))
+        : [parseInt(beamForceModalElemId)].filter(n => !isNaN(n));
+
+    if (!elemIds.length) { container.innerHTML = '<p style="color:var(--accent-red);">Invalid element ID</p>'; return; }
+
+    try {
+        const body = {
+            Argument: {
+                TABLE_NAME: "BeamForce",
+                TABLE_TYPE: "BEAMFORCE",
+                UNIT: { FORCE: "kN", DIST: "m" },
+                STYLES: { FORMAT: "Fixed", PLACE: 3 },
+                COMPONENTS: ["Elem", "Load", "Part", "Axial", "Shear-y", "Shear-z", "Torsion", "Moment-y", "Moment-z"],
+                PARTS: ["PartI", "PartJ"],
+                NODE_ELEMS: { KEYS: elemIds },
+                LOAD_CASE_NAMES: [lc]
+            }
+        };
+
+        const result = await midasAPI("POST", "/post/TABLE", body);
+        const table = result["BeamForce"] || result["Beam Force"] || result.empty || {};
+        const head = table.HEAD || [];
+        const data = table.DATA || [];
+
+        if (!data.length) {
+            container.innerHTML = '<p style="color:var(--text-muted);">No force data for this element/load case.</p>';
+            return;
+        }
+
+        // Build HTML table
+        let html = '<div class="table-wrap"><div class="table-scroll"><table><thead><tr>';
+        head.forEach(h => { html += `<th>${h}</th>`; });
+        html += '</tr></thead><tbody>';
+        data.forEach(row => {
+            html += '<tr>';
+            row.forEach((cell, ci) => {
+                const val = parseFloat(cell);
+                const style = (!isNaN(val) && ci > 2) ? `style="color:${val < 0 ? 'var(--accent-red)' : 'var(--accent-green)'}"` : '';
+                html += `<td ${style}>${cell}</td>`;
+            });
+            html += '</tr>';
+        });
+        html += '</tbody></table></div></div>';
+        container.innerHTML = html;
+    } catch (err) {
+        container.innerHTML = `<p style="color:var(--accent-red);">Error: ${err.message}</p>`;
+    }
 }
 
 function copyBeamTable() {
@@ -3147,7 +3264,8 @@ async function runBeamDesign() {
 // 0=id, 1=tag, 2=length, 3=width, 4=height, 5=fc, 6=fy, 7=fys,
 // 8=nib, 9=nmb, 10=njb, 11=nit, 12=nmt, 13=njt, 14=db,
 // 15=vdb, 16=vns_i, 17=vns_m, 18=vns_j, 19=vs_i, 20=vs_m, 21=vs_j,
-// 22-24=mdi/mdm/mdj, 25-27=mci/mcm/mcj, 28-30=mri/mrm/mrj, 31=Status
+// 22-24=mdi/mdm/mdj, 25-27=mci/mcm/mcj, 28-30=mri/mrm/mrj,
+// 31=Vdi, 32=Vdj, 33=Vni, 34=Vnj, 35=vr_i, 36=vr_j, 37=Status
 const BEAM_EDITABLE_COLS = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21];
 
 function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, overrides, elemSections, memberInfoMap) {
@@ -3170,7 +3288,9 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
         "vdb\n(mm)", "vns_i", "vns_m", "vns_j", "vs_i", "vs_m", "vs_j",
         "mdi\n(kN.m)", "mdm\n(kN.m)", "mdj\n(kN.m)",
         "mci\n(kN.m)", "mcm\n(kN.m)", "mcj\n(kN.m)",
-        "mri", "mrm", "mrj", "Status"
+        "mri", "mrm", "mrj",
+        "Vdi\n(kN)", "Vdj\n(kN)", "Vni\n(kN)", "Vnj\n(kN)", "vr_i", "vr_j",
+        "Status"
     ];
 
     const resultRows = [];
@@ -3298,10 +3418,6 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
         const mri = mci > 0 ? mdi / mci : 0;
         const mrm = mcm > 0 ? mdm / mcm : 0;
         const mrj = mcj > 0 ? mdj / mcj : 0;
-        const pass = (mri <= 1.0 && mrm <= 1.0 && mrj <= 1.0);
-
-        totalCount++;
-        if (!pass) failCount++;
 
         // Generate beam tag
         let tag;
@@ -3337,13 +3453,44 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
         const vsM = ovr && !isNaN(ovr.vs_m) ? ovr.vs_m : 150;
         const vsJ = ovr && !isNaN(ovr.vs_j) ? ovr.vs_j : 100;
 
+        // Shear capacity per shear_capacity.py
+        // d = effective depth (h - cover - dbs - db/2)
+        const d_eff = h - cover - dbs - db / 2;
+        // Vc = (1/6) * sqrt(fc) * bw * d (in N, convert to kN)
+        const Vc = (1 / 6) * Math.sqrt(fc) * bw * d_eff / 1000;
+        // Av = nLegs * pi/4 * dbs^2
+        const AvI = vnsI * Math.PI / 4 * dbs * dbs;
+        const AvJ = vnsJ * Math.PI / 4 * dbs * dbs;
+        // Vs = Av * fys * d / s (in N, convert to kN)
+        const VsI = vsI > 0 ? (AvI * fys * d_eff) / vsI / 1000 : 0;
+        const VsJ = vsJ > 0 ? (AvJ * fys * d_eff) / vsJ / 1000 : 0;
+        // Vn = phi * (Vc + Vs), phi = 0.75
+        const phiV = 0.75;
+        const VnI = phiV * (Vc + VsI);
+        const VnJ = phiV * (Vc + VsJ);
+        // Shear demand from gravity forces
+        const Vdi = Math.abs(gf.Vi || 0);
+        const Vdj = Math.abs(gf.Vj || 0);
+        // Shear DCR
+        const vrI = VnI > 0 ? Vdi / VnI : 0;
+        const vrJ = VnJ > 0 ? Vdj / VnJ : 0;
+
+        const passFlexure = (mri <= 1.0 && mrm <= 1.0 && mrj <= 1.0);
+        const passShear = (vrI <= 1.0 && vrJ <= 1.0);
+        const pass = passFlexure && passShear;
+
+        totalCount++;
+        if (!pass) failCount++;
+
         resultRows.push([
             displayId, tag, Ln.toFixed(3), bw.toFixed(0), h.toFixed(0), fc.toFixed(3), fy.toFixed(3), fys.toFixed(2),
             nI, nM, nJ, nitVal, nmtVal, njtVal, db,
             dbs, vnsI, vnsM, vnsJ, vsI, vsM, vsJ,
             mdi.toFixed(2), mdm.toFixed(2), mdj.toFixed(2),
             mci.toFixed(2), mcm.toFixed(2), mcj.toFixed(2),
-            mri.toFixed(3), mrm.toFixed(3), mrj.toFixed(3), pass ? "PASS" : "FAIL"
+            mri.toFixed(3), mrm.toFixed(3), mrj.toFixed(3),
+            Vdi.toFixed(2), Vdj.toFixed(2), VnI.toFixed(2), VnJ.toFixed(2), vrI.toFixed(3), vrJ.toFixed(3),
+            pass ? "PASS" : "FAIL"
         ]);
     }
 
@@ -3406,6 +3553,14 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
                 inp.addEventListener("keydown", e => { if (e.key === "Enter") inp.blur(); if (e.key === "Escape") { td.textContent = val; } });
             });
         });
+        // Make ID column clickable to open force detail modal
+        const idTd = tds[0];
+        if (idTd) {
+            idTd.style.cursor = "pointer";
+            idTd.style.textDecoration = "underline";
+            idTd.style.color = "var(--accent-blue)";
+            idTd.addEventListener("click", () => openBeamForceModal(idTd.textContent.trim()));
+        }
     });
 
     document.getElementById("beamResults").style.display = "block";
