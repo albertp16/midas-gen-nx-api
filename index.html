@@ -987,13 +987,10 @@ Roof, 15.00, 0.00, Consider
         <div id="tab-column" class="tab-page">
             <div class="page-header"><h2>Column Results</h2><p>Vertical column elements with section data</p></div>
             <div class="panel">
-                <div class="panel-header"><span class="panel-title">Column Design Parameters</span></div>
+                <div class="panel-header"><span class="panel-title">Column Parameters</span></div>
                 <div class="form-row" style="margin-bottom:12px;">
-                    <div class="form-group"><label>f'c (MPa)</label><input type="number" id="colFc" class="input" value="27.579" step="0.001" style="width:100px;" /></div>
-                    <div class="form-group"><label>fy (MPa)</label><input type="number" id="colFy" class="input" value="413.685" step="0.001" style="width:100px;" /></div>
                     <div class="form-group"><label>Main Bar (mm)</label><input type="number" id="colDb" class="input" value="25" style="width:80px;" /></div>
-                    <div class="form-group"><label>Tie Bar (mm)</label><input type="number" id="colDbs" class="input" value="12" style="width:80px;" /></div>
-                    <div class="form-group"><label>Cover (mm)</label><input type="number" id="colCover" class="input" value="40" style="width:80px;" /></div>
+                    <div class="form-group"><label>Bars per Face (n)</label><input type="number" id="colN" class="input" value="8" style="width:80px;" /></div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
@@ -1013,6 +1010,10 @@ Roof, 15.00, 0.00, Consider
                 <div style="display:flex; gap:8px; margin-bottom:12px; align-items:center; flex-wrap:wrap;">
                     <span id="colStatusBadge" style="display:none;font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;"></span>
                     <span style="font-size:11px;color:var(--text-muted);margin-right:auto;">Double-click any editable cell to modify</span>
+                    <button class="btn btn-blue btn-sm" onclick="drawColumn3D()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+                        Plot 3D
+                    </button>
                     <button class="btn btn-ghost btn-sm" onclick="copyColumnTable()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                         Copy
@@ -1022,6 +1023,39 @@ Roof, 15.00, 0.00, Consider
                         CSV
                     </button>
                 </div>
+
+                <!-- Column 3D Plot -->
+                <div id="col3dWrapper" class="chart-wrapper" style="display:none; margin-bottom:16px;">
+                    <div style="display:flex; gap:8px; margin-bottom:8px; justify-content:space-between; width:100%; align-items:center;">
+                        <div style="display:flex; gap:12px; align-items:center;">
+                            <span style="font-size:12px;font-weight:600;color:var(--text-primary);">Column 3D View</span>
+                            <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-muted);cursor:pointer;">
+                                <input type="checkbox" id="col3dShowIds" checked onchange="drawColumn3D()" style="accent-color:var(--accent-blue);" />
+                                Show IDs
+                            </label>
+                            <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-muted);cursor:pointer;">
+                                <input type="checkbox" id="col3dShowTags" onchange="drawColumn3D()" style="accent-color:var(--accent-blue);" />
+                                Show Tags
+                            </label>
+                        </div>
+                        <div style="display:flex;gap:6px;">
+                            <button class="btn btn-ghost btn-sm" onclick="downloadCanvas('col3dCanvas','column_3d.png')">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                Download
+                            </button>
+                        </div>
+                    </div>
+                    <canvas id="col3dCanvas" width="800" height="600"></canvas>
+                    <div style="display:flex;justify-content:center;gap:6px;margin-top:6px;">
+                        <button class="btn btn-ghost btn-sm" onclick="col3d.rotY-=15;drawColumn3D()">&#8592;</button>
+                        <button class="btn btn-ghost btn-sm" onclick="col3d.rotY+=15;drawColumn3D()">&#8594;</button>
+                        <button class="btn btn-ghost btn-sm" onclick="col3d.rotX-=10;drawColumn3D()">&#8593;</button>
+                        <button class="btn btn-ghost btn-sm" onclick="col3d.rotX+=10;drawColumn3D()">&#8595;</button>
+                        <button class="btn btn-ghost btn-sm" onclick="col3d.zoom*=1.15;drawColumn3D()">+</button>
+                        <button class="btn btn-ghost btn-sm" onclick="col3d.zoom/=1.15;drawColumn3D()">-</button>
+                    </div>
+                </div>
+
                 <div class="table-wrap">
                     <div class="table-scroll"><table id="columnTable" class="sticky-col"><thead><tr></tr></thead><tbody></tbody></table></div>
                 </div>
@@ -1152,6 +1186,7 @@ let rx3d = { rotX: 25, rotY: -45, zoom: 1.0 };
 
 // Load case names fetched from MIDAS (populated by fetchLoads)
 let fetchedLoadCaseNames = [];
+let fetchedSplcNames = [];
 let fetchedLcomNames = [];
 
 // Story data cache: [{ name, level, height, floorIdx }] sorted by level ascending
@@ -2142,10 +2177,10 @@ function openBeamForceModal(displayId) {
     const modal = document.getElementById("beamForceModal");
     document.getElementById("beamForceTitle").textContent = `Beam Forces — Element ${displayId}`;
 
-    // Populate load case dropdown from all fetched names
+    // Populate load case dropdown from all fetched names (including RS and load combos)
     const select = document.getElementById("beamForceLcSelect");
     select.innerHTML = "";
-    const allNames = [...fetchedLoadCaseNames, ...fetchedLcomNames];
+    const allNames = [...fetchedLoadCaseNames, ...fetchedSplcNames, ...fetchedLcomNames];
     if (allNames.length === 0) {
         // Fallback: add the current gravity and seismic load cases
         const lcGrav = document.getElementById("bmLoadCaseGravity").value.trim();
@@ -2704,7 +2739,9 @@ async function fetchDispForDirection(tableType, loadCases) {
         try {
             const body = { Argument: { TABLE_TYPE: tableType, UNIT: { FORCE: "KN", DIST: "MM" }, LOAD_CASE_NAMES: [lc], STYLES: { FORMAT: "FIXED", PLACE: 4 }}};
             const result = await midasAPI("POST", "/post/TABLE", body);
-            const headers = result.empty.HEAD, rows = result.empty.DATA;
+            const tbl = result.empty || result[Object.keys(result).find(k => k !== "empty")] || {};
+            const headers = tbl.HEAD || [], rows = tbl.DATA || [];
+            if (!headers.length || !rows.length) continue;
             const series = [{ Story: "Base", StoryNo: 0, disp: 0 }];
             allStories.add(JSON.stringify({ Story: "Base", StoryNo: 0 }));
             // Find displacement column (case-insensitive partial match)
@@ -4163,7 +4200,7 @@ async function fetchLoads() {
         const splcObj = splcData.SPLC || splcData;
         const splcHeaders = ["ID", "Name", "Direction", "Scale Factor"];
         const splcRows = [];
-        let fetchedSplcNames = [];
+        fetchedSplcNames = [];
         if (typeof splcObj === "object" && splcObj !== null) {
             for (const [id, val] of Object.entries(splcObj)) {
                 if (typeof val !== "object" || val === null) continue;
@@ -4203,32 +4240,47 @@ async function fetchLoads() {
         const allNames = [...fetchedLoadCaseNames, ...fetchedSplcNames, ...fetchedLcomNames];
 
         // Build earthquake load case lists by direction
-        // X-direction: Ex, RM patterns; Y-direction: Ey, EO patterns
-        const eqPattern = /^(E[QXY]?[\s\-+]|earthquake|seismic|e[\s(])/i;
-        const exPattern = /^(Ex|RM)/i;
-        const eyPattern = /^(Ey|EO)/i;
+        // X-direction: Ex, EX, RM patterns; Y-direction: Ey, EY, EO, RO patterns
+        const eqPattern = /^(E[QXY]?[\s\-+(]|earthquake|seismic|e[\s(]|RM|RO)/i;
+        const exPattern = /^(Ex|EX[\s\-+]|EX\(|RM)/i;
+        const eyPattern = /^(Ey|EY[\s\-+]|EY\(|EO|RO)/i;
         const eqStldNames = fetchedLoadCaseNames.filter(n => {
             const base = n.replace(/\(ST\)$/, "").trim();
-            return eqPattern.test(base) || /^E$/i.test(base);
+            return eqPattern.test(base) || /^(E|EX|EY)$/i.test(base);
         });
         const eqNames = [...eqStldNames, ...fetchedSplcNames];
+        // Build X and Y base name sets for combo categorization
+        const xBaseNames = eqNames.filter(n => { const base = n.replace(/\((ST|RS)\)$/g, "").trim(); return exPattern.test(base); });
+        const yBaseNames = eqNames.filter(n => { const base = n.replace(/\((ST|RS)\)$/g, "").trim(); return eyPattern.test(base); });
         const eqLcomNames = [];
+        const xLcomNames = [];
+        const yLcomNames = [];
         for (const [id, val] of Object.entries(lcomObj)) {
             if (typeof val !== "object" || val === null) continue;
             const name = val.NAME || val.name || "-";
             const vCOMB = val.vCOMB || val.COMB || val.FACTORS || [];
-            const hasEq = Array.isArray(vCOMB) && vCOMB.some(c => {
-                const lcName = typeof c === "object" ? (c.LCNAME || c.lcname || c.NAME || c.name || "") : String(c);
-                return eqNames.some(en => lcName.includes(en.replace(/\((ST|RS)\)$/g, "").trim()));
-            });
-            if (hasEq || eqPattern.test(name) || /^E$/i.test(name)) {
+            const comboLcNames = Array.isArray(vCOMB) ? vCOMB.map(c => {
+                return typeof c === "object" ? (c.LCNAME || c.lcname || c.NAME || c.name || "") : String(c);
+            }) : [];
+            const hasEq = comboLcNames.some(lcName =>
+                eqNames.some(en => lcName.includes(en.replace(/\((ST|RS)\)$/g, "").trim()))
+            );
+            const hasX = comboLcNames.some(lcName =>
+                xBaseNames.some(en => lcName.includes(en.replace(/\((ST|RS)\)$/g, "").trim()))
+            ) || exPattern.test(name);
+            const hasY = comboLcNames.some(lcName =>
+                yBaseNames.some(en => lcName.includes(en.replace(/\((ST|RS)\)$/g, "").trim()))
+            ) || eyPattern.test(name);
+            if (hasEq || eqPattern.test(name) || /^(E|EX|EY)$/i.test(name)) {
                 eqLcomNames.push(name);
+                if (hasX) xLcomNames.push(name);
+                if (hasY) yLcomNames.push(name);
             }
         }
         const allEqNames = [...eqNames, ...eqLcomNames];
         // Store globally for direction-based filtering
-        window._eqNamesX = allEqNames.filter(n => { const base = n.replace(/\((ST|RS)\)$/, "").trim(); return exPattern.test(base); });
-        window._eqNamesY = allEqNames.filter(n => { const base = n.replace(/\((ST|RS)\)$/, "").trim(); return eyPattern.test(base); });
+        window._eqNamesX = [...xBaseNames, ...xLcomNames];
+        window._eqNamesY = [...yBaseNames, ...yLcomNames];
         window._eqNamesAll = allEqNames;
         window._allLoadNames = allNames;
 
@@ -4266,8 +4318,7 @@ const COL_EDITABLE_COLS = [1, 3, 4, 5, 6];
 async function fetchColumnData() {
     if (!isConnected) { showToast("Connect first", "error"); return; }
 
-    const fc0 = parseFloat(document.getElementById("colFc").value);
-    const fy0 = parseFloat(document.getElementById("colFy").value);
+    col3dData = []; // reset 3D cache on re-fetch
     const db0 = parseFloat(document.getElementById("colDb").value);
 
     showProgress("Fetching Column Data", "Identifying vertical elements", "Step 1/3: Reading nodes...");
@@ -4381,7 +4432,8 @@ async function fetchColumnData() {
             const B = sec.B || 400;
             const H = sec.H || 400;
 
-            rows.push([eid, tag, length, B, H, db0, 8]);
+            const n0 = parseInt(document.getElementById("colN").value) || 8;
+            rows.push([eid, tag, length, B, H, db0, n0]);
         }
 
         allColumnHeaders = headers;
@@ -4484,6 +4536,231 @@ function exportColumnCSV() {
     link.href = URL.createObjectURL(blob);
     link.click();
 }
+
+// ══════════════════════════════════════════════════════════════
+// COLUMN 3D VISUALIZATION
+// ══════════════════════════════════════════════════════════════
+let col3d = { rotX: 20, rotY: -35, zoom: 1.0 };
+let col3dData = []; // [{eid, x, y, zBot, zTop, B, H, tag}]
+
+function drawColumn3D() {
+    if (!col3dData.length) {
+        // Build col3dData from cached data
+        if (!cachedNodeDict || !cachedElemDict || !allColumnRows.length) {
+            showToast("Get column data first", "error"); return;
+        }
+        col3dData = [];
+        for (const row of allColumnRows) {
+            const eid = row[0];
+            const tag = row[1];
+            const B = parseFloat(row[3]) || 400;
+            const H = parseFloat(row[4]) || 400;
+            const e = cachedElemDict[String(eid)] || cachedElemDict[eid];
+            if (!e) continue;
+            const conn = e.NODE || [];
+            if (conn.length < 2) continue;
+            const ni = cachedNodeDict[String(conn[0])] || cachedNodeDict[conn[0]];
+            const nj = cachedNodeDict[String(conn[1])] || cachedNodeDict[conn[1]];
+            if (!ni || !nj) continue;
+            const x = (parseFloat(ni.X) + parseFloat(nj.X)) / 2;
+            const y = (parseFloat(ni.Y) + parseFloat(nj.Y)) / 2;
+            const zBot = Math.min(parseFloat(ni.Z), parseFloat(nj.Z));
+            const zTop = Math.max(parseFloat(ni.Z), parseFloat(nj.Z));
+            col3dData.push({ eid, x, y, zBot, zTop, B, H, tag });
+        }
+    }
+    if (!col3dData.length) return;
+
+    const showIds = document.getElementById("col3dShowIds")?.checked ?? true;
+    const showTags = document.getElementById("col3dShowTags")?.checked ?? false;
+
+    const canvas = document.getElementById("col3dCanvas");
+    const dpr = window.devicePixelRatio || 1;
+    const W = 800, Hc = 600;
+    canvas.width = W * dpr; canvas.height = Hc * dpr;
+    canvas.style.width = W + "px"; canvas.style.height = Hc + "px";
+    const ctx = canvas.getContext("2d"); ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, W, Hc);
+
+    const xs = col3dData.map(d => d.x), ys = col3dData.map(d => d.y);
+    const zs = col3dData.flatMap(d => [d.zBot, d.zTop]);
+    const xMin = Math.min(...xs), xMax = Math.max(...xs);
+    const yMin = Math.min(...ys), yMax = Math.max(...ys);
+    const zMin = Math.min(...zs), zMax = Math.max(...zs);
+    const xMid = (xMin + xMax) / 2, yMid = (yMin + yMax) / 2, zMid = (zMin + zMax) / 2;
+    const xRange = xMax - xMin || 1, yRange = yMax - yMin || 1, zRange = zMax - zMin || 1;
+    const maxRange = Math.max(xRange, yRange, zRange);
+
+    const rX = col3d.rotX * Math.PI / 180;
+    const rY = col3d.rotY * Math.PI / 180;
+    const zoom = col3d.zoom;
+    const baseScale = Math.min(W, Hc) / maxRange * 0.28 * zoom;
+
+    function project(x, y, z) {
+        const nx = x - xMid, ny = y - yMid, nz = z - zMid;
+        const x1 = nx * Math.cos(rY) + nz * Math.sin(rY);
+        const z1 = -nx * Math.sin(rY) + nz * Math.cos(rY);
+        const y1 = ny;
+        const y2 = y1 * Math.cos(rX) - z1 * Math.sin(rX);
+        const z2 = y1 * Math.sin(rX) + z1 * Math.cos(rX);
+        return { x: W / 2 + x1 * baseScale, y: Hc * 0.55 - y2 * baseScale, z: z2 };
+    }
+
+    // Draw ground plane
+    const pad = maxRange * 0.1;
+    const gp = [
+        project(xMin - pad, yMin - pad, zMin), project(xMax + pad, yMin - pad, zMin),
+        project(xMax + pad, yMax + pad, zMin), project(xMin - pad, yMax + pad, zMin)
+    ];
+    ctx.beginPath(); ctx.moveTo(gp[0].x, gp[0].y);
+    gp.slice(1).forEach(p => ctx.lineTo(p.x, p.y)); ctx.closePath();
+    ctx.fillStyle = "rgba(100,120,140,0.08)"; ctx.fill();
+    ctx.strokeStyle = "#30363d"; ctx.lineWidth = 0.8; ctx.stroke();
+
+    // Grid lines on ground
+    ctx.strokeStyle = "rgba(100,120,140,0.15)"; ctx.lineWidth = 0.3;
+    const gridN = 8;
+    for (let i = 0; i <= gridN; i++) {
+        const v = xMin - pad + ((xRange + 2 * pad) * i / gridN);
+        const a = project(v, yMin - pad, zMin), b = project(v, yMax + pad, zMin);
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+    for (let i = 0; i <= gridN; i++) {
+        const v = yMin - pad + ((yRange + 2 * pad) * i / gridN);
+        const a = project(xMin - pad, v, zMin), b = project(xMax + pad, v, zMin);
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+    }
+
+    // Determine column cross-section size in model units (mm → m)
+    // Use a fraction of spacing for visual width
+    const ux = [...new Set(xs.map(v => Math.round(v * 100) / 100))].sort((a, b) => a - b);
+    const uy = [...new Set(ys.map(v => Math.round(v * 100) / 100))].sort((a, b) => a - b);
+    let vizDx = maxRange * 0.025, vizDy = maxRange * 0.025;
+    if (ux.length > 1) { const diffs = []; for (let i = 1; i < ux.length; i++) diffs.push(ux[i] - ux[i - 1]); vizDx = Math.min(0.35 * Math.min(...diffs), maxRange * 0.04); }
+    if (uy.length > 1) { const diffs = []; for (let i = 1; i < uy.length; i++) diffs.push(uy[i] - uy[i - 1]); vizDy = Math.min(0.35 * Math.min(...diffs), maxRange * 0.04); }
+
+    function faceNormalZ(p0, p1, p2) {
+        return (p1.x - p0.x) * (p2.y - p0.y) - (p1.y - p0.y) * (p2.x - p0.x);
+    }
+    function drawFace(pts, fillColor, alpha) {
+        ctx.beginPath(); ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+        ctx.closePath();
+        ctx.fillStyle = fillColor; ctx.globalAlpha = alpha; ctx.fill();
+        ctx.globalAlpha = 1; ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.lineWidth = 0.5; ctx.stroke();
+    }
+
+    // Sort columns by depth for painter's algorithm
+    const sorted = col3dData.map((d, i) => {
+        const mid = project(d.x, d.y, (d.zBot + d.zTop) / 2);
+        return { idx: i, depth: mid.z };
+    }).sort((a, b) => a.depth - b.depth);
+
+    // Color by section size: larger → darker blue
+    const areas = col3dData.map(d => d.B * d.H);
+    const aMin = Math.min(...areas), aMax = Math.max(...areas);
+    const aRange = aMax - aMin || 1;
+
+    for (const item of sorted) {
+        const d = col3dData[item.idx];
+        const hdx = vizDx / 2, hdy = vizDy / 2;
+
+        // Color based on section area
+        const t = (d.B * d.H - aMin) / aRange;
+        const r = Math.round(60 + t * 30), g = Math.round(140 + t * 60), b = Math.round(200 + t * 55);
+        const color = `rgb(${r},${g},${b})`;
+
+        // 8 corners: bottom 0-3, top 4-7
+        const v = [
+            project(d.x - hdx, d.y - hdy, d.zBot), project(d.x + hdx, d.y - hdy, d.zBot),
+            project(d.x + hdx, d.y + hdy, d.zBot), project(d.x - hdx, d.y + hdy, d.zBot),
+            project(d.x - hdx, d.y - hdy, d.zTop), project(d.x + hdx, d.y - hdy, d.zTop),
+            project(d.x + hdx, d.y + hdy, d.zTop), project(d.x - hdx, d.y + hdy, d.zTop)
+        ];
+
+        const faces = [
+            { pts: [v[0], v[1], v[2], v[3]], shade: 0.50 },
+            { pts: [v[4], v[7], v[6], v[5]], shade: 1.00 },
+            { pts: [v[0], v[1], v[5], v[4]], shade: 0.70 },
+            { pts: [v[2], v[3], v[7], v[6]], shade: 0.80 },
+            { pts: [v[0], v[3], v[7], v[4]], shade: 0.60 },
+            { pts: [v[1], v[2], v[6], v[5]], shade: 0.75 },
+        ];
+
+        for (const face of faces) {
+            const nz = faceNormalZ(face.pts[0], face.pts[1], face.pts[2]);
+            if (nz > 0) {
+                const [cr, cg, cb] = [r, g, b].map(c => Math.round(c * face.shade));
+                drawFace(face.pts, `rgb(${cr},${cg},${cb})`, 0.92);
+            }
+        }
+
+        // Label
+        const topP = project(d.x, d.y, d.zTop);
+        if (showIds) {
+            ctx.fillStyle = "#c9d1d9"; ctx.font = "bold 9px 'Consolas',monospace";
+            ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+            ctx.strokeStyle = "#0d1117"; ctx.lineWidth = 2;
+            ctx.strokeText(String(d.eid), topP.x, topP.y - 3);
+            ctx.fillText(String(d.eid), topP.x, topP.y - 3);
+        }
+        if (showTags) {
+            const yOff = showIds ? -14 : -3;
+            ctx.fillStyle = "#79c0ff"; ctx.font = "bold 8px 'Consolas',monospace";
+            ctx.textAlign = "center"; ctx.textBaseline = "bottom";
+            ctx.strokeStyle = "#0d1117"; ctx.lineWidth = 2;
+            ctx.strokeText(d.tag, topP.x, topP.y + yOff);
+            ctx.fillText(d.tag, topP.x, topP.y + yOff);
+        }
+    }
+
+    // Title
+    ctx.fillStyle = "#f0f6fc"; ctx.font = "bold 14px 'Segoe UI',sans-serif";
+    ctx.textAlign = "center"; ctx.textBaseline = "top";
+    ctx.fillText("3D Column Layout", W / 2, 10);
+    ctx.fillStyle = "#8b949e"; ctx.font = "11px 'Segoe UI',sans-serif";
+    ctx.fillText(`${col3dData.length} columns | Drag to rotate | Scroll to zoom`, W / 2, 28);
+
+    document.getElementById("col3dWrapper").style.display = "flex";
+}
+
+// ── Column 3D Mouse Drag Rotation ──
+(function() {
+    let dragging = false, lastX = 0, lastY = 0;
+    // Defer binding until DOM is ready
+    function bindCol3d() {
+        const c = document.getElementById("col3dCanvas");
+        if (!c) return;
+        c.addEventListener("mousedown", e => { dragging = true; lastX = e.clientX; lastY = e.clientY; c.classList.add("dragging"); });
+        window.addEventListener("mousemove", e => {
+            if (!dragging) return;
+            const dx = e.clientX - lastX, dy = e.clientY - lastY;
+            col3d.rotY += dx * 0.5; col3d.rotX += dy * 0.5;
+            lastX = e.clientX; lastY = e.clientY;
+            drawColumn3D();
+        });
+        window.addEventListener("mouseup", () => { dragging = false; const c2 = document.getElementById("col3dCanvas"); if (c2) c2.classList.remove("dragging"); });
+        c.addEventListener("wheel", e => {
+            e.preventDefault();
+            col3d.zoom *= e.deltaY < 0 ? 1.08 : 0.92;
+            col3d.zoom = Math.max(0.3, Math.min(5, col3d.zoom));
+            drawColumn3D();
+        }, { passive: false });
+        let lastTouch = null;
+        c.addEventListener("touchstart", e => { if (e.touches.length === 1) lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY }; });
+        c.addEventListener("touchmove", e => {
+            if (!lastTouch || e.touches.length !== 1) return;
+            e.preventDefault();
+            const dx = e.touches[0].clientX - lastTouch.x, dy = e.touches[0].clientY - lastTouch.y;
+            col3d.rotY += dx * 0.5; col3d.rotX += dy * 0.5;
+            lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+            drawColumn3D();
+        }, { passive: false });
+        c.addEventListener("touchend", () => { lastTouch = null; });
+    }
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bindCol3d);
+    else bindCol3d();
+})();
 
 // ══════════════════════════════════════════════════════════════
 // FIBER AUTOMATION
