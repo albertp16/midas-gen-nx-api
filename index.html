@@ -372,6 +372,18 @@
         }
         .canvas-3d-controls button:hover { background: var(--bg-tertiary); }
 
+        /* ═══════════════════════ Editable cells ═══════════════════════ */
+        td.editable {
+            cursor: text; position: relative;
+        }
+        td.editable:hover { background: rgba(88,166,255,0.08) !important; outline: 1px solid var(--accent-blue); outline-offset: -1px; }
+        td.editable input {
+            width: 60px; background: var(--bg-input); border: 1px solid var(--accent-blue);
+            color: var(--text-primary); font-family: 'Consolas',monospace; font-size: 11px;
+            padding: 2px 4px; border-radius: 3px; text-align: right; outline: none;
+        }
+        td.edited { color: var(--accent-blue) !important; font-weight: 700 !important; }
+
         /* ═══════════════════════ Pass/Fail highlight rows ═══════════════════════ */
         tr[data-status="FAIL"] td { background: rgba(248,81,73,0.06); }
 
@@ -395,6 +407,7 @@
         <span class="topbar-title">MIDAS Gen <small>API DASHBOARD</small></span>
     </div>
     <div class="topbar-right">
+        <span id="analysisStatus" style="display:none;font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;"></span>
         <div id="connBadge" class="conn-badge conn-disconnected">
             <span class="conn-dot"></span>
             <span id="connText">Disconnected</span>
@@ -426,6 +439,16 @@
                 <li><a class="active" onclick="switchTab('overview')" data-tab="overview">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
                     Overview
+                </a></li>
+            </ul>
+        </div>
+
+        <div class="sidebar-section">
+            <div class="sidebar-label">Load Data</div>
+            <ul class="sidebar-nav">
+                <li><a onclick="switchTab('loads')" data-tab="loads">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/><path d="M2 12h20"/><path d="M12 2l4 4"/><path d="M12 2l-4 4"/></svg>
+                    Loads &amp; Combinations
                 </a></li>
             </ul>
         </div>
@@ -507,12 +530,12 @@
             </div>
             <div class="panel" id="quickActions" style="display:none;">
                 <div class="panel-header"><span class="panel-title">Quick Actions</span></div>
-                <div class="form-row">
+                <div class="form-row" style="align-items:center;">
                     <button class="btn btn-ghost" onclick="refreshStats()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
                         Refresh Stats
                     </button>
-                    <button class="btn btn-primary" onclick="runAnalysisWithProgress()">
+                    <button class="btn btn-primary" id="runAnalysisBtn" onclick="runAnalysisWithProgress()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                         Run Analysis
                     </button>
@@ -526,8 +549,21 @@
             <div class="panel">
                 <div class="panel-header"><span class="panel-title">Parameters</span></div>
                 <div class="form-row" style="margin-bottom:12px;">
-                    <div class="form-group" style="flex:1;"><label>Load Cases (comma-separated)</label><input type="text" id="driftLoadCases" class="input" value="Ex(ST), EX +(ST), EX -(ST)" /></div>
-                    <div class="form-group"><label>Direction</label><select id="driftDirection" class="input"><option value="STORY_DRIFT_X">X Direction</option><option value="STORY_DRIFT_Y">Y Direction</option></select></div>
+                    <div class="form-group" style="flex:2;">
+                        <label>Load Cases <span style="font-size:10px;color:var(--text-muted)">(Ctrl/Shift+click for multiple)</span></label>
+                        <select id="driftLoadCases" class="input" multiple style="min-height:90px;">
+                            <option selected>Ex(ST)</option><option selected>EX +(ST)</option><option selected>EX -(ST)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Direction</label>
+                        <select id="driftDirection" class="input">
+                            <option value="X">X Direction</option>
+                            <option value="Y">Y Direction</option>
+                            <option value="BOTH">Both (two plots)</option>
+                            <option value="MIX">Mix (X + Y in one plot)</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group"><label>Scale Factor</label><input type="number" id="driftScaleFactor" class="input" value="5.95" step="0.01" style="width:100px;" /></div>
@@ -541,12 +577,14 @@
                         <input type="checkbox" id="driftShowValues" checked onchange="redrawDriftIfReady()" style="accent-color:var(--accent-blue);" />
                         Show Values
                     </label>
-                    <button class="btn btn-ghost btn-sm" onclick="downloadCanvas('driftCanvas','story_drift.png')">
+                    <button class="btn btn-ghost btn-sm" onclick="downloadAllDriftCanvases()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         Download Image
                     </button>
                 </div>
-                <canvas id="driftCanvas" width="750" height="500"></canvas>
+                <div id="driftCanvasContainer">
+                    <canvas id="driftCanvas" width="750" height="500"></canvas>
+                </div>
                 <div class="chart-legend" id="driftLegend"></div>
             </div>
         </div>
@@ -560,7 +598,9 @@
                 <div class="form-row" style="margin-bottom:12px;">
                     <div class="form-group" style="flex:1;">
                         <label>Load Case</label>
-                        <input type="text" id="reactionLoadCase" class="input" value="SDL(ST)" />
+                        <select id="reactionLoadCase" class="input">
+                            <option>SDL(ST)</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label>Force Component</label>
@@ -670,14 +710,20 @@
             </div>
 
             <div id="beamResults" style="display:none;">
-                <div style="display:flex; gap:8px; margin-bottom:12px; justify-content:flex-end;">
+                <div style="display:flex; gap:8px; margin-bottom:12px; align-items:center; flex-wrap:wrap;">
+                    <span id="beamStatusBadge" style="display:none;font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;"></span>
+                    <span style="font-size:11px;color:var(--text-muted);margin-right:auto;">Double-click any cell to edit, then click Rerun</span>
+                    <button class="btn btn-blue btn-sm" onclick="rerunBeamDesign()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+                        Rerun Design
+                    </button>
                     <button class="btn btn-ghost btn-sm" onclick="copyBeamTable()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                        Copy to Clipboard
+                        Copy
                     </button>
                     <button class="btn btn-ghost btn-sm" onclick="exportBeamCSV()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                        Export CSV
+                        CSV
                     </button>
                 </div>
                 <div class="table-wrap">
@@ -710,6 +756,50 @@
             <div id="columnEmpty" class="empty-state">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="9" y="2" width="6" height="20" rx="1"/></svg>
                 <h3>No column data</h3><p>Configure parameters and click "Get Column Results".</p>
+            </div>
+        </div>
+
+        <!-- ════════════ LOADS & COMBINATIONS ════════════ -->
+        <div id="tab-loads" class="tab-page">
+            <div class="page-header"><h2>Loads &amp; Combinations</h2><p>Extract static load cases and load combinations from the model</p></div>
+            <div class="panel">
+                <div class="panel-header"><span class="panel-title">Actions</span></div>
+                <div class="form-row">
+                    <button class="btn btn-blue" onclick="fetchLoads()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/><path d="M2 12h20"/></svg>
+                        Fetch Load Data
+                    </button>
+                </div>
+            </div>
+
+            <div id="loadsResultsArea" style="display:none;">
+                <!-- Static Load Cases -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Static Load Cases</span>
+                        <span id="stldCount" style="font-size:11px;color:var(--text-muted);"></span>
+                    </div>
+                    <div class="table-wrap">
+                        <div class="table-scroll"><table id="stldTable"><thead><tr></tr></thead><tbody></tbody></table></div>
+                    </div>
+                </div>
+
+                <!-- Load Combinations -->
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Load Combinations (General)</span>
+                        <span id="lcomCount" style="font-size:11px;color:var(--text-muted);"></span>
+                    </div>
+                    <div class="table-wrap">
+                        <div class="table-scroll"><table id="lcomTable"><thead><tr></tr></thead><tbody></tbody></table></div>
+                    </div>
+                </div>
+            </div>
+
+            <div id="loadsEmpty" class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2v20"/><path d="M2 12h20"/><path d="M12 2l4 4"/><path d="M12 2l-4 4"/></svg>
+                <h3>No load data</h3>
+                <p>Click "Fetch Load Data" to extract static load cases and load combinations from the model.</p>
             </div>
         </div>
 
@@ -762,7 +852,10 @@
 // ══════════════════════════════════════════════════════════════
 // STATE
 // ══════════════════════════════════════════════════════════════
-const BASE_URL = "https://moa-engineers.midasit.com:443/gen";
+const MIDAS_DIRECT_URL = "https://moa-engineers.midasit.com:443/gen";
+// Use Flask proxy when served from a server, direct when opened as file
+const USE_PROXY = window.location.protocol !== "file:";
+const BASE_URL = USE_PROXY ? "" : MIDAS_DIRECT_URL;
 let apiKey = "";
 let isConnected = false;
 let pingInterval = null;
@@ -770,7 +863,11 @@ let logCounter = 0;
 
 // Reaction data cache
 let rxData = [];  // [[node, X, Y, Z, force], ...]
-let rx3d = { rotX: 30, rotY: -35, zoom: 1.0 };
+let rx3d = { rotX: 25, rotY: -45, zoom: 1.0 };
+
+// Load case names fetched from MIDAS (populated by fetchLoads)
+let fetchedLoadCaseNames = [];
+let fetchedLcomNames = [];
 
 // ══════════════════════════════════════════════════════════════
 // PROGRESS MODAL
@@ -843,7 +940,9 @@ function showToast(msg, type = "success") {
 // API WRAPPER
 // ══════════════════════════════════════════════════════════════
 async function midasAPI(method, endpoint, body = null) {
-    const url = BASE_URL + endpoint;
+    const url = USE_PROXY
+        ? `/api/proxy?endpoint=${encodeURIComponent(endpoint)}`
+        : MIDAS_DIRECT_URL + endpoint;
     const opts = { method, headers: { "Content-Type": "application/json", "MAPI-Key": apiKey } };
     if (body && (method === "POST" || method === "PUT")) opts.body = JSON.stringify(body);
     const start = performance.now();
@@ -936,16 +1035,46 @@ async function refreshStats() {
     } catch {}
 }
 
+function setAnalysisStatus(state) {
+    const el = document.getElementById("analysisStatus");
+    if (state === "completed") {
+        el.style.display = "inline-flex";
+        el.style.background = "rgba(63,185,80,0.12)";
+        el.style.color = "var(--accent-green)";
+        el.style.border = "1px solid rgba(63,185,80,0.25)";
+        el.innerHTML = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-green);margin-right:6px;"></span>Analysis Completed';
+    } else if (state === "failed") {
+        el.style.display = "inline-flex";
+        el.style.background = "rgba(248,81,73,0.12)";
+        el.style.color = "var(--accent-red)";
+        el.style.border = "1px solid rgba(248,81,73,0.25)";
+        el.innerHTML = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-red);margin-right:6px;"></span>Analysis Failed';
+    } else if (state === "running") {
+        el.style.display = "inline-flex";
+        el.style.background = "rgba(210,153,34,0.12)";
+        el.style.color = "var(--accent-orange)";
+        el.style.border = "1px solid rgba(210,153,34,0.25)";
+        el.innerHTML = '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-orange);margin-right:6px;animation:pulse 1s infinite;"></span>Running...';
+    } else {
+        el.style.display = "none";
+    }
+}
+
 async function runAnalysisWithProgress() {
     if (!isConnected) return;
+    setAnalysisStatus("running");
     showProgress("Running Analysis", "MIDAS Gen is performing structural analysis...", "POST /doc/ANAL");
     updateProgress(-1, "Analysis in progress...");
     try {
         await midasAPI("POST", "/doc/ANAL", {});
         updateProgress(100, "Analysis completed!");
+        setAnalysisStatus("completed");
         showToast("Analysis completed!");
         await new Promise(r => setTimeout(r, 600));
-    } catch { showToast("Analysis failed", "error"); }
+    } catch {
+        setAnalysisStatus("failed");
+        showToast("Analysis failed", "error");
+    }
     hideProgress();
 }
 
@@ -973,6 +1102,8 @@ function renderTable(tableId, headers, rows) {
 
 // Store last beam table data for copy/export
 let lastBeamHeaders = [], lastBeamRows = [];
+// Store beam force data for rerun
+let cachedBeamForces = null;
 
 function copyBeamTable() {
     const table = document.getElementById("beamTable");
@@ -1016,9 +1147,9 @@ function exportBeamCSV() {
 const COLORS = ["#58a6ff","#3fb950","#f0883e","#f85149","#d2a8ff","#79c0ff","#d29922","#ff7b72"];
 
 // Cache last drift data for redraw
-let lastDriftSeries = null, lastDriftStories = null, lastDriftAllowable = 0, lastDriftDir = "";
+let lastDriftCharts = []; // array of { series, stories, allowable, dirLabel, canvasId }
 function redrawDriftIfReady() {
-    if (lastDriftSeries) drawDriftChart(lastDriftSeries, lastDriftStories, lastDriftAllowable, lastDriftDir);
+    lastDriftCharts.forEach(c => drawDriftChart(c.series, c.stories, c.allowable, c.dirLabel, c.canvasId));
 }
 
 function storyNo(s) {
@@ -1029,22 +1160,11 @@ function storyNo(s) {
     return m ? parseInt(m[1]) : -1;
 }
 
-async function plotDrift() {
-    if (!isConnected) { showToast("Connect first", "error"); return; }
-    const loadCases = document.getElementById("driftLoadCases").value.split(",").map(s => s.trim()).filter(Boolean);
-    const tableType = document.getElementById("driftDirection").value;
-    const scaleFactor = parseFloat(document.getElementById("driftScaleFactor").value) || 5.95;
-    const allowable = parseFloat(document.getElementById("driftAllowable").value) || 0.025;
-    const dirLabel = tableType === "STORY_DRIFT_X" ? "X" : "Y";
+async function fetchDriftForDirection(tableType, loadCases, scaleFactor, allowable) {
     const colRatio = "Maximum Drift of All Vertical Elements/Story Drift Ratio";
-    if (!loadCases.length) { showToast("Enter load cases", "error"); return; }
-
-    showProgress("Fetching Story Drift", `${loadCases.length} load case(s)`, "Requesting data...");
     const allSeries = [], allStories = new Set();
-
     for (let li = 0; li < loadCases.length; li++) {
         const lc = loadCases[li];
-        updateProgress(((li + 1) / loadCases.length) * 90, `Load case: ${lc}`);
         try {
             const body = { Argument: { TABLE_TYPE: tableType, UNIT: { FORCE: "KN", DIST: "MM" }, LOAD_CASE_NAMES: [lc], STYLES: { FORMAT: "FIXED", PLACE: 5 }, ADDITIONAL: { SET_STORY_DRIFT_PARAMS: { RESPONSE_MOD_FACTOR_CHECK: true, SCALE_FACTOR_VALUE: scaleFactor, ALLOWABLE_RATIO: allowable }}}};
             const result = await midasAPI("POST", "/post/TABLE", body);
@@ -1059,21 +1179,111 @@ async function plotDrift() {
             }
             series.sort((a, b) => a.StoryNo - b.StoryNo);
             allSeries.push({ name: lc, data: series });
-        } catch (err) { logEntry(`<span class="log-status-err">Drift "${lc}": ${err.message}</span>`); }
+        } catch (err) { logEntry(`<span class="log-status-err">Drift "${lc}" (${tableType}): ${err.message}</span>`); }
     }
-    hideProgress();
-    if (!allSeries.length) { showToast("No data", "error"); return; }
     const stories = [...new Map(Array.from(allStories).map(s => JSON.parse(s)).sort((a,b) => a.StoryNo - b.StoryNo).map(s => [s.StoryNo, s])).values()];
+    return { series: allSeries, stories };
+}
+
+function downloadAllDriftCanvases() {
+    const container = document.getElementById("driftCanvasContainer");
+    const canvases = container.querySelectorAll("canvas");
+    canvases.forEach((c, i) => {
+        const link = document.createElement("a");
+        link.download = canvases.length > 1 ? `story_drift_${i+1}.png` : "story_drift.png";
+        link.href = c.toDataURL("image/png");
+        link.click();
+    });
+}
+
+async function plotDrift() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+    const sel = document.getElementById("driftLoadCases");
+    const loadCases = Array.from(sel.selectedOptions).map(o => o.value);
+    const dirMode = document.getElementById("driftDirection").value; // X, Y, BOTH, MIX
+    const scaleFactor = parseFloat(document.getElementById("driftScaleFactor").value) || 5.95;
+    const allowable = parseFloat(document.getElementById("driftAllowable").value) || 0.025;
+    if (!loadCases.length) { showToast("Select load cases", "error"); return; }
+
+    const container = document.getElementById("driftCanvasContainer");
+    container.innerHTML = ""; // clear previous canvases
+    lastDriftCharts = [];
+
+    // Determine which directions to fetch
+    const directions = [];
+    if (dirMode === "X" || dirMode === "BOTH" || dirMode === "MIX") directions.push({ type: "STORY_DRIFT_X", label: "X" });
+    if (dirMode === "Y" || dirMode === "BOTH" || dirMode === "MIX") directions.push({ type: "STORY_DRIFT_Y", label: "Y" });
+
+    const totalSteps = loadCases.length * directions.length;
+    showProgress("Fetching Story Drift", `${loadCases.length} load case(s), ${directions.map(d=>d.label).join("+")} direction`, "Requesting data...");
+
+    if (dirMode === "MIX") {
+        // ═══ MIX MODE: X and Y series on one single chart ═══
+        const allSeries = [], allStories = new Set();
+        let step = 0;
+        for (const dir of directions) {
+            const result = await fetchDriftForDirection(dir.type, loadCases, scaleFactor, allowable);
+            result.series.forEach(s => {
+                allSeries.push({ name: `${s.name} (${dir.label})`, data: s.data });
+            });
+            result.stories.forEach(st => allStories.add(JSON.stringify(st)));
+            step += loadCases.length;
+            updateProgress((step / totalSteps) * 90, `Fetched ${dir.label} direction...`);
+        }
+        hideProgress();
+        if (!allSeries.length) { showToast("No data", "error"); return; }
+        const stories = [...new Map(Array.from(allStories).map(s => {
+            const p = JSON.parse(s); return [p.StoryNo, p];
+        }).sort((a,b) => a[0] - b[0])).values()];
+        const canvasId = "driftCanvas_mix";
+        const c = document.createElement("canvas"); c.id = canvasId; c.width = 750; c.height = 500;
+        container.appendChild(c);
+        document.getElementById("driftChartWrapper").style.display = "flex";
+        drawDriftChart(allSeries, stories, allowable, "X + Y (Mix)", canvasId);
+        lastDriftCharts.push({ series: allSeries, stories, allowable, dirLabel: "X + Y (Mix)", canvasId });
+
+    } else {
+        // ═══ SINGLE or BOTH MODE: separate chart per direction ═══
+        let step = 0;
+        for (const dir of directions) {
+            updateProgress((step / totalSteps) * 90, `Fetching ${dir.label} direction...`);
+            const result = await fetchDriftForDirection(dir.type, loadCases, scaleFactor, allowable);
+            step += loadCases.length;
+            if (!result.series.length) continue;
+            const canvasId = `driftCanvas_${dir.label}`;
+            const c = document.createElement("canvas"); c.id = canvasId; c.width = 750; c.height = 500;
+            if (container.children.length > 0) {
+                const spacer = document.createElement("div");
+                spacer.style.cssText = "height:24px;";
+                container.appendChild(spacer);
+            }
+            container.appendChild(c);
+            drawDriftChart(result.series, result.stories, allowable, dir.label, canvasId);
+            lastDriftCharts.push({ series: result.series, stories: result.stories, allowable, dirLabel: dir.label, canvasId });
+        }
+        hideProgress();
+    }
     document.getElementById("driftChartWrapper").style.display = "flex";
-    drawDriftChart(allSeries, stories, allowable, dirLabel);
+    // Build combined legend
+    const $l = document.getElementById("driftLegend"); $l.innerHTML = "";
+    lastDriftCharts.forEach(chart => {
+        chart.series.forEach((s,i) => {
+            const d = document.createElement("div"); d.className = "legend-item";
+            d.innerHTML = `<span class="legend-swatch" style="background:${COLORS[i%COLORS.length]}"></span>${s.name}`;
+            $l.appendChild(d);
+        });
+    });
+    const ad = document.createElement("div"); ad.className = "legend-item";
+    ad.innerHTML = `<span class="legend-swatch" style="background:#f85149"></span>Allowable`;
+    $l.appendChild(ad);
     showToast("Drift plot updated!");
 }
 
-function drawDriftChart(seriesArr, stories, allowable, dirLabel) {
-    // Cache for redraw
-    lastDriftSeries = seriesArr; lastDriftStories = stories; lastDriftAllowable = allowable; lastDriftDir = dirLabel;
+function drawDriftChart(seriesArr, stories, allowable, dirLabel, canvasId) {
+    canvasId = canvasId || "driftCanvas";
     const showValues = document.getElementById("driftShowValues") ? document.getElementById("driftShowValues").checked : true;
-    const canvas = document.getElementById("driftCanvas");
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
     const W = 750, H = 500;
     canvas.width = W*dpr; canvas.height = H*dpr;
@@ -1120,9 +1330,6 @@ function drawDriftChart(seriesArr, stories, allowable, dirLabel) {
     ctx.fillText(`Story Drift Ratio - ${dirLabel} Direction`,W/2,10);
     ctx.fillStyle="#8b949e"; ctx.font="12px 'Segoe UI',sans-serif"; ctx.fillText("Drift Ratio",W/2,H-10);
     ctx.save(); ctx.translate(16,m.top+pH/2); ctx.rotate(-Math.PI/2); ctx.fillText("Story",0,0); ctx.restore();
-    const $l = document.getElementById("driftLegend"); $l.innerHTML="";
-    seriesArr.forEach((s,i) => { const d=document.createElement("div"); d.className="legend-item"; d.innerHTML=`<span class="legend-swatch" style="background:${COLORS[i%COLORS.length]}"></span>${s.name}`; $l.appendChild(d); });
-    const ad=document.createElement("div"); ad.className="legend-item"; ad.innerHTML=`<span class="legend-swatch" style="background:#f85149"></span>Allowable`; $l.appendChild(ad);
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -1474,6 +1681,29 @@ function drawReaction3D() {
         return { idx: i, depth: p.z };
     }).sort((a, b) => a.depth - b.depth);
 
+    // Helper: parse rgb string to components
+    function parseRGB(c) {
+        const m = c.match(/(\d+)/g);
+        return m ? [+m[0],+m[1],+m[2]] : [128,128,128];
+    }
+    function shadeColor(c, factor) {
+        const [r,g,b] = parseRGB(c);
+        return `rgb(${Math.round(r*factor)},${Math.round(g*factor)},${Math.round(b*factor)})`;
+    }
+
+    // Face normal visibility: compute face normal in screen space
+    function faceNormalZ(p0, p1, p2) {
+        return (p1.x - p0.x) * (p2.y - p0.y) - (p1.y - p0.y) * (p2.x - p0.x);
+    }
+    function drawFace(pts, fillColor, alpha) {
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+        ctx.closePath();
+        ctx.fillStyle = fillColor; ctx.globalAlpha = alpha; ctx.fill();
+        ctx.globalAlpha = 1; ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.lineWidth = 0.7; ctx.stroke();
+    }
+
     // Draw bars
     const fAbsArr = fs.map(Math.abs);
     const fAbsMin = Math.min(...fAbsArr), fAbsMaxC = Math.max(...fAbsArr);
@@ -1486,35 +1716,31 @@ function drawReaction3D() {
         const baseZ = f >= 0 ? 0 : f;
         const topZ = f >= 0 ? f : 0;
 
-        const base = [
+        // 8 corners of the box: bottom 0-3 (CCW from -x,-y), top 4-7
+        const v = [
             project(x-hdx, y-hdy, baseZ), project(x+hdx, y-hdy, baseZ),
-            project(x+hdx, y+hdy, baseZ), project(x-hdx, y+hdy, baseZ)
-        ];
-        const top = [
-            project(x-hdx, y-hdy, topZ), project(x+hdx, y-hdy, topZ),
-            project(x+hdx, y+hdy, topZ), project(x-hdx, y+hdy, topZ)
+            project(x+hdx, y+hdy, baseZ), project(x-hdx, y+hdy, baseZ),
+            project(x-hdx, y-hdy, topZ),  project(x+hdx, y-hdy, topZ),
+            project(x+hdx, y+hdy, topZ),  project(x-hdx, y+hdy, topZ)
         ];
 
-        // Front face
-        ctx.beginPath();
-        ctx.moveTo(base[0].x,base[0].y); ctx.lineTo(base[1].x,base[1].y);
-        ctx.lineTo(top[1].x,top[1].y); ctx.lineTo(top[0].x,top[0].y); ctx.closePath();
-        ctx.fillStyle = color; ctx.globalAlpha = 0.92; ctx.fill();
-        ctx.globalAlpha = 1; ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.lineWidth = 0.6; ctx.stroke();
+        // 6 faces: [vertices, shade factor]
+        const faces = [
+            { pts: [v[0],v[1],v[2],v[3]], shade: 0.50 }, // bottom
+            { pts: [v[4],v[7],v[6],v[5]], shade: 1.00 }, // top
+            { pts: [v[0],v[1],v[5],v[4]], shade: 0.70 }, // front (-Y)
+            { pts: [v[2],v[3],v[7],v[6]], shade: 0.80 }, // back (+Y)
+            { pts: [v[0],v[3],v[7],v[4]], shade: 0.60 }, // left (-X)
+            { pts: [v[1],v[2],v[6],v[5]], shade: 0.75 }, // right (+X)
+        ];
 
-        // Right face (darker shade)
-        ctx.beginPath();
-        ctx.moveTo(base[1].x,base[1].y); ctx.lineTo(base[2].x,base[2].y);
-        ctx.lineTo(top[2].x,top[2].y); ctx.lineTo(top[1].x,top[1].y); ctx.closePath();
-        ctx.fillStyle = color; ctx.globalAlpha = 0.7; ctx.fill();
-        ctx.globalAlpha = 1; ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.stroke();
-
-        // Top face (brightest)
-        ctx.beginPath();
-        ctx.moveTo(top[0].x,top[0].y); ctx.lineTo(top[1].x,top[1].y);
-        ctx.lineTo(top[2].x,top[2].y); ctx.lineTo(top[3].x,top[3].y); ctx.closePath();
-        ctx.fillStyle = color; ctx.globalAlpha = 0.97; ctx.fill();
-        ctx.globalAlpha = 1; ctx.strokeStyle = "rgba(0,0,0,0.25)"; ctx.stroke();
+        // Only draw faces whose normal points toward the camera (back-face culling)
+        for (const face of faces) {
+            const nz = faceNormalZ(face.pts[0], face.pts[1], face.pts[2]);
+            if (nz > 0) {
+                drawFace(face.pts, shadeColor(color, face.shade), 0.95);
+            }
+        }
 
         // Node label on top of bar
         const labelP = project(x, y, topZ);
@@ -1834,95 +2060,311 @@ async function runBeamDesign() {
         const gravForces = parseBeamForces(gravHead, gravRows);
         const seisForces = parseBeamForces(seisHead, seisRows);
 
-        // Beam design calculations (from beam_solver.py)
-        const effDepth = BS.depth(h, cover, dbs, db);
-        const steelArea = BS.dbarArea(db);
+        // Cache forces for rerun
+        cachedBeamForces = { gravForces, seisForces, elemLengths, elemTypes };
+
+        updateProgress(80, "Computing ACI beam design...");
+        computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes);
+
+        updateProgress(100, "Done!");
+        showToast(`Beam designs computed`);
+    } catch (err) {
+        showToast("Beam design failed: " + err.message, "error");
+    }
+    setTimeout(hideProgress, 400);
+}
+
+// Column indices for editable fields (matching headers below)
+// 0=id, 1=length, 2=width, 3=height, 4=fc, 5=fy, 6=fys, 7=nib, 8=nmb, 9=njb, 10=nit, 11=nmt, 12=njt, 13=db
+// All except id(0), length(1), and shear placeholders(14-20)
+const BEAM_EDITABLE_COLS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+
+function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, overrides) {
+    const h0 = parseFloat(document.getElementById("bmHeight").value);
+    const bw0 = parseFloat(document.getElementById("bmWidth").value);
+    const fc0 = parseFloat(document.getElementById("bmFc").value);
+    const fy0 = parseFloat(document.getElementById("bmFy").value);
+    const db0 = parseFloat(document.getElementById("bmDb").value);
+    const dbs = parseFloat(document.getElementById("bmDbs").value);
+    const cover = parseFloat(document.getElementById("bmCover").value);
+    const aprR = parseFloat(document.getElementById("bmAprR").value);
+    const frameType = document.getElementById("bmFrameType").value;
+    const fys = 275.79; // shear rebar yield strength (default)
+
+    // Headers matching PDF: id, length, width, height, fc, fy, fys,
+    // nib, nmb, njb, nit, nmt, njt, db,
+    // shear cols (future), moment demand/capacity/ratio, status
+    const headers = [
+        "id", "length\n(m)", "width\n(mm)", "height\n(mm)", "fc\n(MPa)", "fy\n(MPa)", "fys\n(MPa)",
+        "nib", "nmb", "njb", "nit", "nmt", "njt", "db",
+        "vdb", "vns_i", "vns_m", "vns_j", "vs_i", "vs_m", "vs_j",
+        "mdi\n(kN.m)", "mdm\n(kN.m)", "mdj\n(kN.m)",
+        "mci\n(kN.m)", "mcm\n(kN.m)", "mcj\n(kN.m)",
+        "mri", "mrm", "mrj", "Status"
+    ];
+
+    const resultRows = [];
+    const allElems = new Set([...Object.keys(seisForces), ...Object.keys(gravForces)]);
+    const editedElems = new Set();
+    let failCount = 0, totalCount = 0;
+
+    for (const elem of allElems) {
+        if (elemTypes[elem] && elemTypes[elem] !== "BEAM") continue;
+
+        const ovr = overrides ? overrides[elem] : null;
+        const bw = ovr && !isNaN(ovr.bw) ? ovr.bw : bw0;
+        const h  = ovr && !isNaN(ovr.h)  ? ovr.h  : h0;
+        const fc = ovr && !isNaN(ovr.fc) ? ovr.fc : fc0;
+        const fy = ovr && !isNaN(ovr.fy) ? ovr.fy : fy0;
+        const db = ovr && !isNaN(ovr.db) ? ovr.db : db0;
+        if (ovr) editedElems.add(elem);
+
+        const sf = seisForces[elem] || { Mi: 0, Mj: 0 };
+        const gf = gravForces[elem] || { Vi: 0, Vj: 0 };
+        const Mi_seis = Math.abs(sf.Mi || 0);
+        const Mj_seis = Math.abs(sf.Mj || 0);
+        const Mm_seis = (Mi_seis + Mj_seis) / 2;
+
         const sp = BS.rebarSp(db, 20);
         const maxPerLayer = BS.nlayersMax(bw, cover, dbs, db, sp);
 
-        const headers = [
-            "Beam ID", "Length\n(m)", "Beam Height\n(mm)", "Beam Width\n(mm)", "f'c\n(MPa)", "fy\n(MPa)",
-            "db", "dbs", "eff. depth\n(mm)", "Steel Area\n(sq.mm)",
-            "aprR", "Mpr_i (L)\n(kN.m)", "Mpr_j (L)\n(kN.m)",
-            "Vpr (L)\n(kN)", "Vg (L)\n(kN)", "Ve (L)\n(kN)",
-            "Mpr_i (R)\n(kN.m)", "Mpr_j (R)\n(kN.m)",
-            "Vpr (R)\n(kN)", "Vg (R)\n(kN)", "Ve (R)\n(kN)",
-            "Mdemand (i)\n(kN.m)", "Mdemand (j)\n(kN.m)",
-            "Mcap (i)\n(kN.m)", "Mcap (j)\n(kN.m)",
-            "Ratio (i)", "Ratio (j)", "Status"
-        ];
+        // Compute design bars (auto) or use overrides
+        let nI, nM, nJ, nitVal, nmtVal, njtVal;
 
-        const resultRows = [];
-        const allElems = new Set([...Object.keys(seisForces), ...Object.keys(gravForces)]);
-
-        for (const elem of allElems) {
-            // Only process BEAM type elements
-            if (elemTypes[elem] && elemTypes[elem] !== "BEAM") continue;
-
-            const sf = seisForces[elem] || { Mi: 0, Mj: 0 };
-            const gf = gravForces[elem] || { Vi: 0, Vj: 0 };
-
-            const Mi_seis = Math.abs(sf.Mi || 0);
-            const Mj_seis = Math.abs(sf.Mj || 0);
-
-            // Design bars needed (from beam_solver.nbardesign)
-            const nbarsI = BS.nbarDesign(Mi_seis, fc, fy, bw, h, db, frameType);
-            const nbarsJ = BS.nbarDesign(Mj_seis, fc, fy, bw, h, db, frameType);
-
-            // Flexural capacity (from beam_solver.flexcap)
-            const nI = Math.max(nbarsI, 2);
-            const nJ = Math.max(nbarsJ, 2);
-            const capI = BS.flexcap(fc, fy, bw, h, dbs, db, maxPerLayer, Math.ceil(nI/2), nI);
-            const capJ = BS.flexcap(fc, fy, bw, h, dbs, db, maxPerLayer, Math.ceil(nJ/2), nJ);
-
-            // Probable moment Mpr = Mn * aprR (alpha factor)
-            const Mpr_iL = capI.Mn * aprR;
-            const Mpr_jL = capJ.Mn * aprR;
-            const Mpr_iR = capI.Mn * aprR;
-            const Mpr_jR = capJ.Mn * aprR;
-
-            // Use actual element length from node coordinates (like beam.py)
-            const Ln = elemLengths[elem] || elemLengths[String(elem)] || Math.max(h * 5 / 1000, 3.0);
-
-            // Shear from probable moments: Vpr = (Mpr_i + Mpr_j) / Ln
-            const Vpr_L = (Mpr_iL + Mpr_jL) / Ln;
-            const Vpr_R = (Mpr_iR + Mpr_jR) / Ln;
-
-            const Vg_L = Math.abs(gf.Vi || 0);
-            const Vg_R = Math.abs(gf.Vj || Vg_L);
-            const Ve_L = Vpr_L + Vg_L;
-            const Ve_R = Vpr_R + Vg_R;
-
-            const Mdemand_i = Mi_seis;
-            const Mdemand_j = Mj_seis;
-            const Mcap_i = capI.Mn;
-            const Mcap_j = capJ.Mn;
-            const ratio_i = Mcap_i > 0 ? Mdemand_i / Mcap_i : 0;
-            const ratio_j = Mcap_j > 0 ? Mdemand_j / Mcap_j : 0;
-
-            // Pass/Fail: both ratios must be <= 1.0
-            const pass = (ratio_i <= 1.0 && ratio_j <= 1.0);
-            const statusLabel = pass ? "PASS" : "FAIL";
-
-            resultRows.push([
-                elem, Ln.toFixed(3), h.toFixed(0), bw.toFixed(0), fc.toFixed(3), fy.toFixed(3),
-                db, dbs, effDepth.toFixed(1), steelArea.toFixed(2),
-                aprR.toFixed(2),
-                Mpr_iL.toFixed(2), Mpr_jL.toFixed(2), Vpr_L.toFixed(2), Vg_L.toFixed(2), Ve_L.toFixed(2),
-                Mpr_iR.toFixed(2), Mpr_jR.toFixed(2), Vpr_R.toFixed(2), Vg_R.toFixed(2), Ve_R.toFixed(2),
-                Mdemand_i.toFixed(2), Mdemand_j.toFixed(2),
-                Mcap_i.toFixed(2), Mcap_j.toFixed(2),
-                ratio_i.toFixed(3), ratio_j.toFixed(3), statusLabel
-            ]);
+        if (ovr && !isNaN(ovr.nib)) {
+            // All bar counts from overrides
+            nI = Math.max(ovr.nib, 2);
+            nM = ovr && !isNaN(ovr.nmb) ? Math.max(ovr.nmb, 2) : Math.max(BS.nbarDesign(Mm_seis, fc, fy, bw, h, db, frameType), 2);
+            nJ = ovr && !isNaN(ovr.njb) ? Math.max(ovr.njb, 2) : Math.max(BS.nbarDesign(Mj_seis, fc, fy, bw, h, db, frameType), 2);
+            nitVal = ovr && !isNaN(ovr.nit) ? Math.max(ovr.nit, 2) : Math.max(Math.ceil(nI / 2), 2);
+            nmtVal = ovr && !isNaN(ovr.nmt) ? Math.max(ovr.nmt, 2) : Math.max(Math.ceil(nM / 2), 2);
+            njtVal = ovr && !isNaN(ovr.njt) ? Math.max(ovr.njt, 2) : Math.max(Math.ceil(nJ / 2), 2);
+        } else {
+            // Auto-compute from demand
+            nI = Math.max(BS.nbarDesign(Mi_seis, fc, fy, bw, h, db, frameType), 2);
+            nM = Math.max(BS.nbarDesign(Mm_seis, fc, fy, bw, h, db, frameType), 2);
+            nJ = Math.max(BS.nbarDesign(Mj_seis, fc, fy, bw, h, db, frameType), 2);
+            nitVal = Math.max(Math.ceil(nI / 2), 2);
+            nmtVal = Math.max(Math.ceil(nM / 2), 2);
+            njtVal = Math.max(Math.ceil(nJ / 2), 2);
         }
 
-        updateProgress(100, `${resultRows.length} beams computed`);
-        renderTable("beamTable", headers, resultRows);
-        document.getElementById("beamResults").style.display = "block";
-        document.getElementById("beamEmpty").style.display = "none";
-        showToast(`${resultRows.length} beam designs computed`);
+        // Flexural capacity at i, m, j
+        const capI = BS.flexcap(fc, fy, bw, h, dbs, db, maxPerLayer, nitVal, nI);
+        const capJ = BS.flexcap(fc, fy, bw, h, dbs, db, maxPerLayer, njtVal, nJ);
+        const capM = BS.flexcap(fc, fy, bw, h, dbs, db, maxPerLayer, nmtVal, nM);
+
+        const Ln = elemLengths[elem] || elemLengths[String(elem)] || Math.max(h * 5 / 1000, 3.0);
+
+        // Demand, capacity, ratio
+        const mdi = Mi_seis, mdm = Mm_seis, mdj = Mj_seis;
+        const mci = capI.Mn, mcm = capM.Mn, mcj = capJ.Mn;
+        const mri = mci > 0 ? mdi / mci : 0;
+        const mrm = mcm > 0 ? mdm / mcm : 0;
+        const mrj = mcj > 0 ? mdj / mcj : 0;
+        const pass = (mri <= 1.0 && mrm <= 1.0 && mrj <= 1.0);
+
+        totalCount++;
+        if (!pass) failCount++;
+
+        resultRows.push([
+            elem, Ln.toFixed(3), bw.toFixed(0), h.toFixed(0), fc.toFixed(3), fy.toFixed(3), fys.toFixed(2),
+            nI, nM, nJ, nitVal, nmtVal, njtVal, db,
+            "-", "-", "-", "-", "-", "-", "-",
+            mdi.toFixed(2), mdm.toFixed(2), mdj.toFixed(2),
+            mci.toFixed(2), mcm.toFixed(2), mcj.toFixed(2),
+            mri.toFixed(3), mrm.toFixed(3), mrj.toFixed(3), pass ? "PASS" : "FAIL"
+        ]);
+    }
+
+    renderTable("beamTable", headers, resultRows);
+
+    // Status badge
+    const badge = document.getElementById("beamStatusBadge");
+    if (failCount > 0) {
+        badge.style.display = "inline-flex";
+        badge.style.background = "rgba(248,81,73,0.12)";
+        badge.style.color = "var(--accent-red)";
+        badge.style.border = "1px solid rgba(248,81,73,0.25)";
+        badge.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-red);margin-right:6px;"></span>${failCount}/${totalCount} FAIL`;
+    } else {
+        badge.style.display = "inline-flex";
+        badge.style.background = "rgba(63,185,80,0.12)";
+        badge.style.color = "var(--accent-green)";
+        badge.style.border = "1px solid rgba(63,185,80,0.25)";
+        badge.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-green);margin-right:6px;"></span>${totalCount}/${totalCount} PASS`;
+    }
+
+    // Make editable columns: width(2), height(3), fc(4), fy(5), nib(7), db(13)
+    const tbody = document.getElementById("beamTable").querySelector("tbody");
+    const trs = tbody.querySelectorAll("tr");
+    trs.forEach(tr => {
+        const tds = tr.querySelectorAll("td");
+        const elemId = tds[0].textContent.trim();
+        const edited = editedElems.has(elemId);
+        BEAM_EDITABLE_COLS.forEach(ci => {
+            const td = tds[ci];
+            if (!td) return;
+            td.classList.add("editable");
+            if (edited) td.classList.add("edited");
+            td.addEventListener("dblclick", function() {
+                if (td.querySelector("input")) return;
+                const val = td.textContent;
+                td.innerHTML = `<input type="number" value="${val}" />`;
+                const inp = td.querySelector("input");
+                inp.focus(); inp.select();
+                inp.addEventListener("blur", () => { td.textContent = inp.value || val; td.classList.add("edited"); });
+                inp.addEventListener("keydown", e => { if (e.key === "Enter") inp.blur(); if (e.key === "Escape") { td.textContent = val; } });
+            });
+        });
+    });
+
+    document.getElementById("beamResults").style.display = "block";
+    document.getElementById("beamEmpty").style.display = "none";
+}
+
+function rerunBeamDesign() {
+    if (!cachedBeamForces) { showToast("Run beam design first", "error"); return; }
+
+    const tbody = document.getElementById("beamTable").querySelector("tbody");
+    const trs = tbody.querySelectorAll("tr");
+    const overrides = {};
+
+    trs.forEach(tr => {
+        const tds = tr.querySelectorAll("td");
+        const elemId = tds[0].textContent.trim();
+        // Read all editable values from the table cells
+        // 2=width, 3=height, 4=fc, 5=fy, 6=fys, 7=nib, 8=nmb, 9=njb, 10=nit, 11=nmt, 12=njt, 13=db
+        overrides[elemId] = {
+            bw: parseFloat(tds[2].textContent),
+            h: parseFloat(tds[3].textContent),
+            fc: parseFloat(tds[4].textContent),
+            fy: parseFloat(tds[5].textContent),
+            fys: parseFloat(tds[6].textContent),
+            nib: parseInt(tds[7].textContent),
+            nmb: parseInt(tds[8].textContent),
+            njb: parseInt(tds[9].textContent),
+            nit: parseInt(tds[10].textContent),
+            nmt: parseInt(tds[11].textContent),
+            njt: parseInt(tds[12].textContent),
+            db: parseFloat(tds[13].textContent)
+        };
+    });
+
+    const { gravForces, seisForces, elemLengths, elemTypes } = cachedBeamForces;
+    computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, overrides);
+    showToast("Beam design recalculated!");
+}
+
+// ══════════════════════════════════════════════════════════════
+// LOADS & COMBINATIONS (GET /db/stld, GET /db/lcom-gen)
+// ══════════════════════════════════════════════════════════════
+async function fetchLoads() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+
+    showProgress("Fetching Load Data", "Reading static loads and combinations...", "Step 1/2: Static load cases...");
+    updateProgress(20);
+
+    try {
+        // Step 1: Static Load Cases - GET /db/stld
+        const stldData = await midasAPI("GET", "/db/stld");
+        updateProgress(50, "Step 2/2: Load combinations...");
+
+        // Step 2: Load Combinations - GET /db/lcom-gen
+        const lcomData = await midasAPI("GET", "/db/lcom-gen");
+
+        updateProgress(80, "Processing data...");
+
+        // Parse Static Load Cases
+        const stldObj = stldData.STLD || stldData;
+        const stldHeaders = ["ID", "Name", "Type", "Description"];
+        const stldRows = [];
+        for (const [id, val] of Object.entries(stldObj)) {
+            if (typeof val === "object" && val !== null) {
+                stldRows.push([
+                    id,
+                    val.NAME || val.name || "-",
+                    val.TYPE || val.type || "-",
+                    val.DESC || val.desc || val.DESCRIPTION || "-"
+                ]);
+            } else {
+                // Simple format: key = name string
+                stldRows.push([id, String(val), "-", "-"]);
+            }
+        }
+        stldRows.sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+        renderTable("stldTable", stldHeaders, stldRows);
+        document.getElementById("stldCount").textContent = `${stldRows.length} load cases`;
+
+        // Parse Load Combinations
+        const lcomObj = lcomData["LCOM-GEN"] || lcomData.LCOM || lcomData;
+        const lcomHeaders = ["ID", "Name", "Type", "Active", "Load Cases & Factors"];
+        const lcomRows = [];
+        for (const [id, val] of Object.entries(lcomObj)) {
+            if (typeof val !== "object" || val === null) continue;
+            const name = val.NAME || val.name || "-";
+            const type = val.iTYPE !== undefined ? ["Add","Envelope","ABS","SRSS","Range"][val.iTYPE] || String(val.iTYPE) :
+                         (val.TYPE || val.type || "-");
+            const active = val.bACTIVE !== undefined ? (val.bACTIVE ? "Yes" : "No") :
+                           (val.ACTIVE !== undefined ? String(val.ACTIVE) : "-");
+
+            // Parse load case factors
+            let factors = "-";
+            const vCOMB = val.vCOMB || val.COMB || val.FACTORS || [];
+            if (Array.isArray(vCOMB) && vCOMB.length > 0) {
+                factors = vCOMB.map(c => {
+                    if (typeof c === "object") {
+                        const lcName = c.LCNAME || c.lcname || c.NAME || c.name || "?";
+                        const fac = c.FACTOR !== undefined ? c.FACTOR : (c.factor !== undefined ? c.factor : 1);
+                        return `${fac}x${lcName}`;
+                    }
+                    return String(c);
+                }).join(" + ");
+            }
+
+            lcomRows.push([id, name, type, active, factors]);
+        }
+        lcomRows.sort((a, b) => parseInt(a[0]) - parseInt(b[0]));
+        renderTable("lcomTable", lcomHeaders, lcomRows);
+        document.getElementById("lcomCount").textContent = `${lcomRows.length} combinations`;
+
+        document.getElementById("loadsResultsArea").style.display = "block";
+        document.getElementById("loadsEmpty").style.display = "none";
+
+        // ─── Populate Drift & Reaction dropdowns with fetched load case names ───
+        // Build name list: "Name(ST)" format matching MIDAS convention
+        fetchedLoadCaseNames = stldRows.map(r => {
+            const name = r[1];
+            return name.includes("(") ? name : `${name}(ST)`;
+        });
+        fetchedLcomNames = lcomRows.map(r => {
+            const name = r[1];
+            return name;
+        });
+        const allNames = [...fetchedLoadCaseNames, ...fetchedLcomNames];
+
+        // Populate Drift multi-select
+        const driftSelect = document.getElementById("driftLoadCases");
+        driftSelect.innerHTML = "";
+        allNames.forEach(n => {
+            const opt = document.createElement("option");
+            opt.value = n; opt.textContent = n;
+            driftSelect.appendChild(opt);
+        });
+
+        // Populate Reaction dropdown
+        const rxSelect = document.getElementById("reactionLoadCase");
+        rxSelect.innerHTML = "";
+        allNames.forEach(n => {
+            const opt = document.createElement("option");
+            opt.value = n; opt.textContent = n;
+            rxSelect.appendChild(opt);
+        });
+
+        updateProgress(100, "Done!");
+        showToast(`${stldRows.length} load cases, ${lcomRows.length} combinations — dropdowns updated`);
     } catch (err) {
-        showToast("Beam design failed: " + err.message, "error");
+        showToast("Failed: " + err.message, "error");
     }
     setTimeout(hideProgress, 400);
 }

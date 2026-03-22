@@ -1,0 +1,63 @@
+{
+  "name": "midas-gen-dashboard",
+  "version": "1.0.0",
+  "description": "MIDAS Gen NX API Dashboard - Electron Desktop App",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "server": "python server.py",
+    "dev": "concurrently \"python server.py\" \"wait-on http://localhost:5000 && electron .\"",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:mac": "electron-builder --mac",
+    "build:linux": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.midas.gen-dashboard",
+    "productName": "MIDAS Gen Dashboard",
+    "files": [
+      "main.js",
+      "preload.js",
+      "index.html",
+      "server.py",
+      "requirements.txt",
+      "beam.py",
+      "beam_solver.py",
+      "beam_force.py",
+      "drift_plot.py",
+      "drift_plot_multiple.py",
+      "rs_drift_plot_multiple.py",
+      "modes.py",
+      "irregularity.py",
+      "member_length.py",
+      "check.py",
+      "foundation/**/*"
+    ],
+    "win": {
+      "target": "nsis",
+      "icon": null
+    },
+    "mac": {
+      "target": "dmg"
+    },
+    "linux": {
+      "target": "AppImage"
+    },
+    "extraResources": [
+      {
+        "from": ".",
+        "to": "app",
+        "filter": ["*.py", "foundation/**/*.py", "requirements.txt"]
+      }
+    ]
+  },
+  "keywords": ["midas", "structural-engineering", "electron", "dashboard"],
+  "author": "Albert Pamonag",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0",
+    "concurrently": "^9.0.0",
+    "wait-on": "^8.0.0"
+  }
+}

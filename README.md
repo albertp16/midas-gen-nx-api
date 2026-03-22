@@ -1,1 +1,63 @@
-# midas-gen-nx-api
+# MIDAS Gen NX API Dashboard
+
+A web-based structural engineering dashboard that interfaces with MIDAS Gen via its REST API for post-processing analysis results, visualizing reactions, story drift, and performing ACI beam design.
+
+## Features
+
+### Dashboard (index.html)
+- **API Connection** - Connect to MIDAS Gen using MAPI-Key with live connection status
+- **Overview** - Model statistics (nodes, elements, materials, sections), run analysis with status indicator
+- **Story Drift** - Plot drift ratios for multiple load cases (X/Y direction) with allowable limit overlay, show/hide values toggle, download as image
+- **Reaction Forces** - 2D plan view and 3D bar chart of foundation reactions with all force components (FX, FY, FZ, MX, MY, MZ), download images, full data table
+- **Beam Results** - ACI beam design following BEAM DESIGNER format:
+  - Headers: id, length, width, height, fc, fy, fys, nib/nmb/njb, nit/nmt/njt, db, shear (future), moment demand/capacity/ratio, status
+  - Editable per-beam: width, height, fc, fy, nib, db (double-click to edit)
+  - Rerun design with per-element overrides without re-fetching API data
+  - Pass/Fail status badge, copy to clipboard, export CSV
+- **Column Results** - Column force/stress/deformation tables
+- **Fiber Automation** - Fiber section analysis workflow
+
+### 3D Reaction Visualization
+- Solid box rendering with proper back-face culling and face shading
+- Mouse drag rotation, scroll wheel zoom, touch support
+- Isometric default view (25 deg tilt, -45 deg rotation)
+- Max/Min callouts with node labels
+
+### Python Scripts
+| Script | Description |
+|--------|-------------|
+| `beam.py` | Concrete beam design (rebar area, flexural capacity) |
+| `beam_solver.py` | ACI beam solver (beta factor, strain analysis, reduction factors) |
+| `beam_force.py` | Extract beam forces from MIDAS API |
+| `drift_plot.py` | Single load case story drift plot |
+| `drift_plot_multiple.py` | Multi-case story drift comparison |
+| `rs_drift_plot_multiple.py` | Response spectrum drift analysis |
+| `foundation/reaction.py` | 2D reaction force visualization |
+| `foundation/reaction_demo.py` | 3D Plotly reaction visualization |
+| `foundation/reaction_midas_ui.py` | Advanced 3D reaction with auto-foundation detection |
+| `member_length.py` | Element length computation from node coordinates |
+| `modes.py` | Vibration mode analysis and screenshots |
+| `irregularity.py` | Building irregularity checks |
+
+## Usage
+
+1. Open `index.html` in a browser
+2. Enter your MIDAS Gen MAPI-Key and click **Connect**
+3. Navigate using the sidebar to access different result modules
+4. Run Analysis from the Overview page, then fetch results from each tab
+
+## Units
+
+- Force: kN
+- Distance: m (API), mm (beam design inputs)
+- Moment: kN.m
+
+## Requirements
+
+- MIDAS Gen with API access enabled
+- Modern web browser (Chrome, Edge, Firefox)
+- Python 3.x with `requests`, `pandas`, `matplotlib`, `plotly` (for standalone scripts)
+
+## License
+
+See [LICENSE](LICENSE) file.
