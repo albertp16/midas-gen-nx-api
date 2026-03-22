@@ -357,8 +357,9 @@
             border: 1px solid var(--border); border-radius: var(--radius);
             overflow: hidden;
         }
-        .canvas-3d-wrap canvas { display: block; cursor: grab; }
+        .canvas-3d-wrap canvas { display: block; cursor: grab; touch-action: none; }
         .canvas-3d-wrap canvas:active { cursor: grabbing; }
+        .canvas-3d-wrap canvas.dragging { cursor: grabbing; }
         .canvas-3d-controls {
             position: absolute; top: 12px; right: 12px;
             display: flex; flex-direction: column; gap: 4px;
@@ -535,6 +536,16 @@
                 </div>
             </div>
             <div class="chart-wrapper" id="driftChartWrapper" style="display:none;">
+                <div style="display:flex; gap:8px; margin-bottom:8px; justify-content:flex-end; width:100%;">
+                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer;">
+                        <input type="checkbox" id="driftShowValues" checked onchange="redrawDriftIfReady()" style="accent-color:var(--accent-blue);" />
+                        Show Values
+                    </label>
+                    <button class="btn btn-ghost btn-sm" onclick="downloadCanvas('driftCanvas','story_drift.png')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Download Image
+                    </button>
+                </div>
                 <canvas id="driftCanvas" width="750" height="500"></canvas>
                 <div class="chart-legend" id="driftLegend"></div>
             </div>
@@ -585,11 +596,23 @@
                     </div>
                     <div id="rxView2d" class="reaction-chart-panel active">
                         <div class="chart-wrapper" style="border:none; border-radius:0;">
+                            <div style="display:flex; gap:8px; margin-bottom:8px; justify-content:flex-end; width:100%;">
+                                <button class="btn btn-ghost btn-sm" onclick="downloadCanvas('reaction2dCanvas','reaction_2d.png')">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                    Download Image
+                                </button>
+                            </div>
                             <canvas id="reaction2dCanvas" width="700" height="600"></canvas>
                         </div>
                     </div>
                     <div id="rxView3d" class="reaction-chart-panel">
                         <div class="canvas-3d-wrap">
+                            <div style="display:flex; gap:8px; padding:8px 12px; justify-content:flex-end; position:absolute; top:0; left:0; right:50px; z-index:5;">
+                                <button class="btn btn-ghost btn-sm" style="background:rgba(22,27,34,0.85);" onclick="downloadCanvas('reaction3dCanvas','reaction_3d.png')">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                    Download
+                                </button>
+                            </div>
                             <canvas id="reaction3dCanvas" width="800" height="550"></canvas>
                             <div class="canvas-3d-controls">
                                 <button onclick="rx3d.rotY-=15;drawReaction3D()" title="Rotate Left">&#8592;</button>
@@ -992,6 +1015,12 @@ function exportBeamCSV() {
 // ══════════════════════════════════════════════════════════════
 const COLORS = ["#58a6ff","#3fb950","#f0883e","#f85149","#d2a8ff","#79c0ff","#d29922","#ff7b72"];
 
+// Cache last drift data for redraw
+let lastDriftSeries = null, lastDriftStories = null, lastDriftAllowable = 0, lastDriftDir = "";
+function redrawDriftIfReady() {
+    if (lastDriftSeries) drawDriftChart(lastDriftSeries, lastDriftStories, lastDriftAllowable, lastDriftDir);
+}
+
 function storyNo(s) {
     s = String(s).trim().toUpperCase();
     if (s.includes("BASE")) return 0;
@@ -1041,6 +1070,9 @@ async function plotDrift() {
 }
 
 function drawDriftChart(seriesArr, stories, allowable, dirLabel) {
+    // Cache for redraw
+    lastDriftSeries = seriesArr; lastDriftStories = stories; lastDriftAllowable = allowable; lastDriftDir = dirLabel;
+    const showValues = document.getElementById("driftShowValues") ? document.getElementById("driftShowValues").checked : true;
     const canvas = document.getElementById("driftCanvas");
     const dpr = window.devicePixelRatio || 1;
     const W = 750, H = 500;
@@ -1071,7 +1103,18 @@ function drawDriftChart(seriesArr, stories, allowable, dirLabel) {
         if (!pts.length) return;
         ctx.strokeStyle=c; ctx.lineWidth=2; ctx.beginPath(); ctx.moveTo(pts[0].x,pts[0].y);
         pts.slice(1).forEach(p => ctx.lineTo(p.x,p.y)); ctx.stroke();
-        pts.forEach(p => { ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2); ctx.fillStyle=c; ctx.fill(); ctx.strokeStyle="#0d1117"; ctx.lineWidth=1.5; ctx.stroke(); });
+        pts.forEach((p, pi) => {
+            ctx.beginPath(); ctx.arc(p.x,p.y,4,0,Math.PI*2); ctx.fillStyle=c; ctx.fill(); ctx.strokeStyle="#0d1117"; ctx.lineWidth=1.5; ctx.stroke();
+            if (showValues) {
+                const d = s.data.filter(d => idxMap[d.StoryNo]!==undefined)[pi];
+                if (d && d.ratio > 0) {
+                    ctx.fillStyle=c; ctx.font="bold 9px 'Consolas',monospace"; ctx.textAlign="left"; ctx.textBaseline="middle";
+                    ctx.strokeStyle="#0d1117"; ctx.lineWidth=2;
+                    const txt = d.ratio.toFixed(5);
+                    ctx.strokeText(txt, p.x+7, p.y); ctx.fillText(txt, p.x+7, p.y);
+                }
+            }
+        });
     });
     ctx.fillStyle="#f0f6fc"; ctx.font="bold 14px 'Segoe UI',sans-serif"; ctx.textAlign="center"; ctx.textBaseline="top";
     ctx.fillText(`Story Drift Ratio - ${dirLabel} Direction`,W/2,10);
@@ -1502,12 +1545,76 @@ function drawReaction3D() {
     ctx.textAlign = "center"; ctx.textBaseline = "top";
     ctx.fillText("3D Reaction Forces at Foundation", W/2, 10);
     ctx.fillStyle = "#8b949e"; ctx.font = "11px 'Segoe UI',sans-serif";
-    ctx.fillText("Drag controls to rotate | Use +/- to zoom", W/2, 28);
+    ctx.fillText("Drag to rotate | Scroll to zoom", W/2, 28);
+}
+
+// ── 3D Mouse Drag Rotation ──
+(function() {
+    let dragging = false, lastX = 0, lastY = 0;
+    const c = document.getElementById("reaction3dCanvas");
+    c.addEventListener("mousedown", e => { dragging = true; lastX = e.clientX; lastY = e.clientY; c.classList.add("dragging"); });
+    window.addEventListener("mousemove", e => {
+        if (!dragging) return;
+        const dx = e.clientX - lastX, dy = e.clientY - lastY;
+        rx3d.rotY += dx * 0.5;
+        rx3d.rotX += dy * 0.5;
+        lastX = e.clientX; lastY = e.clientY;
+        drawReaction3D();
+    });
+    window.addEventListener("mouseup", () => { dragging = false; c.classList.remove("dragging"); });
+    c.addEventListener("wheel", e => {
+        e.preventDefault();
+        rx3d.zoom *= e.deltaY < 0 ? 1.08 : 0.92;
+        rx3d.zoom = Math.max(0.3, Math.min(5, rx3d.zoom));
+        drawReaction3D();
+    }, { passive: false });
+    // Touch support
+    let lastTouch = null;
+    c.addEventListener("touchstart", e => { if (e.touches.length === 1) { lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY }; } });
+    c.addEventListener("touchmove", e => {
+        if (!lastTouch || e.touches.length !== 1) return;
+        e.preventDefault();
+        const dx = e.touches[0].clientX - lastTouch.x, dy = e.touches[0].clientY - lastTouch.y;
+        rx3d.rotY += dx * 0.5; rx3d.rotX += dy * 0.5;
+        lastTouch = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        drawReaction3D();
+    }, { passive: false });
+    c.addEventListener("touchend", () => { lastTouch = null; });
+})();
+
+// ── Download Canvas as Image ──
+function downloadCanvas(canvasId, filename) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const link = document.createElement("a");
+    link.download = filename || "chart.png";
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+    showToast("Image downloaded!");
 }
 
 function renderReactionTable(data, head, rows, comp) {
-    const headers = ["Node","X (m)","Y (m)","Z (m)", comp + " (kN)"];
-    const tableRows = data.map(d => [d[0], d[1].toFixed(3), d[2].toFixed(3), d[3].toFixed(3), d[4].toFixed(3)]);
+    const unit = ["FX","FY","FZ"].includes(comp) ? "kN" : "kN.m";
+    const headers = ["Node","X (m)","Y (m)","Z (m)", "FX (kN)", "FY (kN)", "FZ (kN)", "MX (kN.m)", "MY (kN.m)", "MZ (kN.m)"];
+    // Build a map from head to index for all force components
+    const compList = ["FX","FY","FZ","MX","MY","MZ"];
+    const compIdx = {};
+    for (const c of compList) { compIdx[c] = head.indexOf(c); }
+    const idxNode = head.indexOf("Node");
+    // Build node -> full row map from raw API rows
+    const nodeForceMap = {};
+    for (const row of rows) {
+        const nid = String(row[idxNode]);
+        const forces = {};
+        for (const c of compList) { forces[c] = compIdx[c] >= 0 ? (parseFloat(row[compIdx[c]]) || 0) : 0; }
+        nodeForceMap[nid] = forces;
+    }
+    const tableRows = data.map(d => {
+        const nf = nodeForceMap[String(d[0])] || {};
+        return [d[0], d[1].toFixed(3), d[2].toFixed(3), d[3].toFixed(3),
+            (nf.FX||0).toFixed(3), (nf.FY||0).toFixed(3), (nf.FZ||0).toFixed(3),
+            (nf.MX||0).toFixed(3), (nf.MY||0).toFixed(3), (nf.MZ||0).toFixed(3)];
+    });
     renderTable("reactionTable", headers, tableRows);
 }
 
@@ -1734,7 +1841,7 @@ async function runBeamDesign() {
         const maxPerLayer = BS.nlayersMax(bw, cover, dbs, db, sp);
 
         const headers = [
-            "Beam ID", "Beam Height\n(mm)", "Beam Width\n(mm)", "f'c\n(MPa)", "fy\n(MPa)",
+            "Beam ID", "Length\n(m)", "Beam Height\n(mm)", "Beam Width\n(mm)", "f'c\n(MPa)", "fy\n(MPa)",
             "db", "dbs", "eff. depth\n(mm)", "Steel Area\n(sq.mm)",
             "aprR", "Mpr_i (L)\n(kN.m)", "Mpr_j (L)\n(kN.m)",
             "Vpr (L)\n(kN)", "Vg (L)\n(kN)", "Ve (L)\n(kN)",
@@ -1798,7 +1905,7 @@ async function runBeamDesign() {
             const statusLabel = pass ? "PASS" : "FAIL";
 
             resultRows.push([
-                elem, h.toFixed(0), bw.toFixed(0), fc.toFixed(3), fy.toFixed(3),
+                elem, Ln.toFixed(3), h.toFixed(0), bw.toFixed(0), fc.toFixed(3), fy.toFixed(3),
                 db, dbs, effDepth.toFixed(1), steelArea.toFixed(2),
                 aprR.toFixed(2),
                 Mpr_iL.toFixed(2), Mpr_jL.toFixed(2), Vpr_L.toFixed(2), Vg_L.toFixed(2), Ve_L.toFixed(2),
