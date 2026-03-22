@@ -835,7 +835,16 @@ Roof, 15.00, 0.00, Consider
                             </button>
                         </div>
                     </div>
-                    <canvas id="beamFrameCanvas" width="800" height="600"></canvas>
+                    <div style="display:flex; gap:16px; flex-wrap:wrap; width:100%;">
+                        <div style="flex:1; min-width:380px;">
+                            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;text-align:center;">Element IDs</div>
+                            <canvas id="beamFrameCanvas" width="800" height="600"></canvas>
+                        </div>
+                        <div style="flex:1; min-width:380px;">
+                            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;text-align:center;">Beam Tags</div>
+                            <canvas id="beamTagCanvas" width="800" height="600"></canvas>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="table-wrap">
@@ -1227,6 +1236,8 @@ let cachedBeamForces = null;
 // Store all beam result rows for floor filtering
 let allBeamResultRows = [];
 let allBeamHeaders = [];
+// Beam tag map: elemId -> tag string (e.g., "2FG1")
+let beamTagMap = {};
 
 // ══════════════════════════════════════════════════════════════
 // STORY DATA
@@ -1584,17 +1595,20 @@ function drawBeamFramePlot() {
         displayRows = allBeamResultRows.filter(r => allowed.has(String(r[0])));
     }
 
-    // Build pass/fail map: elemId -> "PASS" | "FAIL"
+    // Build pass/fail and tag maps
     const statusMap = {};
-    displayRows.forEach(r => { statusMap[String(r[0])] = r[r.length - 1]; });
+    const tagMap = {};
+    displayRows.forEach(r => {
+        statusMap[String(r[0])] = r[r.length - 1];
+        tagMap[String(r[0])] = String(r[1]); // tag is at index 1
+    });
 
-    const showIds = document.getElementById("beamPlotShowIds").checked;
+    const showLabels = document.getElementById("beamPlotShowIds").checked;
     const showNodes = document.getElementById("beamPlotShowNodes").checked;
 
     // Collect beam coordinates
-    const beams = []; // { eid, x1, y1, x2, y2, status }
-    const nodeSet = new Set();
-    const nodeCoords = {}; // nid -> { x, y }
+    const beams = [];
+    const nodeCoords = {};
 
     for (const eid of Object.keys(statusMap)) {
         const e = cachedElemDict[eid];
@@ -1604,24 +1618,30 @@ function drawBeamFramePlot() {
         const ni = cachedNodeDict[String(conn[0])] || cachedNodeDict[conn[0]];
         const nj = cachedNodeDict[String(conn[1])] || cachedNodeDict[conn[1]];
         if (!ni || !nj) continue;
-
         const x1 = parseFloat(ni.X), y1 = parseFloat(ni.Y);
         const x2 = parseFloat(nj.X), y2 = parseFloat(nj.Y);
-        beams.push({ eid, x1, y1, x2, y2, status: statusMap[eid] });
-        nodeSet.add(String(conn[0]));
-        nodeSet.add(String(conn[1]));
+        beams.push({ eid, tag: tagMap[eid] || eid, x1, y1, x2, y2, status: statusMap[eid] });
         nodeCoords[String(conn[0])] = { x: x1, y: y1 };
         nodeCoords[String(conn[1])] = { x: x2, y: y2 };
     }
 
-    if (!beams.length) {
-        showToast("No beams to plot", "error"); return;
-    }
+    if (!beams.length) { showToast("No beams to plot", "error"); return; }
 
-    // Canvas setup
-    const wrapper = document.getElementById("beamFrameWrapper");
-    wrapper.style.display = "flex";
-    const canvas = document.getElementById("beamFrameCanvas");
+    document.getElementById("beamFrameWrapper").style.display = "flex";
+
+    const passCount = displayRows.filter(r => r[r.length-1] === "PASS").length;
+    const failCount = displayRows.filter(r => r[r.length-1] === "FAIL").length;
+    const subtitle = `${displayRows.length} beams — ${passCount} pass, ${failCount} fail`;
+    const titleBase = floorFilter === "ALL" ? "All Floors" : floorFilter;
+
+    // Draw both canvases
+    _drawBeamFrame("beamFrameCanvas", beams, nodeCoords, showLabels, showNodes, "eid", `${titleBase} — Element IDs`, subtitle);
+    _drawBeamFrame("beamTagCanvas", beams, nodeCoords, showLabels, showNodes, "tag", `${titleBase} — Beam Tags`, subtitle);
+}
+
+function _drawBeamFrame(canvasId, beams, nodeCoords, showLabels, showNodes, labelField, title, subtitle) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
     const dpr = window.devicePixelRatio || 1;
     const W = 800, H = 600;
     canvas.width = W * dpr; canvas.height = H * dpr;
@@ -1629,129 +1649,90 @@ function drawBeamFramePlot() {
     const ctx = canvas.getContext("2d");
     ctx.scale(dpr, dpr);
     ctx.clearRect(0, 0, W, H);
+    ctx.fillStyle = "#0d1117"; ctx.fillRect(0, 0, W, H);
 
-    // Background
-    ctx.fillStyle = "#0d1117";
-    ctx.fillRect(0, 0, W, H);
-
-    // Compute bounds
+    // Bounds
     let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
     beams.forEach(b => {
         xMin = Math.min(xMin, b.x1, b.x2); xMax = Math.max(xMax, b.x1, b.x2);
         yMin = Math.min(yMin, b.y1, b.y2); yMax = Math.max(yMax, b.y1, b.y2);
     });
-
     const margin = { top: 50, right: 40, bottom: 40, left: 60 };
     const plotW = W - margin.left - margin.right;
     const plotH = H - margin.top - margin.bottom;
+    const dataW = xMax - xMin || 1, dataH = yMax - yMin || 1;
+    const scale = Math.min(plotW / dataW, plotH / dataH) * 0.9;
+    const cx = margin.left + plotW / 2, cy = margin.top + plotH / 2;
+    const dataCX = (xMin + xMax) / 2, dataCY = (yMin + yMax) / 2;
+    const toX = x => cx + (x - dataCX) * scale;
+    const toY = y => cy - (y - dataCY) * scale;
 
-    // Maintain aspect ratio
-    const dataW = xMax - xMin || 1;
-    const dataH = yMax - yMin || 1;
-    const scaleX = plotW / dataW;
-    const scaleY = plotH / dataH;
-    const scale = Math.min(scaleX, scaleY) * 0.9;
-    const cx = margin.left + plotW / 2;
-    const cy = margin.top + plotH / 2;
-    const dataCX = (xMin + xMax) / 2;
-    const dataCY = (yMin + yMax) / 2;
-
-    function toScreenX(x) { return cx + (x - dataCX) * scale; }
-    function toScreenY(y) { return cy - (y - dataCY) * scale; } // flip Y
-
-    // Draw grid lines
-    ctx.strokeStyle = "#21262d";
-    ctx.lineWidth = 0.5;
+    // Grid
+    ctx.strokeStyle = "#21262d"; ctx.lineWidth = 0.5;
     const gridStep = Math.pow(10, Math.floor(Math.log10(Math.max(dataW, dataH) / 5)));
-    const gxStart = Math.floor(xMin / gridStep) * gridStep;
-    const gyStart = Math.floor(yMin / gridStep) * gridStep;
-    ctx.font = "9px 'Segoe UI',sans-serif";
-    ctx.fillStyle = "#484f58";
-    for (let gx = gxStart; gx <= xMax + gridStep; gx += gridStep) {
-        const sx = toScreenX(gx);
-        if (sx < margin.left || sx > W - margin.right) continue;
-        ctx.beginPath(); ctx.moveTo(sx, margin.top); ctx.lineTo(sx, H - margin.bottom); ctx.stroke();
-        ctx.textAlign = "center"; ctx.textBaseline = "top";
-        ctx.fillText(gx.toFixed(1), sx, H - margin.bottom + 4);
+    ctx.font = "9px 'Segoe UI',sans-serif"; ctx.fillStyle = "#484f58";
+    for (let gx = Math.floor(xMin/gridStep)*gridStep; gx <= xMax+gridStep; gx += gridStep) {
+        const sx = toX(gx); if (sx < margin.left || sx > W-margin.right) continue;
+        ctx.beginPath(); ctx.moveTo(sx, margin.top); ctx.lineTo(sx, H-margin.bottom); ctx.stroke();
+        ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.fillText(gx.toFixed(1), sx, H-margin.bottom+4);
     }
-    for (let gy = gyStart; gy <= yMax + gridStep; gy += gridStep) {
-        const sy = toScreenY(gy);
-        if (sy < margin.top || sy > H - margin.bottom) continue;
-        ctx.beginPath(); ctx.moveTo(margin.left, sy); ctx.lineTo(W - margin.right, sy); ctx.stroke();
-        ctx.textAlign = "right"; ctx.textBaseline = "middle";
-        ctx.fillText(gy.toFixed(1), margin.left - 6, sy);
+    for (let gy = Math.floor(yMin/gridStep)*gridStep; gy <= yMax+gridStep; gy += gridStep) {
+        const sy = toY(gy); if (sy < margin.top || sy > H-margin.bottom) continue;
+        ctx.beginPath(); ctx.moveTo(margin.left, sy); ctx.lineTo(W-margin.right, sy); ctx.stroke();
+        ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.fillText(gy.toFixed(1), margin.left-6, sy);
     }
 
-    // Draw beams
-    const passColor = "#3fb950";
-    const failColor = "#f85149";
-
+    // Beams
+    const passColor = "#3fb950", failColor = "#f85149";
     beams.forEach(b => {
-        const sx1 = toScreenX(b.x1), sy1 = toScreenY(b.y1);
-        const sx2 = toScreenX(b.x2), sy2 = toScreenY(b.y2);
+        const sx1 = toX(b.x1), sy1 = toY(b.y1), sx2 = toX(b.x2), sy2 = toY(b.y2);
         const color = b.status === "PASS" ? passColor : failColor;
-
-        // Beam line
-        ctx.strokeStyle = color;
-        ctx.lineWidth = b.status === "FAIL" ? 3 : 2;
+        ctx.strokeStyle = color; ctx.lineWidth = b.status === "FAIL" ? 3 : 2;
         ctx.beginPath(); ctx.moveTo(sx1, sy1); ctx.lineTo(sx2, sy2); ctx.stroke();
 
-        // Element ID label at midpoint
-        if (showIds) {
-            const mx = (sx1 + sx2) / 2;
-            const my = (sy1 + sy2) / 2;
+        if (showLabels) {
+            const mx = (sx1+sx2)/2, my = (sy1+sy2)/2;
+            const label = b[labelField] || b.eid;
             ctx.font = "bold 9px 'Consolas',monospace";
             ctx.textAlign = "center"; ctx.textBaseline = "middle";
-            // Background pill for readability
-            const tw = ctx.measureText(b.eid).width + 6;
+            const tw = ctx.measureText(label).width + 6;
             ctx.fillStyle = "rgba(13,17,23,0.85)";
-            const rx = mx - tw/2, ry = my - 7, rw = tw, rh = 14, rr = 3;
+            const rx = mx-tw/2, ry = my-7, rw = tw, rh = 14, rr = 3;
             ctx.beginPath();
             if (ctx.roundRect) { ctx.roundRect(rx, ry, rw, rh, rr); }
             else { ctx.moveTo(rx+rr,ry); ctx.lineTo(rx+rw-rr,ry); ctx.arcTo(rx+rw,ry,rx+rw,ry+rr,rr); ctx.lineTo(rx+rw,ry+rh-rr); ctx.arcTo(rx+rw,ry+rh,rx+rw-rr,ry+rh,rr); ctx.lineTo(rx+rr,ry+rh); ctx.arcTo(rx,ry+rh,rx,ry+rh-rr,rr); ctx.lineTo(rx,ry+rr); ctx.arcTo(rx,ry,rx+rr,ry,rr); ctx.closePath(); }
             ctx.fill();
             ctx.fillStyle = color;
-            ctx.fillText(b.eid, mx, my);
+            ctx.fillText(label, mx, my);
         }
     });
 
-    // Draw nodes
+    // Nodes
     if (showNodes) {
         ctx.font = "8px 'Consolas',monospace";
-        for (const [nid, coord] of Object.entries(nodeCoords)) {
-            const sx = toScreenX(coord.x), sy = toScreenY(coord.y);
-            ctx.fillStyle = "#58a6ff";
-            ctx.beginPath(); ctx.arc(sx, sy, 3, 0, Math.PI * 2); ctx.fill();
-            ctx.fillStyle = "#8b949e";
-            ctx.textAlign = "left"; ctx.textBaseline = "bottom";
-            ctx.fillText(nid, sx + 5, sy - 3);
+        for (const [nid, c] of Object.entries(nodeCoords)) {
+            const sx = toX(c.x), sy = toY(c.y);
+            ctx.fillStyle = "#58a6ff"; ctx.beginPath(); ctx.arc(sx, sy, 3, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "#8b949e"; ctx.textAlign = "left"; ctx.textBaseline = "bottom";
+            ctx.fillText(nid, sx+5, sy-3);
         }
     } else {
-        // Just draw small dots at nodes
-        for (const coord of Object.values(nodeCoords)) {
-            const sx = toScreenX(coord.x), sy = toScreenY(coord.y);
-            ctx.fillStyle = "#484f58";
-            ctx.beginPath(); ctx.arc(sx, sy, 2, 0, Math.PI * 2); ctx.fill();
+        for (const c of Object.values(nodeCoords)) {
+            const sx = toX(c.x), sy = toY(c.y);
+            ctx.fillStyle = "#484f58"; ctx.beginPath(); ctx.arc(sx, sy, 2, 0, Math.PI*2); ctx.fill();
         }
     }
 
-    // Title
-    const titleText = floorFilter === "ALL" ? "All Floors — Beam Frame Plan" : `${floorFilter} — Beam Frame Plan`;
+    // Title & subtitle
     ctx.fillStyle = "#f0f6fc"; ctx.font = "bold 14px 'Segoe UI',sans-serif";
-    ctx.textAlign = "center"; ctx.textBaseline = "top";
-    ctx.fillText(titleText, W / 2, 12);
-
-    // Stats subtitle
-    const passCount = displayRows.filter(r => r[r.length-1] === "PASS").length;
-    const failCount = displayRows.filter(r => r[r.length-1] === "FAIL").length;
+    ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.fillText(title, W/2, 12);
     ctx.fillStyle = "#8b949e"; ctx.font = "11px 'Segoe UI',sans-serif";
-    ctx.fillText(`${displayRows.length} beams — ${passCount} pass, ${failCount} fail`, W / 2, 30);
+    ctx.fillText(subtitle, W/2, 30);
 
     // Axis labels
     ctx.fillStyle = "#8b949e"; ctx.font = "11px 'Segoe UI',sans-serif";
-    ctx.textAlign = "center"; ctx.textBaseline = "top";
-    ctx.fillText("X (m)", W / 2, H - 12);
-    ctx.save(); ctx.translate(14, margin.top + plotH / 2); ctx.rotate(-Math.PI / 2);
+    ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.fillText("X (m)", W/2, H-12);
+    ctx.save(); ctx.translate(14, margin.top+plotH/2); ctx.rotate(-Math.PI/2);
     ctx.fillText("Y (m)", 0, 0); ctx.restore();
 }
 
@@ -2739,9 +2720,11 @@ async function runBeamDesign() {
 }
 
 // Column indices for editable fields (matching headers below)
-// 0=id, 1=length, 2=width, 3=height, 4=fc, 5=fy, 6=fys, 7=nib, 8=nmb, 9=njb, 10=nit, 11=nmt, 12=njt, 13=db
-// All except id(0), length(1), and shear placeholders(14-20)
-const BEAM_EDITABLE_COLS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13];
+// 0=id, 1=tag, 2=length, 3=width, 4=height, 5=fc, 6=fy, 7=fys,
+// 8=nib, 9=nmb, 10=njb, 11=nit, 12=nmt, 13=njt, 14=db,
+// 15=vdb, 16=vns_i, 17=vns_m, 18=vns_j, 19=vs_i, 20=vs_m, 21=vs_j,
+// 22-24=mdi/mdm/mdj, 25-27=mci/mcm/mcj, 28-30=mri/mrm/mrj, 31=Status
+const BEAM_EDITABLE_COLS = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18];
 
 function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, overrides) {
     const h0 = parseFloat(document.getElementById("bmHeight").value);
@@ -2755,13 +2738,14 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
     const frameType = document.getElementById("bmFrameType").value;
     const fys = 275.79; // shear rebar yield strength (default)
 
-    // Headers matching PDF: id, length, width, height, fc, fy, fys,
+    // Headers: id, tag, length, width, height, fc, fy, fys,
     // nib, nmb, njb, nit, nmt, njt, db,
-    // shear cols (future), moment demand/capacity/ratio, status
+    // vdb, vns_i, vns_m, vns_j, vs_i, vs_m, vs_j,
+    // moment demand/capacity/ratio, status
     const headers = [
-        "id", "length\n(m)", "width\n(mm)", "height\n(mm)", "fc\n(MPa)", "fy\n(MPa)", "fys\n(MPa)",
+        "id", "tag", "length\n(m)", "width\n(mm)", "height\n(mm)", "fc\n(MPa)", "fy\n(MPa)", "fys\n(MPa)",
         "nib", "nmb", "njb", "nit", "nmt", "njt", "db",
-        "vdb", "vns_i", "vns_m", "vns_j", "vs_i", "vs_m", "vs_j",
+        "vdb\n(mm)", "vns_i", "vns_m", "vns_j", "vs_i", "vs_m", "vs_j",
         "mdi\n(kN.m)", "mdm\n(kN.m)", "mdj\n(kN.m)",
         "mci\n(kN.m)", "mcm\n(kN.m)", "mcj\n(kN.m)",
         "mri", "mrm", "mrj", "Status"
@@ -2771,6 +2755,19 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
     const allElems = new Set([...Object.keys(seisForces), ...Object.keys(gravForces)]);
     const editedElems = new Set();
     let failCount = 0, totalCount = 0;
+
+    // Generate beam tags: <floor>G<seq> per story
+    // Build floor assignment for each element
+    const elemFloorMap = {}; // elemId -> storyName
+    const floorSeqCounters = {}; // storyName -> running counter
+    if (storyDataCache.length > 0) {
+        for (const [storyName, beamIds] of Object.entries(storyBeamMap)) {
+            floorSeqCounters[storyName] = 0;
+            beamIds.forEach(eid => { elemFloorMap[String(eid)] = storyName; });
+        }
+    }
+    let globalSeq = 0;
+    beamTagMap = {}; // reset
 
     for (const elem of allElems) {
         if (elemTypes[elem] && elemTypes[elem] !== "BEAM") continue;
@@ -2831,10 +2828,32 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
         totalCount++;
         if (!pass) failCount++;
 
+        // Generate beam tag
+        let tag;
+        const ovrTag = ovr ? ovr.tag : null;
+        if (ovrTag) {
+            tag = ovrTag;
+        } else {
+            const floor = elemFloorMap[String(elem)];
+            if (floor) {
+                floorSeqCounters[floor] = (floorSeqCounters[floor] || 0) + 1;
+                tag = `${floor}G${floorSeqCounters[floor]}`;
+            } else {
+                globalSeq++;
+                tag = `G${globalSeq}`;
+            }
+        }
+        beamTagMap[String(elem)] = tag;
+
+        // vns = number of stirrup legs (default 2)
+        const vnsI = ovr && !isNaN(ovr.vns_i) ? ovr.vns_i : 2;
+        const vnsM = ovr && !isNaN(ovr.vns_m) ? ovr.vns_m : 2;
+        const vnsJ = ovr && !isNaN(ovr.vns_j) ? ovr.vns_j : 2;
+
         resultRows.push([
-            elem, Ln.toFixed(3), bw.toFixed(0), h.toFixed(0), fc.toFixed(3), fy.toFixed(3), fys.toFixed(2),
+            elem, tag, Ln.toFixed(3), bw.toFixed(0), h.toFixed(0), fc.toFixed(3), fy.toFixed(3), fys.toFixed(2),
             nI, nM, nJ, nitVal, nmtVal, njtVal, db,
-            "-", "-", "-", "-", "-", "-", "-",
+            dbs, vnsI, vnsM, vnsJ, "-", "-", "-",
             mdi.toFixed(2), mdm.toFixed(2), mdj.toFixed(2),
             mci.toFixed(2), mcm.toFixed(2), mcj.toFixed(2),
             mri.toFixed(3), mrm.toFixed(3), mrj.toFixed(3), pass ? "PASS" : "FAIL"
@@ -2873,7 +2892,7 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
         badge.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-green);margin-right:6px;"></span>${dispTotal}/${dispTotal} PASS`;
     }
 
-    // Make editable columns: width(2), height(3), fc(4), fy(5), nib(7), db(13)
+    // Make editable columns
     const tbody = document.getElementById("beamTable").querySelector("tbody");
     const trs = tbody.querySelectorAll("tr");
     trs.forEach(tr => {
@@ -2888,7 +2907,8 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
             td.addEventListener("dblclick", function() {
                 if (td.querySelector("input")) return;
                 const val = td.textContent;
-                td.innerHTML = `<input type="number" value="${val}" />`;
+                const inputType = ci === 1 ? "text" : "number"; // tag col is text
+                td.innerHTML = `<input type="${inputType}" value="${val}" style="${ci===1?'width:70px;':''}"/>`;
                 const inp = td.querySelector("input");
                 inp.focus(); inp.select();
                 inp.addEventListener("blur", () => { td.textContent = inp.value || val; td.classList.add("edited"); });
@@ -2911,21 +2931,25 @@ function rerunBeamDesign() {
     trs.forEach(tr => {
         const tds = tr.querySelectorAll("td");
         const elemId = tds[0].textContent.trim();
-        // Read all editable values from the table cells
-        // 2=width, 3=height, 4=fc, 5=fy, 6=fys, 7=nib, 8=nmb, 9=njb, 10=nit, 11=nmt, 12=njt, 13=db
+        // Read all editable values from the table cells (shifted +1 for tag column)
+        // 1=tag, 3=width, 4=height, 5=fc, 6=fy, 7=fys, 8=nib..13=njt, 14=db, 16-18=vns
         overrides[elemId] = {
-            bw: parseFloat(tds[2].textContent),
-            h: parseFloat(tds[3].textContent),
-            fc: parseFloat(tds[4].textContent),
-            fy: parseFloat(tds[5].textContent),
-            fys: parseFloat(tds[6].textContent),
-            nib: parseInt(tds[7].textContent),
-            nmb: parseInt(tds[8].textContent),
-            njb: parseInt(tds[9].textContent),
-            nit: parseInt(tds[10].textContent),
-            nmt: parseInt(tds[11].textContent),
-            njt: parseInt(tds[12].textContent),
-            db: parseFloat(tds[13].textContent)
+            tag: tds[1].textContent.trim(),
+            bw: parseFloat(tds[3].textContent),
+            h: parseFloat(tds[4].textContent),
+            fc: parseFloat(tds[5].textContent),
+            fy: parseFloat(tds[6].textContent),
+            fys: parseFloat(tds[7].textContent),
+            nib: parseInt(tds[8].textContent),
+            nmb: parseInt(tds[9].textContent),
+            njb: parseInt(tds[10].textContent),
+            nit: parseInt(tds[11].textContent),
+            nmt: parseInt(tds[12].textContent),
+            njt: parseInt(tds[13].textContent),
+            db: parseFloat(tds[14].textContent),
+            vns_i: parseInt(tds[16].textContent),
+            vns_m: parseInt(tds[17].textContent),
+            vns_j: parseInt(tds[18].textContent)
         };
     });
 
