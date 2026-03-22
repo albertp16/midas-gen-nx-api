@@ -500,7 +500,7 @@
             </ul>
         </div>
 
-        <div class="sidebar-footer"><p>MIDAS Gen NX API v1.0</p></div>
+        <div class="sidebar-footer"><p>MIDAS Gen NX API v1.0</p><p style="margin-top:4px;">APEC Consultancy</p></div>
     </aside>
 
     <!-- Main -->
@@ -1352,8 +1352,8 @@ function extractStoriesFromResponse(data) {
     // Helper: extract a single story entry from an object
     function parseStoryObj(obj, fallbackName) {
         const name = obj.sNAME || obj.NAME || obj.name || obj.STORY_NAME || obj.StoryName || fallbackName || "?";
-        const level = parseFloat(obj.dLEVEL || obj.LEVEL || obj.level || obj.Level || 0);
-        const height = parseFloat(obj.dHEIGHT || obj.HEIGHT || obj.height || obj.Height || 0);
+        const level = parseFloat(obj.dLEVEL || obj.LEVEL || obj.level || obj.Level || obj.STORY_LEVEL || 0);
+        const height = parseFloat(obj.dHEIGHT || obj.HEIGHT || obj.height || obj.Height || obj.STORY_HEIGHT || 0);
         // Diaphragm: various possible keys and value formats
         let diaphragm = "-";
         if (obj.bDIAPHRAGM !== undefined) diaphragm = obj.bDIAPHRAGM ? "Consider" : "Do not consider";
@@ -1385,8 +1385,8 @@ function extractStoriesFromResponse(data) {
         return stories;
     }
 
-    // Strategy 2: data.STRY is an object with numbered keys { "1": {...}, "2": {...} }
-    const stryObj = data.STRY || data.Stry || data.stry || data;
+    // Strategy 2: data.STOR or data.STRY is an object with numbered keys { "1": {...}, "2": {...} }
+    const stryObj = data.STOR || data.STRY || data.Stry || data.stry || data;
     if (typeof stryObj === "object" && !Array.isArray(stryObj)) {
         // Check if it has a nested module (e.g., "Base": { vSTRY: [...] })
         for (const [key, val] of Object.entries(stryObj)) {
@@ -1419,11 +1419,11 @@ function extractStoriesFromResponse(data) {
 async function fetchStoryDataDebug() {
     if (!isConnected) { showToast("Connect first", "error"); return; }
     try {
-        const stryData = await midasAPI("GET", "/db/stry");
+        const stryData = await midasAPI("GET", "/db/STOR");
         const raw = JSON.stringify(stryData, null, 2);
         document.getElementById("storyRawOutput").textContent = raw;
         document.getElementById("storyRawPanel").style.display = "block";
-        logEntry(`<span class="log-info">Raw /db/stry response logged (${raw.length} chars). Check Story Data tab.</span>`);
+        logEntry(`<span class="log-info">Raw /db/STOR response logged (${raw.length} chars). Check Story Data tab.</span>`);
         showToast("Raw response displayed below. Check the keys to debug parsing.");
     } catch (err) {
         showToast("Failed: " + err.message, "error");
@@ -1438,14 +1438,14 @@ async function fetchStoryData() {
 
     try {
         // Step 1: Fetch story data
-        const stryData = await midasAPI("GET", "/db/stry");
+        const stryData = await midasAPI("GET", "/db/STOR");
         updateProgress(30, "Step 2/3: Reading nodes...");
 
         // Log raw keys for debugging
-        logEntry(`<span class="log-info">STRY response top-level keys: ${JSON.stringify(Object.keys(stryData))}</span>`);
-        const stryInner = stryData.STRY || stryData;
+        logEntry(`<span class="log-info">STOR response top-level keys: ${JSON.stringify(Object.keys(stryData))}</span>`);
+        const stryInner = stryData.STOR || stryData.STRY || stryData;
         if (typeof stryInner === "object") {
-            logEntry(`<span class="log-info">STRY inner keys: ${JSON.stringify(Object.keys(stryInner)).substring(0, 200)}</span>`);
+            logEntry(`<span class="log-info">STOR inner keys: ${JSON.stringify(Object.keys(stryInner)).substring(0, 200)}</span>`);
         }
 
         // Step 2: Fetch nodes and elements for beam-to-floor mapping
