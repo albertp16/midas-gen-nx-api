@@ -1651,8 +1651,12 @@ function applyBeamFloorFilter() {
     if (filter === "ALL") {
         filteredRows = allBeamResultRows;
     } else {
-        const allowedElems = new Set(storyBeamMap[filter] || []);
-        filteredRows = allBeamResultRows.filter(row => allowedElems.has(String(row[0])));
+        const allowedElems = new Set((storyBeamMap[filter] || []).map(String));
+        filteredRows = allBeamResultRows.filter(row => {
+            const rid = String(row[0]);
+            if (rid.includes("+")) return rid.split("+").some(eid => allowedElems.has(eid.trim()));
+            return allowedElems.has(rid);
+        });
     }
 
     renderTable("beamTable", allBeamHeaders, filteredRows);
@@ -1718,16 +1722,27 @@ function drawBeamFramePlot() {
     const floorFilter = document.getElementById("bmFloorFilter").value;
     let displayRows = allBeamResultRows;
     if (floorFilter !== "ALL" && storyBeamMap[floorFilter]) {
-        const allowed = new Set(storyBeamMap[floorFilter]);
-        displayRows = allBeamResultRows.filter(r => allowed.has(String(r[0])));
+        const allowed = new Set(storyBeamMap[floorFilter].map(String));
+        displayRows = allBeamResultRows.filter(r => {
+            const rid = String(r[0]);
+            // For combined members (e.g., "101+102+103"), check if any element is in floor
+            if (rid.includes("+")) return rid.split("+").some(eid => allowed.has(eid.trim()));
+            return allowed.has(rid);
+        });
     }
 
     // Build pass/fail and tag maps
     const statusMap = {};
     const tagMap = {};
+    const combinedElemSets = {}; // displayId -> [elemIds] for combined members
     displayRows.forEach(r => {
-        statusMap[String(r[0])] = r[r.length - 1];
-        tagMap[String(r[0])] = String(r[1]); // tag is at index 1
+        const rid = String(r[0]);
+        statusMap[rid] = r[r.length - 1];
+        tagMap[rid] = String(r[1]); // tag is at index 1
+        // Detect combined members (e.g., "101+102+103")
+        if (rid.includes("+")) {
+            combinedElemSets[rid] = rid.split("+").map(s => s.trim());
+        }
     });
 
     const showLabels = document.getElementById("beamPlotShowIds").checked;
@@ -1736,20 +1751,30 @@ function drawBeamFramePlot() {
     // Collect beam coordinates
     const beams = [];
     const nodeCoords = {};
+    const combinedGroupIds = new Set(); // track elem IDs that are part of combined members
 
-    for (const eid of Object.keys(statusMap)) {
-        const e = cachedElemDict[eid];
-        if (!e) continue;
-        const conn = e.NODE || [];
-        if (conn.length < 2) continue;
-        const ni = cachedNodeDict[String(conn[0])] || cachedNodeDict[conn[0]];
-        const nj = cachedNodeDict[String(conn[1])] || cachedNodeDict[conn[1]];
-        if (!ni || !nj) continue;
-        const x1 = parseFloat(ni.X), y1 = parseFloat(ni.Y);
-        const x2 = parseFloat(nj.X), y2 = parseFloat(nj.Y);
-        beams.push({ eid, tag: tagMap[eid] || eid, x1, y1, x2, y2, status: statusMap[eid] });
-        nodeCoords[String(conn[0])] = { x: x1, y: y1 };
-        nodeCoords[String(conn[1])] = { x: x2, y: y2 };
+    for (const rid of Object.keys(statusMap)) {
+        const elemIds = combinedElemSets[rid] || [rid];
+        const isCombined = elemIds.length > 1;
+        if (isCombined) elemIds.forEach(eid => combinedGroupIds.add(eid));
+
+        for (const eid of elemIds) {
+            const e = cachedElemDict[eid];
+            if (!e) continue;
+            const conn = e.NODE || [];
+            if (conn.length < 2) continue;
+            const ni = cachedNodeDict[String(conn[0])] || cachedNodeDict[conn[0]];
+            const nj = cachedNodeDict[String(conn[1])] || cachedNodeDict[conn[1]];
+            if (!ni || !nj) continue;
+            const x1 = parseFloat(ni.X), y1 = parseFloat(ni.Y);
+            const x2 = parseFloat(nj.X), y2 = parseFloat(nj.Y);
+            beams.push({
+                eid, tag: tagMap[rid] || eid, x1, y1, x2, y2,
+                status: statusMap[rid], combined: isCombined, groupId: rid
+            });
+            nodeCoords[String(conn[0])] = { x: x1, y: y1 };
+            nodeCoords[String(conn[1])] = { x: x2, y: y2 };
+        }
     }
 
     if (!beams.length) { showToast("No beams to plot", "error"); return; }
@@ -1811,11 +1836,52 @@ function _drawBeamFrame(canvasId, beams, nodeCoords, showLabels, showNodes, labe
 
     // Beams
     const passColor = "#3fb950", failColor = "#f85149";
+    const combColor = "#58a6ff"; // blue accent for combined member indicator
+    // First pass: draw combined member brackets (offset lines along the beam)
+    const drawnGroups = new Set();
+    beams.forEach(b => {
+        if (!b.combined || drawnGroups.has(b.groupId)) return;
+        drawnGroups.add(b.groupId);
+        // Find all beams in this group to get outer extents
+        const groupBeams = beams.filter(gb => gb.groupId === b.groupId);
+        let gx1 = Infinity, gy1 = Infinity, gx2 = -Infinity, gy2 = -Infinity;
+        groupBeams.forEach(gb => {
+            gx1 = Math.min(gx1, gb.x1, gb.x2); gy1 = Math.min(gy1, gb.y1, gb.y2);
+            gx2 = Math.max(gx2, gb.x1, gb.x2); gy2 = Math.max(gy2, gb.y1, gb.y2);
+        });
+        // Draw bracket line offset from beam (perpendicular)
+        const sx1 = toX(gx1), sy1 = toY(gy1), sx2 = toX(gx2), sy2 = toY(gy2);
+        const dx = sx2 - sx1, dy = sy2 - sy1;
+        const len = Math.sqrt(dx*dx + dy*dy) || 1;
+        const nx = -dy / len * 6, ny = dx / len * 6; // perpendicular offset
+        ctx.strokeStyle = combColor; ctx.lineWidth = 1.5;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.moveTo(sx1 + nx, sy1 + ny); ctx.lineTo(sx2 + nx, sy2 + ny);
+        ctx.stroke();
+        // End caps
+        ctx.beginPath();
+        ctx.moveTo(sx1 + nx*2, sy1 + ny*2); ctx.lineTo(sx1, sy1);
+        ctx.moveTo(sx2 + nx*2, sy2 + ny*2); ctx.lineTo(sx2, sy2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    });
+
+    // Second pass: draw beams
     beams.forEach(b => {
         const sx1 = toX(b.x1), sy1 = toY(b.y1), sx2 = toX(b.x2), sy2 = toY(b.y2);
         const color = b.status === "PASS" ? passColor : failColor;
         ctx.strokeStyle = color; ctx.lineWidth = b.status === "FAIL" ? 3 : 2;
         ctx.beginPath(); ctx.moveTo(sx1, sy1); ctx.lineTo(sx2, sy2); ctx.stroke();
+
+        // Draw small diamond at midpoint for combined members
+        if (b.combined) {
+            const mx = (sx1+sx2)/2, my = (sy1+sy2)/2;
+            ctx.fillStyle = combColor;
+            ctx.beginPath();
+            ctx.moveTo(mx, my-4); ctx.lineTo(mx+4, my); ctx.lineTo(mx, my+4); ctx.lineTo(mx-4, my);
+            ctx.closePath(); ctx.fill();
+        }
 
         if (showLabels) {
             const mx = (sx1+sx2)/2, my = (sy1+sy2)/2;
@@ -1855,6 +1921,33 @@ function _drawBeamFrame(canvasId, beams, nodeCoords, showLabels, showNodes, labe
     ctx.textAlign = "center"; ctx.textBaseline = "top"; ctx.fillText(title, W/2, 12);
     ctx.fillStyle = "#8b949e"; ctx.font = "11px 'Segoe UI',sans-serif";
     ctx.fillText(subtitle, W/2, 30);
+
+    // Legend: PASS / FAIL / Combined
+    const hasCombined = beams.some(b => b.combined);
+    const legY = H - 14;
+    ctx.font = "10px 'Segoe UI',sans-serif"; ctx.textBaseline = "middle";
+    // PASS
+    let legX = W - (hasCombined ? 230 : 150);
+    ctx.strokeStyle = passColor; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(legX, legY); ctx.lineTo(legX+18, legY); ctx.stroke();
+    ctx.fillStyle = "#8b949e"; ctx.textAlign = "left"; ctx.fillText("PASS", legX+22, legY);
+    // FAIL
+    legX += 60;
+    ctx.strokeStyle = failColor; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(legX, legY); ctx.lineTo(legX+18, legY); ctx.stroke();
+    ctx.fillStyle = "#8b949e"; ctx.fillText("FAIL", legX+22, legY);
+    // Combined
+    if (hasCombined) {
+        legX += 60;
+        ctx.fillStyle = combColor;
+        ctx.beginPath();
+        ctx.moveTo(legX+4, legY-4); ctx.lineTo(legX+8, legY); ctx.lineTo(legX+4, legY+4); ctx.lineTo(legX, legY);
+        ctx.closePath(); ctx.fill();
+        ctx.strokeStyle = combColor; ctx.lineWidth = 1.5; ctx.setLineDash([4,3]);
+        ctx.beginPath(); ctx.moveTo(legX+12, legY); ctx.lineTo(legX+26, legY); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.fillStyle = "#8b949e"; ctx.fillText("Combined", legX+30, legY);
+    }
 
     // Axis labels
     ctx.fillStyle = "#8b949e"; ctx.font = "11px 'Segoe UI',sans-serif";
@@ -2751,6 +2844,16 @@ async function runBeamDesign() {
         const sectData = await midasAPI("GET", "/db/sect");
         const sectDict = sectData.SECT || sectData;
 
+        // Step 3b: Get member assignments (combined beam members)
+        let membDict = {};
+        try {
+            const membData = await midasAPI("GET", "/db/MEMB");
+            membDict = membData.MEMB || membData.Assign || membData;
+            logEntry(`<span class="log-info">Member assignments: ${Object.keys(membDict).length} members from /db/MEMB</span>`);
+        } catch (e) {
+            logEntry(`<span class="log-info">No member assignment data: ${e.message}</span>`);
+        }
+
         // Compute element lengths from node coordinates (mirrors beam.py element_lengths)
         const nodeDict = nodeData.NODE || nodeData;
         const elemDict = elemData.ELEM || elemData;
@@ -2880,11 +2983,83 @@ async function runBeamDesign() {
         const gravForces = parseBeamForces(gravHead, gravRows);
         const seisForces = parseBeamForces(seisHead, seisRows);
 
+        // ─── Member Assignment: combine elements in the same member ───
+        // membDict: { membId: { AELEM: [e1, e2, ...], bREVERSE: false } }
+        const memberElemsList = {}; // membId -> [elemIds in order]
+        const elemToMember = {};    // elemId -> membId
+        const memberCombinedMap = {}; // membId -> { elems, combinedId }
+        for (const [mid, minfo] of Object.entries(membDict)) {
+            const aelem = minfo.AELEM || minfo.aELEM || [];
+            if (!Array.isArray(aelem) || aelem.length < 2) continue;
+            // Only include elems that are in our beam set
+            const validElems = aelem.map(String).filter(eid => elemLengths[eid] !== undefined);
+            if (validElems.length < 2) continue;
+            // Order by connectivity: first elem's i-node to last elem's j-node
+            if (minfo.bREVERSE) validElems.reverse();
+            memberElemsList[mid] = validElems;
+            validElems.forEach(eid => { elemToMember[eid] = mid; });
+            memberCombinedMap[mid] = { elems: validElems, combinedId: `M${mid}` };
+        }
+
+        // Merge: for each member group, create combined entry
+        const mergedLengths = { ...elemLengths };
+        const mergedGrav = { ...gravForces };
+        const mergedSeis = { ...seisForces };
+        const mergedTypes = { ...elemTypes };
+        const mergedSections = { ...elemSections };
+        const memberInfoMap = {}; // combinedId -> { elems: [...], membId }
+
+        for (const [mid, mdata] of Object.entries(memberCombinedMap)) {
+            const elems = mdata.elems;
+            const cid = mdata.combinedId; // e.g., "M1"
+
+            // Sum lengths
+            let totalLen = 0;
+            elems.forEach(eid => { totalLen += (elemLengths[eid] || 0); });
+            mergedLengths[cid] = totalLen;
+
+            // Forces: i-end from first elem, j-end from last elem, mid = max of all
+            const firstElem = elems[0], lastElem = elems[elems.length - 1];
+            const sf_first = seisForces[firstElem] || { Mi: 0, Mj: 0 };
+            const sf_last = seisForces[lastElem] || { Mi: 0, Mj: 0 };
+            const gf_first = gravForces[firstElem] || { Vi: 0, Vj: 0 };
+            const gf_last = gravForces[lastElem] || { Vi: 0, Vj: 0 };
+            // Envelope mid moment: max absolute across all elements
+            let maxMidSeis = 0, maxMidGrav = 0;
+            elems.forEach(eid => {
+                const sf = seisForces[eid] || { Mi: 0, Mj: 0 };
+                const gf = gravForces[eid] || { Vi: 0, Vj: 0 };
+                maxMidSeis = Math.max(maxMidSeis, Math.abs(sf.Mi), Math.abs(sf.Mj));
+                maxMidGrav = Math.max(maxMidGrav, Math.abs(gf.Vi), Math.abs(gf.Vj));
+            });
+            mergedSeis[cid] = { Mi: sf_first.Mi, Mj: sf_last.Mj };
+            mergedGrav[cid] = { Vi: gf_first.Vi, Vj: gf_last.Vj };
+
+            // Section from first element
+            if (elemSections[firstElem]) mergedSections[cid] = elemSections[firstElem];
+
+            mergedTypes[cid] = "BEAM";
+            memberInfoMap[cid] = { elems, membId: mid };
+
+            // Remove individual elements from merged maps
+            elems.forEach(eid => {
+                delete mergedLengths[eid];
+                delete mergedGrav[eid];
+                delete mergedSeis[eid];
+                delete mergedTypes[eid];
+            });
+        }
+
+        const membCount = Object.keys(memberCombinedMap).length;
+        if (membCount > 0) {
+            logEntry(`<span class="log-info">Combined ${Object.values(memberCombinedMap).reduce((s,m) => s + m.elems.length, 0)} elements into ${membCount} member groups</span>`);
+        }
+
         // Cache forces for rerun
-        cachedBeamForces = { gravForces, seisForces, elemLengths, elemTypes, elemSections };
+        cachedBeamForces = { gravForces: mergedGrav, seisForces: mergedSeis, elemLengths: mergedLengths, elemTypes: mergedTypes, elemSections: mergedSections, memberInfoMap };
 
         updateProgress(80, "Computing ACI beam design...");
-        computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, null, elemSections);
+        computeAndRenderBeam(mergedGrav, mergedSeis, mergedLengths, mergedTypes, null, mergedSections, memberInfoMap);
 
         updateProgress(100, "Done!");
         showToast(`Beam designs computed`);
@@ -2901,7 +3076,8 @@ async function runBeamDesign() {
 // 22-24=mdi/mdm/mdj, 25-27=mci/mcm/mcj, 28-30=mri/mrm/mrj, 31=Status
 const BEAM_EDITABLE_COLS = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21];
 
-function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, overrides, elemSections) {
+function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, overrides, elemSections, memberInfoMap) {
+    memberInfoMap = memberInfoMap || {};
     const fc0 = parseFloat(document.getElementById("bmFc").value);
     const fy0 = parseFloat(document.getElementById("bmFy").value);
     const db0 = parseFloat(document.getElementById("bmDb").value);
@@ -2938,6 +3114,12 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
             floorSeqCounters[storyName] = 0;
             beamIds.forEach(eid => { elemFloorMap[String(eid)] = storyName; });
         }
+        // For combined members, assign floor from first element
+        for (const [cid, minfo] of Object.entries(memberInfoMap)) {
+            for (const eid of minfo.elems) {
+                if (elemFloorMap[String(eid)]) { elemFloorMap[cid] = elemFloorMap[String(eid)]; break; }
+            }
+        }
     }
     let globalSeq = 0;
     beamTagMap = {}; // reset
@@ -2945,9 +3127,14 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
     // Sort elements: horizontal beams (along X, dY~0) first, then vertical (along Y, dX~0)
     // Within each group sort by Y then X position for horizontal, X then Y for vertical
     const sortedElems = [...allElems];
+    // Helper: get first element ID for combined members (e.g., "M1" -> first AELEM)
+    function resolveElemForSort(id) {
+        const minfo = memberInfoMap[id];
+        return minfo ? minfo.elems[0] : id;
+    }
     if (cachedNodeDict && cachedElemDict) {
         sortedElems.sort((a, b) => {
-            const ea = cachedElemDict[a], eb = cachedElemDict[b];
+            const ea = cachedElemDict[resolveElemForSort(a)], eb = cachedElemDict[resolveElemForSort(b)];
             if (!ea || !eb) return 0;
             const ca = ea.NODE || [], cb = eb.NODE || [];
             if (ca.length < 2 || cb.length < 2) return 0;
@@ -3058,6 +3245,14 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
             }
         }
         beamTagMap[String(elem)] = tag;
+        // For combined members, also tag all constituent elements
+        const minfo = memberInfoMap[elem];
+        if (minfo) {
+            minfo.elems.forEach(eid => { beamTagMap[String(eid)] = tag; });
+        }
+
+        // Display ID: show constituent element IDs for combined members
+        const displayId = minfo ? minfo.elems.join("+") : elem;
 
         // vns = number of stirrup legs (default 2)
         const vnsI = ovr && !isNaN(ovr.vns_i) ? ovr.vns_i : 2;
@@ -3069,7 +3264,7 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
         const vsJ = ovr && !isNaN(ovr.vs_j) ? ovr.vs_j : 100;
 
         resultRows.push([
-            elem, tag, Ln.toFixed(3), bw.toFixed(0), h.toFixed(0), fc.toFixed(3), fy.toFixed(3), fys.toFixed(2),
+            displayId, tag, Ln.toFixed(3), bw.toFixed(0), h.toFixed(0), fc.toFixed(3), fy.toFixed(3), fys.toFixed(2),
             nI, nM, nJ, nitVal, nmtVal, njtVal, db,
             dbs, vnsI, vnsM, vnsJ, vsI, vsM, vsJ,
             mdi.toFixed(2), mdm.toFixed(2), mdj.toFixed(2),
@@ -3086,8 +3281,12 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
     const floorFilter = document.getElementById("bmFloorFilter").value;
     let displayRows = resultRows;
     if (floorFilter !== "ALL" && storyBeamMap[floorFilter]) {
-        const allowedElems = new Set(storyBeamMap[floorFilter]);
-        displayRows = resultRows.filter(row => allowedElems.has(String(row[0])));
+        const allowedElems = new Set(storyBeamMap[floorFilter].map(String));
+        displayRows = resultRows.filter(row => {
+            const rid = String(row[0]);
+            if (rid.includes("+")) return rid.split("+").some(eid => allowedElems.has(eid.trim()));
+            return allowedElems.has(rid);
+        });
     }
 
     renderTable("beamTable", headers, displayRows);
@@ -3174,8 +3373,8 @@ function rerunBeamDesign() {
         };
     });
 
-    const { gravForces, seisForces, elemLengths, elemTypes, elemSections } = cachedBeamForces;
-    computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, overrides, elemSections);
+    const { gravForces, seisForces, elemLengths, elemTypes, elemSections, memberInfoMap } = cachedBeamForces;
+    computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, overrides, elemSections, memberInfoMap);
     showToast("Beam design recalculated!");
 }
 
