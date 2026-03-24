@@ -3832,7 +3832,10 @@ async function runBeamDesign() {
 // 15=vdb, 16=vns_i, 17=vns_m, 18=vns_j, 19=vs_i, 20=vs_m, 21=vs_j,
 // 22-24=mdi/mdm/mdj, 25-27=mci/mcm/mcj, 28-30=mri/mrm/mrj,
 // 31=Vdi, 32=Vdm, 33=Vdj, 34=Vni, 35=Vnm, 36=Vnj, 37=vr_i, 38=vr_m, 39=vr_j, 40=Status
-const BEAM_EDITABLE_COLS = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 16, 17, 18, 19, 20, 21];
+// Editable columns: tag(1), width(3), height(4), fc(5), fy(7), fys(8),
+// nib(9), nmb(10), njb(11), nit(15), nmt(16), njt(17), db(18),
+// vdb(22), vns_i(23), vns_m(24), vns_j(25), vs_i(26), vs_m(27), vs_j(28)
+const BEAM_EDITABLE_COLS = [1, 3, 4, 5, 7, 8, 9, 10, 11, 15, 16, 17, 18, 22, 23, 24, 25, 26, 27, 28];
 
 function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, overrides, elemSections, memberInfoMap) {
     memberInfoMap = memberInfoMap || {};
@@ -3844,18 +3847,19 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
     const frameType = document.getElementById("bmFrameType").value;
     const fys = 275.79; // shear rebar yield strength (default)
 
-    // Headers: id, tag, length, width, height, fc, fy, fys,
-    // nib, nmb, njb, nit, nmt, njt, db,
-    // vdb, vns_i, vns_m, vns_j, vs_i, vs_m, vs_j,
-    // moment demand/capacity/ratio, status
+    // Headers: id, tag, Ln, bw, h, fc, beta, fy, fys,
+    // nib, nmb, njb, Asi, Asm, Asj, nit, nmt, njt, db,
+    // di, dm, dj, vdb, vns, vs,
+    // Md, Mn, MPr, mr, Vd, Vc, Vn, vr, Status
     const headers = [
-        "id", "tag", "length\n(m)", "width\n(mm)", "height\n(mm)", "fc\n(MPa)", "fy\n(MPa)", "fys\n(MPa)",
-        "nib", "nmb", "njb", "nit", "nmt", "njt", "db",
-        "vdb\n(mm)", "vns_i", "vns_m", "vns_j", "vs_i", "vs_m", "vs_j",
-        "mdi\n(kN.m)", "mdm\n(kN.m)", "mdj\n(kN.m)",
-        "mci\n(kN.m)", "mcm\n(kN.m)", "mcj\n(kN.m)",
+        "id", "tag", "Ln\n(m)", "bw\n(mm)", "h\n(mm)", "f'c\n(MPa)", "\u03B2", "fy\n(MPa)", "fys\n(MPa)",
+        "nib", "nmb", "njb", "Asi\n(mm\u00B2)", "Asm\n(mm\u00B2)", "Asj\n(mm\u00B2)", "nit", "nmt", "njt", "db\n(mm)",
+        "di\n(mm)", "dm\n(mm)", "dj\n(mm)",
+        "vdb\n(mm)", "vns_i", "vns_m", "vns_j", "vs_i\n(mm)", "vs_m\n(mm)", "vs_j\n(mm)",
+        "Mdi\n(kN.m)", "Mdm\n(kN.m)", "Mdj\n(kN.m)",
+        "Mni\n(kN.m)", "Mnm\n(kN.m)", "Mnj\n(kN.m)", "MPri\n(kN.m)", "MPrm\n(kN.m)", "MPrj\n(kN.m)",
         "mri", "mrm", "mrj",
-        "Vdi\n(kN)", "Vdm\n(kN)", "Vdj\n(kN)", "Vni\n(kN)", "Vnm\n(kN)", "Vnj\n(kN)", "vr_i", "vr_m", "vr_j",
+        "Vdi\n(kN)", "Vdm\n(kN)", "Vdj\n(kN)", "Vc\n(kN)", "Vni\n(kN)", "Vnm\n(kN)", "Vnj\n(kN)", "vr_i", "vr_m", "vr_j",
         "Status"
     ];
 
@@ -3975,16 +3979,44 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
             njtVal = Math.max(Math.ceil(nJ / 2), 2);
         }
 
-        // Flexural capacity at i, m, j
+        // Beta
+        const betaVal = BS.beta(fc);
+
+        // Area of steel at i, m, j
+        const astBar = BS.dbarArea(db);
+        const Asi = nI * astBar;
+        const Asm = nM * astBar;
+        const Asj = nJ * astBar;
+
+        // Effective depth for bottom bars at i, m, j
+        const nlayerTenI = Math.ceil(nI / maxPerLayer);
+        const nlayerTenM = Math.ceil(nM / maxPerLayer);
+        const nlayerTenJ = Math.ceil(nJ / maxPerLayer);
+        const diTenI = BS.diTen(dbs, db, nlayerTenI, h);
+        const diTenM = BS.diTen(dbs, db, nlayerTenM, h);
+        const diTenJ = BS.diTen(dbs, db, nlayerTenJ, h);
+        // Effective depth = deepest tension bar layer (last element after reverse)
+        const d_eff_i = diTenI.length > 0 ? diTenI[diTenI.length - 1] : (h - cover - dbs - db / 2);
+        const d_eff_m = diTenM.length > 0 ? diTenM[diTenM.length - 1] : (h - cover - dbs - db / 2);
+        const d_eff_j = diTenJ.length > 0 ? diTenJ[diTenJ.length - 1] : (h - cover - dbs - db / 2);
+
+        // Flexural capacity at i, m, j (Nominal Moment with phi)
         const capI = BS.flexcap(fc, fy, bw, h, dbs, db, maxPerLayer, nitVal, nI);
         const capJ = BS.flexcap(fc, fy, bw, h, dbs, db, maxPerLayer, njtVal, nJ);
         const capM = BS.flexcap(fc, fy, bw, h, dbs, db, maxPerLayer, nmtVal, nM);
+
+        // Probable Moment (MPr) using 1.25*fy, no phi reduction (phi=1.0 effectively)
+        const fyPr = 1.25 * fy;
+        const capPrI = BS.flexcap(fc, fyPr, bw, h, dbs, db, maxPerLayer, nitVal, nI);
+        const capPrJ = BS.flexcap(fc, fyPr, bw, h, dbs, db, maxPerLayer, njtVal, nJ);
+        const capPrM = BS.flexcap(fc, fyPr, bw, h, dbs, db, maxPerLayer, nmtVal, nM);
 
         const Ln = elemLengths[elem] || elemLengths[String(elem)] || Math.max(h * 5 / 1000, 3.0);
 
         // Demand, capacity, ratio
         const mdi = Mi_seis, mdm = Mm_seis, mdj = Mj_seis;
         const mci = capI.Mn, mcm = capM.Mn, mcj = capJ.Mn;
+        const mPrI = capPrI.Mn, mPrM = capPrM.Mn, mPrJ = capPrJ.Mn;
         const mri = mci > 0 ? mdi / mci : 0;
         const mrm = mcm > 0 ? mdm / mcm : 0;
         const mrj = mcj > 0 ? mdj / mcj : 0;
@@ -4070,13 +4102,14 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
         if (!pass) failCount++;
 
         resultRows.push([
-            displayId, tag, Ln.toFixed(3), bw.toFixed(0), h.toFixed(0), fc.toFixed(3), fy.toFixed(3), fys.toFixed(2),
-            nI, nM, nJ, nitVal, nmtVal, njtVal, db,
+            displayId, tag, Ln.toFixed(3), bw.toFixed(0), h.toFixed(0), fc.toFixed(3), betaVal.toFixed(4), fy.toFixed(3), fys.toFixed(2),
+            nI, nM, nJ, Asi.toFixed(1), Asm.toFixed(1), Asj.toFixed(1), nitVal, nmtVal, njtVal, db,
+            d_eff_i.toFixed(1), d_eff_m.toFixed(1), d_eff_j.toFixed(1),
             dbs, vnsI, vnsM, vnsJ, vsI, vsM, vsJ,
             mdi.toFixed(2), mdm.toFixed(2), mdj.toFixed(2),
-            mci.toFixed(2), mcm.toFixed(2), mcj.toFixed(2),
+            mci.toFixed(2), mcm.toFixed(2), mcj.toFixed(2), mPrI.toFixed(2), mPrM.toFixed(2), mPrJ.toFixed(2),
             mri.toFixed(3), mrm.toFixed(3), mrj.toFixed(3),
-            Vdi.toFixed(2), Vdm.toFixed(2), Vdj.toFixed(2), VnI.toFixed(2), VnM.toFixed(2), VnJ.toFixed(2), vrI.toFixed(3), vrM.toFixed(3), vrJ.toFixed(3),
+            Vdi.toFixed(2), Vdm.toFixed(2), Vdj.toFixed(2), Vc.toFixed(2), VnI.toFixed(2), VnM.toFixed(2), VnJ.toFixed(2), vrI.toFixed(3), vrM.toFixed(3), vrJ.toFixed(3),
             pass ? "PASS" : "FAIL"
         ]);
     }
@@ -4166,26 +4199,29 @@ function rerunBeamDesign() {
         const elemId = tds[0].textContent.trim();
         // Read all editable values from the table cells (shifted +1 for tag column)
         // 1=tag, 3=width, 4=height, 5=fc, 6=fy, 7=fys, 8=nib..13=njt, 14=db, 16-18=vns
+        // Column indices: 0:id, 1:tag, 2:Ln, 3:bw, 4:h, 5:fc, 6:beta, 7:fy, 8:fys,
+        // 9:nib, 10:nmb, 11:njb, 12:Asi, 13:Asm, 14:Asj, 15:nit, 16:nmt, 17:njt, 18:db,
+        // 19:di, 20:dm, 21:dj, 22:vdb, 23:vns_i, 24:vns_m, 25:vns_j, 26:vs_i, 27:vs_m, 28:vs_j
         overrides[elemId] = {
             tag: tds[1].textContent.trim(),
             bw: parseFloat(tds[3].textContent),
             h: parseFloat(tds[4].textContent),
             fc: parseFloat(tds[5].textContent),
-            fy: parseFloat(tds[6].textContent),
-            fys: parseFloat(tds[7].textContent),
-            nib: parseInt(tds[8].textContent),
-            nmb: parseInt(tds[9].textContent),
-            njb: parseInt(tds[10].textContent),
-            nit: parseInt(tds[11].textContent),
-            nmt: parseInt(tds[12].textContent),
-            njt: parseInt(tds[13].textContent),
-            db: parseFloat(tds[14].textContent),
-            vns_i: parseInt(tds[16].textContent),
-            vns_m: parseInt(tds[17].textContent),
-            vns_j: parseInt(tds[18].textContent),
-            vs_i: parseInt(tds[19].textContent),
-            vs_m: parseInt(tds[20].textContent),
-            vs_j: parseInt(tds[21].textContent)
+            fy: parseFloat(tds[7].textContent),
+            fys: parseFloat(tds[8].textContent),
+            nib: parseInt(tds[9].textContent),
+            nmb: parseInt(tds[10].textContent),
+            njb: parseInt(tds[11].textContent),
+            nit: parseInt(tds[15].textContent),
+            nmt: parseInt(tds[16].textContent),
+            njt: parseInt(tds[17].textContent),
+            db: parseFloat(tds[18].textContent),
+            vns_i: parseInt(tds[23].textContent),
+            vns_m: parseInt(tds[24].textContent),
+            vns_j: parseInt(tds[25].textContent),
+            vs_i: parseInt(tds[26].textContent),
+            vs_m: parseInt(tds[27].textContent),
+            vs_j: parseInt(tds[28].textContent)
         };
     });
 
@@ -4203,25 +4239,27 @@ function optimizeBeamTags() {
     const rows = [];
     trs.forEach(tr => {
         const tds = tr.querySelectorAll("td");
-        if (tds.length < 22) return;
+        if (tds.length < 29) return;
+        // Column indices: 3:bw, 4:h, 9:nib, 10:nmb, 11:njb, 15:nit, 16:nmt, 17:njt, 18:db,
+        // 22:vdb, 23:vns_i, 24:vns_m, 25:vns_j, 26:vs_i, 27:vs_m, 28:vs_j
         rows.push({
             elemId: tds[0].textContent.trim(),
             bw: tds[3].textContent.trim(),
             h: tds[4].textContent.trim(),
-            nib: tds[8].textContent.trim(),
-            nmb: tds[9].textContent.trim(),
-            njb: tds[10].textContent.trim(),
-            nit: tds[11].textContent.trim(),
-            nmt: tds[12].textContent.trim(),
-            njt: tds[13].textContent.trim(),
-            db: tds[14].textContent.trim(),
-            vdb: tds[15].textContent.trim(),
-            vns_i: tds[16].textContent.trim(),
-            vns_m: tds[17].textContent.trim(),
-            vns_j: tds[18].textContent.trim(),
-            vs_i: tds[19].textContent.trim(),
-            vs_m: tds[20].textContent.trim(),
-            vs_j: tds[21].textContent.trim(),
+            nib: tds[9].textContent.trim(),
+            nmb: tds[10].textContent.trim(),
+            njb: tds[11].textContent.trim(),
+            nit: tds[15].textContent.trim(),
+            nmt: tds[16].textContent.trim(),
+            njt: tds[17].textContent.trim(),
+            db: tds[18].textContent.trim(),
+            vdb: tds[22].textContent.trim(),
+            vns_i: tds[23].textContent.trim(),
+            vns_m: tds[24].textContent.trim(),
+            vns_j: tds[25].textContent.trim(),
+            vs_i: tds[26].textContent.trim(),
+            vs_m: tds[27].textContent.trim(),
+            vs_j: tds[28].textContent.trim(),
             tr: tr
         });
     });
