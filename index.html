@@ -1718,6 +1718,7 @@ function setupBeamTableInteractions(editedElems) {
             td.classList.add("cell-active");
         });
         inp.addEventListener("keydown", handleInputKey);
+        inp.addEventListener("paste", handlePaste);
     }
 
     function findEditableCell(row, col, dRow, dCol) {
@@ -1771,6 +1772,41 @@ function setupBeamTableInteractions(editedElems) {
         }
     }
 
+    // Shared paste handler for multi-cell paste from Excel
+    function handlePaste(e) {
+        const active = tbody.querySelector("td.cell-active");
+        if (!active) return;
+        const text = (e.clipboardData || window.clipboardData).getData("text");
+        if (!text) return;
+        const pasteRows = text.split(/\r?\n/).filter(r => r.trim());
+        // Single-cell paste (no tabs, single line) — let input handle it naturally
+        if (pasteRows.length === 1 && !pasteRows[0].includes("\t") && active.querySelector("input")) return;
+        e.preventDefault();
+        // If currently editing, commit first
+        const inp = active.querySelector("input");
+        if (inp) { inp.blur(); }
+        const { row: startRow, col: startCol } = getIdx(active);
+
+        pasteRows.forEach((pRow, dr) => {
+            const vals = pRow.split("\t");
+            const tr = trs[startRow + dr];
+            if (!tr) return;
+            const tds = tr.querySelectorAll("td");
+            let colOffset = 0;
+            vals.forEach((val, dc) => {
+                // Find next editable cell at or after startCol + colOffset
+                let c = startCol + colOffset;
+                while (c < tds.length && (!tds[c] || !tds[c].classList.contains("editable"))) c++;
+                if (c < tds.length && tds[c]) {
+                    tds[c].textContent = val.trim();
+                    tds[c].classList.add("edited");
+                }
+                colOffset = c - startCol + 1;
+            });
+        });
+        showToast(`Pasted ${pasteRows.length} row(s)`);
+    }
+
     // Click to activate, single click to start editing
     editableCells.forEach(td => {
         td.setAttribute("tabindex", "0");
@@ -1781,6 +1817,9 @@ function setupBeamTableInteractions(editedElems) {
             activateCell(td);
             startEdit(td, true);
         });
+
+        // Paste on individual cell (captures paste when input is focused)
+        td.addEventListener("paste", handlePaste);
 
         // Keyboard nav when cell is focused but not editing
         td.addEventListener("keydown", (e) => {
@@ -1827,35 +1866,8 @@ function setupBeamTableInteractions(editedElems) {
         });
     });
 
-    // Paste from Excel: Ctrl+V on active cell
-    tbody.addEventListener("paste", (e) => {
-        const active = tbody.querySelector("td.cell-active");
-        if (!active || active.querySelector("input")) return;
-        e.preventDefault();
-        const text = (e.clipboardData || window.clipboardData).getData("text");
-        if (!text) return;
-        const pasteRows = text.split(/\r?\n/).filter(r => r.trim());
-        const { row: startRow, col: startCol } = getIdx(active);
-
-        pasteRows.forEach((pRow, dr) => {
-            const vals = pRow.split("\t");
-            const tr = trs[startRow + dr];
-            if (!tr) return;
-            const tds = tr.querySelectorAll("td");
-            let colOffset = 0;
-            vals.forEach((val, dc) => {
-                // Find next editable cell at or after startCol + colOffset
-                let c = startCol + colOffset;
-                while (c < tds.length && (!tds[c] || !tds[c].classList.contains("editable"))) c++;
-                if (c < tds.length && tds[c]) {
-                    tds[c].textContent = val.trim();
-                    tds[c].classList.add("edited");
-                }
-                colOffset = c - startCol + 1;
-            });
-        });
-        showToast(`Pasted ${pasteRows.length} row(s)`);
-    });
+    // Paste from Excel: also listen on tbody for when td is focused but not editing
+    tbody.addEventListener("paste", handlePaste);
 }
 
 // Store last beam table data for copy/export
