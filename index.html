@@ -71,6 +71,13 @@
         .theme-toggle:hover { background:var(--bg-tertiary); color:var(--text-primary); }
         .theme-toggle svg { width:16px; height:16px; }
 
+        /* Beam table 3-row grouping */
+        tr.beam-even td { background: rgba(255,255,255,0.04); }
+        [data-theme="light"] tr.beam-even td { background: rgba(0,0,0,0.04); }
+        tr[data-loc="i"] td { border-top: 2px solid var(--border); }
+        tr[data-loc="m"] td, tr[data-loc="j"] td { border-top: none; }
+        tr[data-loc="i"] td:first-child { font-weight: 700; }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
@@ -1591,6 +1598,103 @@ function renderTable(tableId, headers, rows) {
     }).join("");
 }
 
+function renderBeamTable(tableId, dataRows) {
+    const table = document.getElementById(tableId);
+    const dispHeaders = [
+        "id", "tag", "Ln\n(m)", "bw\n(mm)", "h\n(mm)", "f'c\n(MPa)", "\u03B2", "fy\n(MPa)", "fys\n(MPa)",
+        "loc", "nb", "As\n(mm\u00B2)", "nt", "db\n(mm)", "d\n(mm)",
+        "vdb\n(mm)", "vns", "vs\n(mm)",
+        "Md\n(kN.m)", "Mn\n(kN.m)", "MPr\n(kN.m)", "mr",
+        "Vd\n(kN)", "Vc\n(kN)", "Vn\n(kN)", "vr", "Status"
+    ];
+    table.querySelector("thead tr").innerHTML = dispHeaders.map(h => `<th>${h}</th>`).join("");
+
+    const locMap = {
+        i: { nb:9,As:12,nt:15,d:19,vns:23,vs:26,Md:29,Mn:32,MPr:35,mr:38,Vd:41,Vn:45,vr:48 },
+        m: { nb:10,As:13,nt:16,d:20,vns:24,vs:27,Md:30,Mn:33,MPr:36,mr:39,Vd:42,Vn:46,vr:49 },
+        j: { nb:11,As:14,nt:17,d:21,vns:25,vs:28,Md:31,Mn:34,MPr:37,mr:40,Vd:43,Vn:47,vr:50 }
+    };
+    const locs = ["i","m","j"];
+    let tbodyHtml = "";
+
+    dataRows.forEach((row, beamIdx) => {
+        const even = beamIdx % 2 === 1;
+        const bgClass = even ? " beam-even" : "";
+        const beamId = String(row[0]);
+        const status = String(row[51] || "");
+        const hasStatus = status.trim() === "FAIL";
+
+        locs.forEach((loc, li) => {
+            const m = locMap[loc];
+            const isFirst = li === 0;
+            const cells = [
+                isFirst ? beamId : "",
+                isFirst ? row[1] : "",
+                isFirst ? row[2] : "",
+                row[3], row[4], row[5], row[6], row[7], row[8],
+                loc,
+                row[m.nb], row[m.As], row[m.nt], row[18], row[m.d],
+                row[22], row[m.vns], row[m.vs],
+                row[m.Md], row[m.Mn], row[m.MPr], row[m.mr],
+                row[m.Vd], row[44], row[m.Vn], row[m.vr],
+                isFirst ? status : ""
+            ];
+
+            tbodyHtml += `<tr class="${bgClass}" data-beam-id="${beamId}" data-beam-idx="${beamIdx}" data-loc="${loc}" ${hasStatus ? 'data-status="FAIL"' : ''}>`;
+            cells.forEach((cell, ci) => {
+                let style = "";
+                const val = String(cell).trim();
+                if (val === "PASS") style = 'style="color:#3fb950;font-weight:700;text-align:center"';
+                else if (val === "FAIL") style = 'style="color:#f85149;font-weight:700;text-align:center"';
+                const hdr = dispHeaders[ci] || "";
+                if ((hdr === "mr" || hdr === "vr") && parseFloat(val) > 1.0)
+                    style = 'style="color:var(--accent-red);font-weight:700"';
+                tbodyHtml += `<td ${style}>${cell}</td>`;
+            });
+            tbodyHtml += "</tr>";
+        });
+    });
+    table.querySelector("tbody").innerHTML = tbodyHtml;
+}
+
+function setupBeamTableInteractions(editedElems) {
+    const tbody = document.getElementById("beamTable").querySelector("tbody");
+    const trs = tbody.querySelectorAll("tr");
+    trs.forEach(tr => {
+        const tds = tr.querySelectorAll("td");
+        const loc = tr.getAttribute("data-loc");
+        const beamId = tr.getAttribute("data-beam-id");
+        const edited = editedElems && editedElems.has(beamId);
+        const editCols = (loc === "i") ? BEAM_EDITABLE_COLS_I : BEAM_EDITABLE_COLS_MJ;
+        editCols.forEach(ci => {
+            const td = tds[ci];
+            if (!td) return;
+            td.classList.add("editable");
+            if (edited) td.classList.add("edited");
+            td.addEventListener("dblclick", function() {
+                if (td.querySelector("input")) return;
+                const val = td.textContent;
+                const inputType = ci === 1 ? "text" : "number";
+                td.innerHTML = `<input type="${inputType}" value="${val}" style="${ci===1?'width:70px;':''}"/>`;
+                const inp = td.querySelector("input");
+                inp.focus(); inp.select();
+                inp.addEventListener("blur", () => { td.textContent = inp.value || val; td.classList.add("edited"); });
+                inp.addEventListener("keydown", e => { if (e.key === "Enter") inp.blur(); if (e.key === "Escape") { td.textContent = val; } });
+            });
+        });
+        // Make ID clickable on i-row
+        if (loc === "i") {
+            const idTd = tds[0];
+            if (idTd && idTd.textContent.trim()) {
+                idTd.style.cursor = "pointer";
+                idTd.style.textDecoration = "underline";
+                idTd.style.color = "var(--accent-blue)";
+                idTd.addEventListener("click", () => openBeamForceModal(idTd.textContent.trim()));
+            }
+        }
+    });
+}
+
 // Store last beam table data for copy/export
 let lastBeamHeaders = [], lastBeamRows = [];
 // Store beam force data for rerun
@@ -1903,11 +2007,11 @@ function applyBeamFloorFilter() {
         });
     }
 
-    renderTable("beamTable", allBeamHeaders, filteredRows);
+    renderBeamTable("beamTable", filteredRows);
 
     // Update status badge for filtered view
     let failCount = 0;
-    filteredRows.forEach(r => { if (r[r.length - 1] === "FAIL") failCount++; });
+    filteredRows.forEach(r => { if (String(r[r.length - 1]).trim() === "FAIL") failCount++; });
     const badge = document.getElementById("beamStatusBadge");
     const total = filteredRows.length;
     if (failCount > 0) {
@@ -1924,34 +2028,7 @@ function applyBeamFloorFilter() {
         badge.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-green);margin-right:6px;"></span>${total}/${total} PASS`;
     }
 
-    // Re-add editable listeners
-    const tbody = document.getElementById("beamTable").querySelector("tbody");
-    const trs = tbody.querySelectorAll("tr");
-    trs.forEach(tr => {
-        const tds = tr.querySelectorAll("td");
-        BEAM_EDITABLE_COLS.forEach(ci => {
-            const td = tds[ci];
-            if (!td) return;
-            td.classList.add("editable");
-            td.addEventListener("dblclick", function() {
-                if (td.querySelector("input")) return;
-                const val = td.textContent;
-                td.innerHTML = `<input type="number" value="${val}" />`;
-                const inp = td.querySelector("input");
-                inp.focus(); inp.select();
-                inp.addEventListener("blur", () => { td.textContent = inp.value || val; td.classList.add("edited"); });
-                inp.addEventListener("keydown", e => { if (e.key === "Enter") inp.blur(); if (e.key === "Escape") { td.textContent = val; } });
-            });
-        });
-        // Make ID column clickable to open force detail modal
-        const idTd = tds[0];
-        if (idTd) {
-            idTd.style.cursor = "pointer";
-            idTd.style.textDecoration = "underline";
-            idTd.style.color = "var(--accent-blue)";
-            idTd.addEventListener("click", () => openBeamForceModal(idTd.textContent.trim()));
-        }
-    });
+    setupBeamTableInteractions();
 
     const filterLabel = filter === "ALL" ? "all floors" : filter;
     showToast(`Showing ${filteredRows.length} beams (${filterLabel})`);
@@ -3835,7 +3912,11 @@ async function runBeamDesign() {
 // Editable columns: tag(1), width(3), height(4), fc(5), fy(7), fys(8),
 // nib(9), nmb(10), njb(11), nit(15), nmt(16), njt(17), db(18),
 // vdb(22), vns_i(23), vns_m(24), vns_j(25), vs_i(26), vs_m(27), vs_j(28)
-const BEAM_EDITABLE_COLS = [1, 3, 4, 5, 7, 8, 9, 10, 11, 15, 16, 17, 18, 22, 23, 24, 25, 26, 27, 28];
+// Editable display columns for beam 3-row table
+// i-row: tag(1), bw(3), h(4), fc(5), fy(7), fys(8), nb(10), nt(12), db(13), vns(16), vs(17)
+const BEAM_EDITABLE_COLS_I = [1, 3, 4, 5, 7, 8, 10, 12, 13, 16, 17];
+// m/j rows: only per-location values
+const BEAM_EDITABLE_COLS_MJ = [10, 12, 16, 17];
 
 function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, overrides, elemSections, memberInfoMap) {
     memberInfoMap = memberInfoMap || {};
@@ -4130,11 +4211,11 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
         });
     }
 
-    renderTable("beamTable", headers, displayRows);
+    renderBeamTable("beamTable", displayRows);
 
     // Status badge (use displayRows for counts)
     let dispFail = 0, dispTotal = displayRows.length;
-    displayRows.forEach(r => { if (r[r.length - 1] === "FAIL") dispFail++; });
+    displayRows.forEach(r => { if (String(r[r.length - 1]).trim() === "FAIL") dispFail++; });
     const badge = document.getElementById("beamStatusBadge");
     if (dispFail > 0) {
         badge.style.display = "inline-flex";
@@ -4150,38 +4231,7 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
         badge.innerHTML = `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-green);margin-right:6px;"></span>${dispTotal}/${dispTotal} PASS`;
     }
 
-    // Make editable columns
-    const tbody = document.getElementById("beamTable").querySelector("tbody");
-    const trs = tbody.querySelectorAll("tr");
-    trs.forEach(tr => {
-        const tds = tr.querySelectorAll("td");
-        const elemId = tds[0].textContent.trim();
-        const edited = editedElems.has(elemId);
-        BEAM_EDITABLE_COLS.forEach(ci => {
-            const td = tds[ci];
-            if (!td) return;
-            td.classList.add("editable");
-            if (edited) td.classList.add("edited");
-            td.addEventListener("dblclick", function() {
-                if (td.querySelector("input")) return;
-                const val = td.textContent;
-                const inputType = ci === 1 ? "text" : "number"; // tag col is text
-                td.innerHTML = `<input type="${inputType}" value="${val}" style="${ci===1?'width:70px;':''}"/>`;
-                const inp = td.querySelector("input");
-                inp.focus(); inp.select();
-                inp.addEventListener("blur", () => { td.textContent = inp.value || val; td.classList.add("edited"); });
-                inp.addEventListener("keydown", e => { if (e.key === "Enter") inp.blur(); if (e.key === "Escape") { td.textContent = val; } });
-            });
-        });
-        // Make ID column clickable to open force detail modal
-        const idTd = tds[0];
-        if (idTd) {
-            idTd.style.cursor = "pointer";
-            idTd.style.textDecoration = "underline";
-            idTd.style.color = "var(--accent-blue)";
-            idTd.addEventListener("click", () => openBeamForceModal(idTd.textContent.trim()));
-        }
-    });
+    setupBeamTableInteractions(editedElems);
 
     document.getElementById("beamResults").style.display = "block";
     document.getElementById("beamEmpty").style.display = "none";
@@ -4191,39 +4241,42 @@ function rerunBeamDesign() {
     if (!cachedBeamForces) { showToast("Run beam design first", "error"); return; }
 
     const tbody = document.getElementById("beamTable").querySelector("tbody");
-    const trs = tbody.querySelectorAll("tr");
+    const trs = [...tbody.querySelectorAll("tr")];
     const overrides = {};
 
-    trs.forEach(tr => {
-        const tds = tr.querySelectorAll("td");
-        const elemId = tds[0].textContent.trim();
-        // Read all editable values from the table cells (shifted +1 for tag column)
-        // 1=tag, 3=width, 4=height, 5=fc, 6=fy, 7=fys, 8=nib..13=njt, 14=db, 16-18=vns
-        // Column indices: 0:id, 1:tag, 2:Ln, 3:bw, 4:h, 5:fc, 6:beta, 7:fy, 8:fys,
-        // 9:nib, 10:nmb, 11:njb, 12:Asi, 13:Asm, 14:Asj, 15:nit, 16:nmt, 17:njt, 18:db,
-        // 19:di, 20:dm, 21:dj, 22:vdb, 23:vns_i, 24:vns_m, 25:vns_j, 26:vs_i, 27:vs_m, 28:vs_j
+    // Group rows by beam (every 3 rows: i, m, j)
+    for (let r = 0; r < trs.length; r += 3) {
+        const trI = trs[r], trM = trs[r+1], trJ = trs[r+2];
+        if (!trI) continue;
+        const tdsI = trI.querySelectorAll("td");
+        const tdsM = trM ? trM.querySelectorAll("td") : [];
+        const tdsJ = trJ ? trJ.querySelectorAll("td") : [];
+        const elemId = trI.getAttribute("data-beam-id") || tdsI[0].textContent.trim();
+        if (!elemId) continue;
+
+        // Display cols: 0:id, 1:tag, 3:bw, 4:h, 5:fc, 7:fy, 8:fys, 10:nb, 12:nt, 13:db, 16:vns, 17:vs
         overrides[elemId] = {
-            tag: tds[1].textContent.trim(),
-            bw: parseFloat(tds[3].textContent),
-            h: parseFloat(tds[4].textContent),
-            fc: parseFloat(tds[5].textContent),
-            fy: parseFloat(tds[7].textContent),
-            fys: parseFloat(tds[8].textContent),
-            nib: parseInt(tds[9].textContent),
-            nmb: parseInt(tds[10].textContent),
-            njb: parseInt(tds[11].textContent),
-            nit: parseInt(tds[15].textContent),
-            nmt: parseInt(tds[16].textContent),
-            njt: parseInt(tds[17].textContent),
-            db: parseFloat(tds[18].textContent),
-            vns_i: parseInt(tds[23].textContent),
-            vns_m: parseInt(tds[24].textContent),
-            vns_j: parseInt(tds[25].textContent),
-            vs_i: parseInt(tds[26].textContent),
-            vs_m: parseInt(tds[27].textContent),
-            vs_j: parseInt(tds[28].textContent)
+            tag: tdsI[1].textContent.trim(),
+            bw: parseFloat(tdsI[3].textContent),
+            h: parseFloat(tdsI[4].textContent),
+            fc: parseFloat(tdsI[5].textContent),
+            fy: parseFloat(tdsI[7].textContent),
+            fys: parseFloat(tdsI[8].textContent),
+            db: parseFloat(tdsI[13].textContent),
+            nib: parseInt(tdsI[10].textContent),
+            nit: parseInt(tdsI[12].textContent),
+            vns_i: parseInt(tdsI[16].textContent),
+            vs_i: parseInt(tdsI[17].textContent),
+            nmb: tdsM.length ? parseInt(tdsM[10].textContent) : 2,
+            nmt: tdsM.length ? parseInt(tdsM[12].textContent) : 2,
+            vns_m: tdsM.length ? parseInt(tdsM[16].textContent) : 2,
+            vs_m: tdsM.length ? parseInt(tdsM[17].textContent) : 150,
+            njb: tdsJ.length ? parseInt(tdsJ[10].textContent) : 2,
+            njt: tdsJ.length ? parseInt(tdsJ[12].textContent) : 2,
+            vns_j: tdsJ.length ? parseInt(tdsJ[16].textContent) : 2,
+            vs_j: tdsJ.length ? parseInt(tdsJ[17].textContent) : 100,
         };
-    });
+    }
 
     const { gravForces, seisForces, elemLengths, elemTypes, elemSections, memberInfoMap } = cachedBeamForces;
     computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, overrides, elemSections, memberInfoMap);
@@ -4235,34 +4288,39 @@ function optimizeBeamTags() {
 
     // Read current table values (may have been edited)
     const tbody = document.getElementById("beamTable").querySelector("tbody");
-    const trs = tbody.querySelectorAll("tr");
+    const trs = [...tbody.querySelectorAll("tr")];
     const rows = [];
-    trs.forEach(tr => {
-        const tds = tr.querySelectorAll("td");
-        if (tds.length < 29) return;
-        // Column indices: 3:bw, 4:h, 9:nib, 10:nmb, 11:njb, 15:nit, 16:nmt, 17:njt, 18:db,
-        // 22:vdb, 23:vns_i, 24:vns_m, 25:vns_j, 26:vs_i, 27:vs_m, 28:vs_j
+
+    // Read from beam groups (every 3 rows: i, m, j)
+    for (let r = 0; r < trs.length; r += 3) {
+        const trI = trs[r], trM = trs[r+1], trJ = trs[r+2];
+        if (!trI) continue;
+        const tdsI = trI.querySelectorAll("td");
+        const tdsM = trM ? trM.querySelectorAll("td") : [];
+        const tdsJ = trJ ? trJ.querySelectorAll("td") : [];
+        if (tdsI.length < 18) continue;
+        // Display cols: 0:id, 3:bw, 4:h, 10:nb, 12:nt, 13:db, 15:vdb, 16:vns, 17:vs
         rows.push({
-            elemId: tds[0].textContent.trim(),
-            bw: tds[3].textContent.trim(),
-            h: tds[4].textContent.trim(),
-            nib: tds[9].textContent.trim(),
-            nmb: tds[10].textContent.trim(),
-            njb: tds[11].textContent.trim(),
-            nit: tds[15].textContent.trim(),
-            nmt: tds[16].textContent.trim(),
-            njt: tds[17].textContent.trim(),
-            db: tds[18].textContent.trim(),
-            vdb: tds[22].textContent.trim(),
-            vns_i: tds[23].textContent.trim(),
-            vns_m: tds[24].textContent.trim(),
-            vns_j: tds[25].textContent.trim(),
-            vs_i: tds[26].textContent.trim(),
-            vs_m: tds[27].textContent.trim(),
-            vs_j: tds[28].textContent.trim(),
-            tr: tr
+            elemId: tdsI[0].textContent.trim(),
+            bw: tdsI[3].textContent.trim(),
+            h: tdsI[4].textContent.trim(),
+            nib: tdsI[10].textContent.trim(),
+            nmb: tdsM.length ? tdsM[10].textContent.trim() : "2",
+            njb: tdsJ.length ? tdsJ[10].textContent.trim() : "2",
+            nit: tdsI[12].textContent.trim(),
+            nmt: tdsM.length ? tdsM[12].textContent.trim() : "2",
+            njt: tdsJ.length ? tdsJ[12].textContent.trim() : "2",
+            db: tdsI[13].textContent.trim(),
+            vdb: tdsI[15].textContent.trim(),
+            vns_i: tdsI[16].textContent.trim(),
+            vns_m: tdsM.length ? tdsM[16].textContent.trim() : "2",
+            vns_j: tdsJ.length ? tdsJ[16].textContent.trim() : "2",
+            vs_i: tdsI[17].textContent.trim(),
+            vs_m: tdsM.length ? tdsM[17].textContent.trim() : "150",
+            vs_j: tdsJ.length ? tdsJ[17].textContent.trim() : "100",
+            trI: trI
         });
-    });
+    }
 
     // Build grouping key: size + rebar + db for moment and shear
     // Separate B (for_beam group) and G (others) groups
@@ -4287,7 +4345,7 @@ function optimizeBeamTags() {
         for (const [key, members] of Object.entries(groups)) {
             const tag = `${floorPrefix}${prefix}${seqRef.val}`;
             members.forEach(m => {
-                const tds = m.tr.querySelectorAll("td");
+                const tds = m.trI.querySelectorAll("td");
                 tds[1].textContent = tag;
                 tds[1].classList.add("edited");
                 const rid = m.elemId;
