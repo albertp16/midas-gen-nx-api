@@ -422,13 +422,15 @@
 
         /* ═══════════════════════ Editable cells ═══════════════════════ */
         td.editable {
-            cursor: text; position: relative;
+            cursor: cell; position: relative; user-select: text;
         }
         td.editable:hover { background: rgba(88,166,255,0.08) !important; outline: 1px solid var(--accent-blue); outline-offset: -1px; }
+        td.editable.cell-active { background: rgba(88,166,255,0.15) !important; outline: 2px solid var(--accent-blue); outline-offset: -1px; }
         td.editable input {
-            width: 60px; background: var(--bg-input); border: 1px solid var(--accent-blue);
+            width: 100%; background: var(--bg-input); border: 1px solid var(--accent-blue);
             color: var(--text-primary); font-family: 'Consolas',monospace; font-size: 11px;
             padding: 2px 4px; border-radius: 3px; text-align: right; outline: none;
+            box-sizing: border-box;
         }
         td.edited { color: var(--accent-blue) !important; font-weight: 700 !important; }
 
@@ -1659,8 +1661,11 @@ function renderBeamTable(tableId, dataRows) {
 
 function setupBeamTableInteractions(editedElems) {
     const tbody = document.getElementById("beamTable").querySelector("tbody");
-    const trs = tbody.querySelectorAll("tr");
-    trs.forEach(tr => {
+    const trs = [...tbody.querySelectorAll("tr")];
+
+    // Build flat list of editable cells for navigation
+    const editableCells = [];
+    trs.forEach((tr, ri) => {
         const tds = tr.querySelectorAll("td");
         const loc = tr.getAttribute("data-loc");
         const beamId = tr.getAttribute("data-beam-id");
@@ -1670,17 +1675,10 @@ function setupBeamTableInteractions(editedElems) {
             const td = tds[ci];
             if (!td) return;
             td.classList.add("editable");
+            td.setAttribute("data-row", ri);
+            td.setAttribute("data-col", ci);
             if (edited) td.classList.add("edited");
-            td.addEventListener("dblclick", function() {
-                if (td.querySelector("input")) return;
-                const val = td.textContent;
-                const inputType = ci === 1 ? "text" : "number";
-                td.innerHTML = `<input type="${inputType}" value="${val}" style="${ci===1?'width:70px;':''}"/>`;
-                const inp = td.querySelector("input");
-                inp.focus(); inp.select();
-                inp.addEventListener("blur", () => { td.textContent = inp.value || val; td.classList.add("edited"); });
-                inp.addEventListener("keydown", e => { if (e.key === "Enter") inp.blur(); if (e.key === "Escape") { td.textContent = val; } });
-            });
+            editableCells.push(td);
         });
         // Make ID clickable on i-row
         if (loc === "i") {
@@ -1692,6 +1690,169 @@ function setupBeamTableInteractions(editedElems) {
                 idTd.addEventListener("click", () => openBeamForceModal(idTd.textContent.trim()));
             }
         }
+    });
+
+    // Excel-like cell activation and editing
+    function activateCell(td) {
+        // Deactivate previous
+        const prev = tbody.querySelector("td.cell-active");
+        if (prev && prev !== td) prev.classList.remove("cell-active");
+        td.classList.add("cell-active");
+        td.focus();
+    }
+
+    function startEdit(td, selectAll) {
+        if (td.querySelector("input")) return;
+        const ci = parseInt(td.getAttribute("data-col"));
+        const val = td.textContent;
+        const inputType = ci === 1 ? "text" : "number";
+        td.innerHTML = `<input type="${inputType}" value="${val}" />`;
+        const inp = td.querySelector("input");
+        inp.focus();
+        if (selectAll) inp.select();
+        inp.addEventListener("blur", () => {
+            td.textContent = inp.value || val;
+            td.classList.add("edited");
+            td.classList.add("cell-active");
+        });
+        inp.addEventListener("keydown", handleInputKey);
+    }
+
+    function findEditableCell(row, col, dRow, dCol) {
+        // Find next editable cell from (row, col) in direction (dRow, dCol)
+        let r = row + dRow, c = col + dCol;
+        for (let tries = 0; tries < editableCells.length; tries++) {
+            if (r < 0 || r >= trs.length) return null;
+            const tr = trs[r];
+            const tds = tr.querySelectorAll("td");
+            // If moving horizontally, find next editable in same row
+            if (dCol !== 0) {
+                while (c >= 0 && c < tds.length) {
+                    if (tds[c] && tds[c].classList.contains("editable")) return tds[c];
+                    c += dCol;
+                }
+                return null;
+            }
+            // Moving vertically: find same column in next row
+            if (tds[c] && tds[c].classList.contains("editable")) return tds[c];
+            r += dRow;
+        }
+        return null;
+    }
+
+    function getIdx(td) {
+        return { row: parseInt(td.getAttribute("data-row")), col: parseInt(td.getAttribute("data-col")) };
+    }
+
+    function handleInputKey(e) {
+        const inp = e.target;
+        const td = inp.closest("td");
+        const { row, col } = getIdx(td);
+
+        if (e.key === "Enter") {
+            e.preventDefault();
+            inp.blur();
+            const next = findEditableCell(row, col, 1, 0);
+            if (next) { activateCell(next); startEdit(next, true); }
+        } else if (e.key === "Tab") {
+            e.preventDefault();
+            inp.blur();
+            const next = e.shiftKey
+                ? findEditableCell(row, col, 0, -1) || findEditableCell(row - 1, 999, 0, -1)
+                : findEditableCell(row, col, 0, 1) || findEditableCell(row + 1, -1, 0, 1);
+            if (next) { activateCell(next); startEdit(next, true); }
+        } else if (e.key === "Escape") {
+            e.preventDefault();
+            const val = td.getAttribute("data-orig") || td.textContent;
+            td.textContent = val;
+            td.classList.add("cell-active");
+        }
+    }
+
+    // Click to activate, single click to start editing
+    editableCells.forEach(td => {
+        td.setAttribute("tabindex", "0");
+        td.addEventListener("click", (e) => {
+            if (td.querySelector("input")) return;
+            // Don't activate if clicking ID link on i-row
+            if (parseInt(td.getAttribute("data-col")) === 0) return;
+            activateCell(td);
+            startEdit(td, true);
+        });
+
+        // Keyboard nav when cell is focused but not editing
+        td.addEventListener("keydown", (e) => {
+            if (td.querySelector("input")) return;
+            const { row, col } = getIdx(td);
+            if (e.key === "Enter" || e.key === "F2") {
+                e.preventDefault();
+                startEdit(td, true);
+            } else if (e.key === "Tab") {
+                e.preventDefault();
+                const next = e.shiftKey
+                    ? findEditableCell(row, col, 0, -1) || findEditableCell(row - 1, 999, 0, -1)
+                    : findEditableCell(row, col, 0, 1) || findEditableCell(row + 1, -1, 0, 1);
+                if (next) activateCell(next);
+            } else if (e.key === "ArrowDown") {
+                e.preventDefault();
+                const next = findEditableCell(row, col, 1, 0);
+                if (next) activateCell(next);
+            } else if (e.key === "ArrowUp") {
+                e.preventDefault();
+                const next = findEditableCell(row, col, -1, 0);
+                if (next) activateCell(next);
+            } else if (e.key === "ArrowRight") {
+                e.preventDefault();
+                const next = findEditableCell(row, col, 0, 1);
+                if (next) activateCell(next);
+            } else if (e.key === "ArrowLeft") {
+                e.preventDefault();
+                const next = findEditableCell(row, col, 0, -1);
+                if (next) activateCell(next);
+            } else if (e.key === "Delete" || e.key === "Backspace") {
+                e.preventDefault();
+                td.textContent = "";
+                td.classList.add("edited");
+                startEdit(td, false);
+            } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey) {
+                // Typing starts edit with the typed character
+                e.preventDefault();
+                td.setAttribute("data-orig", td.textContent);
+                startEdit(td, false);
+                const inp = td.querySelector("input");
+                if (inp) { inp.value = e.key; }
+            }
+        });
+    });
+
+    // Paste from Excel: Ctrl+V on active cell
+    tbody.addEventListener("paste", (e) => {
+        const active = tbody.querySelector("td.cell-active");
+        if (!active || active.querySelector("input")) return;
+        e.preventDefault();
+        const text = (e.clipboardData || window.clipboardData).getData("text");
+        if (!text) return;
+        const pasteRows = text.split(/\r?\n/).filter(r => r.trim());
+        const { row: startRow, col: startCol } = getIdx(active);
+
+        pasteRows.forEach((pRow, dr) => {
+            const vals = pRow.split("\t");
+            const tr = trs[startRow + dr];
+            if (!tr) return;
+            const tds = tr.querySelectorAll("td");
+            let colOffset = 0;
+            vals.forEach((val, dc) => {
+                // Find next editable cell at or after startCol + colOffset
+                let c = startCol + colOffset;
+                while (c < tds.length && (!tds[c] || !tds[c].classList.contains("editable"))) c++;
+                if (c < tds.length && tds[c]) {
+                    tds[c].textContent = val.trim();
+                    tds[c].classList.add("edited");
+                }
+                colOffset = c - startCol + 1;
+            });
+        });
+        showToast(`Pasted ${pasteRows.length} row(s)`);
     });
 }
 
