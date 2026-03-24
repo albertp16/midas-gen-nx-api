@@ -3868,10 +3868,14 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
     // Sort beams: horizontal (along X) first, then vertical (along Y), by position
     // Build floor assignment for each element
     const elemFloorMap = {}; // elemId -> storyName
-    const floorSeqCounters = {}; // storyName -> running counter
+    const floorBCounters = {}; // storyName -> running B counter (for_beam group)
+    const floorGCounters = {}; // storyName -> running G counter (non for_beam)
+    // Build set of for_beam element IDs for quick lookup
+    const forBeamSet = new Set((forBeamEList || []).map(String));
     if (storyDataCache.length > 0) {
         for (const [storyName, beamIds] of Object.entries(storyBeamMap)) {
-            floorSeqCounters[storyName] = 0;
+            floorBCounters[storyName] = 0;
+            floorGCounters[storyName] = 0;
             beamIds.forEach(eid => { elemFloorMap[String(eid)] = storyName; });
         }
         // For combined members, assign floor from first element
@@ -3881,7 +3885,7 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
             }
         }
     }
-    let globalSeq = 0;
+    let globalBSeq = 0, globalGSeq = 0;
     beamTagMap = {}; // reset
 
     // Sort elements: horizontal beams (along X, dY~0) first, then vertical (along Y, dX~0)
@@ -3985,19 +3989,29 @@ function computeAndRenderBeam(gravForces, seisForces, elemLengths, elemTypes, ov
         const mrm = mcm > 0 ? mdm / mcm : 0;
         const mrj = mcj > 0 ? mdj / mcj : 0;
 
-        // Generate beam tag
+        // Generate beam tag: B for for_beam group elements, G for others
         let tag;
         const ovrTag = ovr ? ovr.tag : null;
+        // Check if element (or any constituent of combined member) is in for_beam group
+        const minfoCheck = memberInfoMap[elem];
+        const elemIds = minfoCheck ? minfoCheck.elems.map(String) : [String(elem)];
+        const isForBeam = forBeamSet.size > 0 && elemIds.some(eid => forBeamSet.has(eid));
+        const prefix = isForBeam ? "B" : "G";
         if (ovrTag) {
             tag = ovrTag;
         } else {
             const floor = elemFloorMap[String(elem)];
             if (floor) {
-                floorSeqCounters[floor] = (floorSeqCounters[floor] || 0) + 1;
-                tag = `${floor}B${floorSeqCounters[floor]}`;
+                if (isForBeam) {
+                    floorBCounters[floor] = (floorBCounters[floor] || 0) + 1;
+                    tag = `${floor}${prefix}${floorBCounters[floor]}`;
+                } else {
+                    floorGCounters[floor] = (floorGCounters[floor] || 0) + 1;
+                    tag = `${floor}${prefix}${floorGCounters[floor]}`;
+                }
             } else {
-                globalSeq++;
-                tag = `B${globalSeq}`;
+                if (isForBeam) { globalBSeq++; tag = `B${globalBSeq}`; }
+                else { globalGSeq++; tag = `G${globalGSeq}`; }
             }
         }
         beamTagMap[String(elem)] = tag;
@@ -4213,40 +4227,48 @@ function optimizeBeamTags() {
     });
 
     // Build grouping key: size + rebar + db for moment and shear
-    const groups = {};
+    // Separate B (for_beam group) and G (others) groups
+    const forBeamSet = new Set((forBeamEList || []).map(String));
+    const bGroups = {}, gGroups = {};
     rows.forEach(r => {
         const key = [r.bw, r.h, r.nib, r.nmb, r.njb, r.nit, r.nmt, r.njt, r.db, r.vdb, r.vns_i, r.vns_m, r.vns_j, r.vs_i, r.vs_m, r.vs_j].join("|");
-        if (!groups[key]) groups[key] = [];
-        groups[key].push(r);
+        // Check if element is in for_beam group
+        const eids = r.elemId.includes("+") ? r.elemId.split("+").map(s => s.trim()) : [r.elemId];
+        const isForBeam = forBeamSet.size > 0 && eids.some(eid => forBeamSet.has(eid));
+        const target = isForBeam ? bGroups : gGroups;
+        if (!target[key]) target[key] = [];
+        target[key].push(r);
     });
 
-    // Assign optimized tags: B1, B2, B3... (new sequence)
-    let seq = 1;
+    // Assign optimized tags: B1, B2... for for_beam, G1, G2... for others
+    let bSeq = 1, gSeq = 1;
     const floorFilter = document.getElementById("bmFloorFilter").value;
     const floorPrefix = (floorFilter !== "ALL") ? floorFilter : "";
 
-    for (const [key, members] of Object.entries(groups)) {
-        const tag = `${floorPrefix}B${seq}`;
-        members.forEach(m => {
-            // Update tag column (index 1) in the table
-            const tds = m.tr.querySelectorAll("td");
-            tds[1].textContent = tag;
-            tds[1].classList.add("edited");
-            // Update beamTagMap
-            const rid = m.elemId;
-            beamTagMap[rid] = tag;
-            if (rid.includes("+")) {
-                rid.split("+").forEach(eid => { beamTagMap[eid.trim()] = tag; });
-            }
-            // Update allBeamResultRows
-            const matchRow = allBeamResultRows.find(r => String(r[0]) === rid);
-            if (matchRow) matchRow[1] = tag;
-        });
-        seq++;
+    function applyTags(groups, prefix, seqRef) {
+        for (const [key, members] of Object.entries(groups)) {
+            const tag = `${floorPrefix}${prefix}${seqRef.val}`;
+            members.forEach(m => {
+                const tds = m.tr.querySelectorAll("td");
+                tds[1].textContent = tag;
+                tds[1].classList.add("edited");
+                const rid = m.elemId;
+                beamTagMap[rid] = tag;
+                if (rid.includes("+")) {
+                    rid.split("+").forEach(eid => { beamTagMap[eid.trim()] = tag; });
+                }
+                const matchRow = allBeamResultRows.find(r => String(r[0]) === rid);
+                if (matchRow) matchRow[1] = tag;
+            });
+            seqRef.val++;
+        }
     }
+    const bRef = { val: 1 }, gRef = { val: 1 };
+    applyTags(bGroups, "B", bRef);
+    applyTags(gGroups, "G", gRef);
 
-    const totalGroups = Object.keys(groups).length;
-    showToast(`Optimized: ${rows.length} beams → ${totalGroups} unique tags`);
+    const totalGroups = Object.keys(bGroups).length + Object.keys(gGroups).length;
+    showToast(`Optimized: ${rows.length} beams → ${totalGroups} unique tags (${Object.keys(bGroups).length} B, ${Object.keys(gGroups).length} G)`);
 
     // Refresh beam plot if visible
     if (document.getElementById("beamFrameWrapper").style.display !== "none") {
