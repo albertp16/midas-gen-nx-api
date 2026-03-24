@@ -603,6 +603,7 @@
                 <div class="stat-card" style="cursor:pointer;" onclick="showStatDetail('matl')"><div class="stat-card-label">Materials</div><div class="stat-card-value" id="matCount">-</div><div class="stat-card-sub">/db/matl</div></div>
                 <div class="stat-card" style="cursor:pointer;" onclick="showStatDetail('sect')"><div class="stat-card-label">Sections</div><div class="stat-card-value" id="sectCount">-</div><div class="stat-card-sub">/db/sect</div></div>
                 <div class="stat-card" style="cursor:pointer;" onclick="showStatDetail('stor')"><div class="stat-card-label">Stories</div><div class="stat-card-value" id="storCount">-</div><div class="stat-card-sub">/db/STOR</div></div>
+                <div class="stat-card" style="cursor:pointer;" onclick="showStatDetail('grup')"><div class="stat-card-label">Groups</div><div class="stat-card-value" id="grupCount">-</div><div class="stat-card-sub">/db/GRUP</div></div>
             </div>
             <!-- Stat Detail Panel (appears on card click) -->
             <div id="statDetailPanel" class="panel" style="display:none;">
@@ -1324,8 +1325,10 @@ async function connect() {
             document.getElementById("nodeCount").textContent = Object.keys(data.NODE || data).length;
             updateProgress(60, "Fetching model statistics...");
             await refreshStats();
-            updateProgress(80, "Fetching structure groups...");
+            updateProgress(70, "Fetching structure groups...");
             await fetchBeamGroup();
+            updateProgress(85, "Fetching story data...");
+            try { await fetchStoryData(); } catch(e) { logEntry(`<span class="log-info">Story data auto-fetch: ${e.message}</span>`); }
             updateProgress(100, "Connected!");
             showToast("Connected to MIDAS Gen!");
             pingInterval = setInterval(heartbeat, 30000);
@@ -1340,7 +1343,7 @@ async function connect() {
 
 function disconnect() {
     isConnected = false; apiKey = ""; clearInterval(pingInterval);
-    forBeamEList = null;
+    forBeamEList = null; cachedGrupData = null;
     setStatus("disconnected");
     document.getElementById("connectBtn").style.display = "inline-flex";
     document.getElementById("disconnectBtn").style.display = "none";
@@ -1348,7 +1351,7 @@ function disconnect() {
     document.getElementById("apiKeyInput").value = "";
     document.getElementById("statsGrid").style.display = "none";
     document.getElementById("quickActions").style.display = "none";
-    ["nodeCount","elemCount","matCount","sectCount"].forEach(id => document.getElementById(id).textContent = "-");
+    ["nodeCount","elemCount","matCount","sectCount","storCount","grupCount"].forEach(id => document.getElementById(id).textContent = "-");
     logEntry('<span class="log-warn">Disconnected</span>');
     showToast("Disconnected", "error");
 }
@@ -1360,9 +1363,9 @@ async function heartbeat() {
 
 async function showStatDetail(type) {
     if (!isConnected) return;
-    const labels = { node: "Nodes", elem: "Elements", matl: "Materials", sect: "Sections", stor: "Stories" };
-    const endpoints = { node: "/db/node", elem: "/db/elem", matl: "/db/matl", sect: "/db/sect", stor: "/db/STOR" };
-    const wrapKeys = { node: "NODE", elem: "ELEM", matl: "MATL", sect: "SECT", stor: "STOR" };
+    const labels = { node: "Nodes", elem: "Elements", matl: "Materials", sect: "Sections", stor: "Stories", grup: "Groups" };
+    const endpoints = { node: "/db/node", elem: "/db/elem", matl: "/db/matl", sect: "/db/sect", stor: "/db/STOR", grup: "/db/GRUP" };
+    const wrapKeys = { node: "NODE", elem: "ELEM", matl: "MATL", sect: "SECT", stor: "STOR", grup: "GRUP" };
 
     document.getElementById("statDetailTitle").textContent = `${labels[type]} Data`;
     try {
@@ -1446,6 +1449,22 @@ async function showStatDetail(type) {
                 headers = ["ID", "Data"];
                 rows = entries.map(([id, v]) => [id, JSON.stringify(v).substring(0, 100)]);
             }
+        } else if (type === "grup") {
+            const grupObj = data.GRUP || data.Assign || data;
+            const grupEntries = Object.entries(grupObj);
+            headers = ["ID", "Name", "Type", "Node Count", "Element Count", "N_LIST", "E_LIST"];
+            rows = grupEntries.map(([id, v]) => {
+                const name = v.NAME || "-";
+                const ptype = v.P_TYPE !== undefined ? v.P_TYPE : "-";
+                const nlist = v.N_LIST || [];
+                const elist = v.E_LIST || [];
+                return [id, name, ptype, nlist.length, elist.length,
+                    nlist.length > 10 ? nlist.slice(0, 10).join(", ") + "..." : nlist.join(", "),
+                    elist.length > 10 ? elist.slice(0, 10).join(", ") + "..." : elist.join(", ")
+                ];
+            });
+            document.getElementById("statDetailTitle").textContent = `Structure Groups — ${grupEntries.length} total`;
+            document.getElementById("grupCount").textContent = grupEntries.length;
         }
         renderTable("statDetailTable", headers, rows);
         document.getElementById("statDetailPanel").style.display = "block";
@@ -1458,10 +1477,11 @@ async function showStatDetail(type) {
 async function refreshStats() {
     if (!isConnected) return;
     try {
-        const [nodes, elems, mats, sects, stor] = await Promise.all([
+        const [nodes, elems, mats, sects, stor, grup] = await Promise.all([
             midasAPI("GET", "/db/node"), midasAPI("GET", "/db/elem"),
             midasAPI("GET", "/db/matl"), midasAPI("GET", "/db/sect"),
-            midasAPI("GET", "/db/STOR").catch(() => ({}))
+            midasAPI("GET", "/db/STOR").catch(() => ({})),
+            midasAPI("GET", "/db/GRUP").catch(() => ({}))
         ]);
         document.getElementById("nodeCount").textContent = Object.keys(nodes.NODE || nodes).length;
         document.getElementById("elemCount").textContent = Object.keys(elems.ELEM || elems).length;
@@ -1470,6 +1490,10 @@ async function refreshStats() {
         const storObj = stor.STOR || stor;
         const storCount = typeof storObj === "object" ? Object.keys(storObj).length : 0;
         document.getElementById("storCount").textContent = storCount || "-";
+        const grupObj = grup.GRUP || grup.Assign || grup;
+        const grupCount = typeof grupObj === "object" ? Object.keys(grupObj).length : 0;
+        document.getElementById("grupCount").textContent = grupCount || "-";
+        cachedGrupData = grupObj;
     } catch {}
 }
 
@@ -1477,6 +1501,9 @@ async function fetchBeamGroup() {
     try {
         const grupData = await midasAPI("GET", "/db/GRUP");
         const groups = grupData.GRUP || grupData.Assign || grupData;
+        cachedGrupData = groups;
+        const grupCount = typeof groups === "object" ? Object.keys(groups).length : 0;
+        document.getElementById("grupCount").textContent = grupCount || "-";
         forBeamEList = null;
         for (const [gid, ginfo] of Object.entries(groups)) {
             if (typeof ginfo === "object" && ginfo !== null) {
@@ -1575,6 +1602,8 @@ let allBeamHeaders = [];
 let beamTagMap = {};
 // Group data: "for_beam" group E_LIST (element IDs from MIDAS groups)
 let forBeamEList = null; // null = not loaded, [] = loaded but empty
+// Cached structure groups data from /db/GRUP
+let cachedGrupData = null;
 
 // ══════════════════════════════════════════════════════════════
 // STORY DATA
