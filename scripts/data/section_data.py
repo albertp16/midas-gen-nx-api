@@ -8,8 +8,6 @@ def MidasAPI(method, command, body=None):
     base_url = "https://moa-engineers.midasit.com:443/gen"
     mapi_key = "eyJ1ciI6IkFsYmVydFBhbW9uYWciLCJwZyI6ImdlbiIsImNuIjoiQldiby12dG1RQSJ9.12b57179a60ebf634b50081504bdf1a45e158893fd8306ce0b78ed5a9ef557ed"
 
-
-
     url = base_url + command
     headers = {
         "Content-Type": "application/json",
@@ -53,32 +51,25 @@ def get_sect_db():
 
 # =========================================================
 # INTERPRET SIZE
+# vSIZE[0] = HEIGHT
+# vSIZE[1] = WIDTH
+# MIDAS values appear to be in meters, so convert to mm
 # =========================================================
 def interpret_size(shape, vsize):
-    if not vsize:
-        return None
+    if not vsize or len(vsize) < 2:
+        return None, None, None
 
     try:
-        if shape in ["RECT", "SB"]:
-            b = vsize[0]
-            h = vsize[1]
-            return f"{int(b)}x{int(h)}"
+        height_mm = round(float(vsize[0]) * 1000)
+        width_mm = round(float(vsize[1]) * 1000)
 
-        elif shape in ["I", "H"]:
-            h = vsize[0]
-            b = vsize[1]
-            return f"H{int(h)}x{int(b)}"
+        if shape == "SB":
+            return height_mm, width_mm, f"{width_mm}x{height_mm}"
 
-        elif shape == "C":
-            h = vsize[0]
-            b = vsize[1]
-            return f"C{int(h)}x{int(b)}"
-
-        else:
-            return str(vsize)
+        return height_mm, width_mm, f"{width_mm}x{height_mm}"
 
     except Exception:
-        return str(vsize)
+        return None, None, str(vsize)
 
 
 # =========================================================
@@ -93,15 +84,19 @@ def get_all_sections_clean():
         sect_i = sect_before.get("SECT_I", {})
 
         shape = sect_before.get("SHAPE")
-        vsize = sect_i.get("vSIZE")
+        datatype = sect_before.get("DATATYPE")
+        vsize = sect_i.get("vSIZE", [])
 
-        size_clean = interpret_size(shape, vsize)
+        height_mm, width_mm, size_text = interpret_size(shape, vsize)
 
         results.append({
             "ID": int(sid),
             "Name": sect.get("SECT_NAME"),
             "Shape": shape,
-            "Size": size_clean
+            "DataType": datatype,
+            "Height_mm": height_mm,
+            "Width_mm": width_mm,
+            "Size": size_text
         })
 
     df = pd.DataFrame(results)

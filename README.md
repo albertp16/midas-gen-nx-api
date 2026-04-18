@@ -24,20 +24,35 @@ A web-based structural engineering dashboard that interfaces with MIDAS Gen via 
 - Max/Min callouts with node labels
 
 ### Python Scripts
-| Script | Description |
-|--------|-------------|
-| `beam.py` | Concrete beam design (rebar area, flexural capacity) |
-| `beam_solver.py` | ACI beam solver (beta factor, strain analysis, reduction factors) |
-| `beam_force.py` | Extract beam forces from MIDAS API |
-| `drift_plot.py` | Single load case story drift plot |
-| `drift_plot_multiple.py` | Multi-case story drift comparison |
-| `rs_drift_plot_multiple.py` | Response spectrum drift analysis |
-| `foundation/reaction.py` | 2D reaction force visualization |
-| `foundation/reaction_demo.py` | 3D Plotly reaction visualization |
-| `foundation/reaction_midas_ui.py` | Advanced 3D reaction with auto-foundation detection |
-| `member_length.py` | Element length computation from node coordinates |
-| `modes.py` | Vibration mode analysis and screenshots |
-| `irregularity.py` | Building irregularity checks |
+Standalone MIDAS API utilities under `scripts/`:
+
+**`scripts/beam/`** — RC beam design
+- `beam.py` — Concrete beam design (rebar area, flexural capacity)
+- `beam_solver.py` — ACI beam solver (beta factor, strain analysis, reduction factors)
+- `beam_force.py` — Extract beam forces from MIDAS API
+- `beam_data.py` — Fetch beam element data
+- `shear_capacity.py` — Transverse shear validation
+
+**`scripts/drift/`** — Story drift
+- `drift_plot.py` — Single load case story drift plot
+- `drift_plot_multiple.py` — Multi-case story drift comparison
+- `rs_drift_plot_multiple.py` — Response spectrum drift analysis
+- `drift.ipynb` — Drift exploration notebook
+
+**`scripts/reaction/`** — Foundation reactions
+- `reaction.py` — 2D reaction force visualization
+- `reaction_midas_ui.py` — Advanced 3D reaction with auto-foundation detection
+
+**`scripts/analysis/`** — Model analysis
+- `modes.py` — Vibration mode analysis and screenshots
+- `irregularity.py` — Building irregularity checks
+- `displacement.py` — Nodal displacement extraction
+- `check.py` — Raw drift check data
+
+**`scripts/data/`** — MIDAS data fetchers
+- `section_data.py`, `story_data_api.py`, `group.py`
+- `member_length.py`, `member_assignment.py`
+- `testing.py` — Section payload sample
 
 ## Usage
 

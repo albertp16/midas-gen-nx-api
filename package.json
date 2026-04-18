@@ -1,0 +1,13 @@
+{
+  "name": "midas-gen-dashboard",
+  "version": "1.0.0",
+  "description": "MIDAS Gen NX API Dashboard - Flask web app",
+  "scripts": {
+    "start": "py server.py",
+    "dev": "py server.py",
+    "server": "py server.py"
+  },
+  "keywords": ["midas", "structural-engineering", "flask", "dashboard"],
+  "author": "Albert Pamonag",
+  "license": "MIT"
+}
