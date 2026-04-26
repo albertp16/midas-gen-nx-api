@@ -67,16 +67,40 @@
         [data-theme="light"] .progress-box { background: #ffffff; border-color: #d0d7de; }
         [data-theme="light"] .progress-title { color: #1f2328; }
         [data-theme="light"] #storyRawOutput { background: #f6f8fa; color: #1a7f37; border-color: #d0d7de; }
-        .theme-toggle { display:flex; align-items:center; gap:8px; cursor:pointer; padding:6px 12px; border-radius:6px; font-size:12px; color:var(--text-muted); transition:background 0.15s; }
-        .theme-toggle:hover { background:var(--bg-tertiary); color:var(--text-primary); }
-        .theme-toggle svg { width:16px; height:16px; }
 
         /* Beam table 3-row grouping */
-        tr.beam-even td { background: rgba(255,255,255,0.04); }
-        [data-theme="light"] tr.beam-even td { background: rgba(0,0,0,0.04); }
+        tr.beam-even td { background: rgba(0,0,0,0.04); }
         tr[data-loc="i"] td { border-top: 2px solid var(--border); }
         tr[data-loc="m"] td, tr[data-loc="j"] td { border-top: none; }
         tr[data-loc="i"] td:first-child { font-weight: 700; }
+
+        /* Excel-like floor load tables */
+        #sdlTableBody td, #llTableBody td { padding: 0; vertical-align: middle; }
+        #sdlTableBody td.cell-action, #llTableBody td.cell-action { padding: 0 4px; text-align: center; }
+        #sdlTableBody td.cell-total, #llTableBody td.cell-total { padding: 6px 12px; }
+        #sdlTableBody input, #sdlTableBody select,
+        #llTableBody input, #llTableBody select {
+            border: 1px solid transparent; background: transparent; width: 100%;
+            padding: 8px 10px; font-size: 12px; font-family: inherit;
+            color: var(--text-primary); border-radius: 0;
+        }
+        #sdlTableBody input:hover, #sdlTableBody select:hover,
+        #llTableBody input:hover, #llTableBody select:hover { background: var(--bg-tertiary); }
+        #sdlTableBody input:focus, #sdlTableBody select:focus,
+        #llTableBody input:focus, #llTableBody select:focus {
+            border-color: var(--accent-blue); background: var(--bg-input);
+            outline: none; box-shadow: inset 0 0 0 1px var(--accent-blue);
+        }
+        /* Hide native input clear/spinner buttons */
+        #sdlTableBody input::-ms-clear, #llTableBody input::-ms-clear { display: none; width: 0; height: 0; }
+        #sdlTableBody input::-webkit-outer-spin-button,
+        #sdlTableBody input::-webkit-inner-spin-button,
+        #llTableBody input::-webkit-outer-spin-button,
+        #llTableBody input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        #sdlTableBody input[type=number], #llTableBody input[type=number] { -moz-appearance: textfield; }
+        #sdlTableBody td:not(:last-child), #llTableBody td:not(:last-child) { border-right: 1px solid var(--border-light); }
+        .fl-del-btn { background:transparent; border:none; color:var(--text-faint); cursor:pointer; font-size:14px; padding:4px 6px; line-height:1; border-radius:3px; }
+        .fl-del-btn:hover { background:rgba(207,34,46,0.1); color:var(--accent-red); }
 
         * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -521,6 +545,10 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20"/><path d="M2 12h20"/><path d="M12 2l4 4"/><path d="M12 2l-4 4"/></svg>
                     Loads &amp; Combinations
                 </a></li>
+                <li><a onclick="switchTab('floor-load')" data-tab="floor-load">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 3v18"/></svg>
+                    Floor Load Type
+                </a></li>
                 <li><a onclick="switchTab('story')" data-tab="story">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="4" rx="1"/><rect x="3" y="10" width="18" height="4" rx="1"/><rect x="3" y="17" width="18" height="4" rx="1"/></svg>
                     Story Data
@@ -576,12 +604,7 @@
         </div>
 
         <div class="sidebar-footer">
-            <div class="theme-toggle" onclick="toggleTheme()" title="Toggle light/dark theme">
-                <svg id="themeIconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-                <svg id="themeIconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none;"><path d="M21 12.79A9 9 0 1111.21 3a7 7 0 009.79 9.79z"/></svg>
-                <span id="themeLabel">Light</span>
-            </div>
-            <p style="margin-top:8px;">MIDAS Gen NX API v1.0</p><p style="margin-top:4px;">APEC Consultancy</p>
+            <p>MIDAS Gen NX API v1.0</p><p style="margin-top:4px;">APEC Consultancy</p>
         </div>
     </aside>
 
@@ -1116,6 +1139,144 @@ Roof, 15.00, 0.00, Consider
             </div>
         </div>
 
+        <!-- ════════════ FLOOR LOAD TYPE ════════════ -->
+        <div id="tab-floor-load" class="tab-page">
+            <div class="page-header">
+                <h2>Define Floor Load Type</h2>
+                <p>Define superimposed dead load (SDL) and live load (LL) per occupancy and write to MIDAS</p>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Superimposed Dead Load (kPa)</span>
+                    <div style="display:flex;gap:6px;">
+                        <button class="btn btn-sm btn-ghost" onclick="addSdlRow()">+ Add Row</button>
+                        <button class="btn btn-sm btn-ghost" onclick="resetSdlDefaults()">Reset Defaults</button>
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    <div class="table-scroll">
+                        <table id="sdlTable">
+                            <thead><tr>
+                                <th style="text-align:left;">Floor Level</th>
+                                <th style="text-align:left;">Occupancy</th>
+                                <th style="text-align:left;">Color</th>
+                                <th>Topping &amp; Tiles</th>
+                                <th>Duct</th>
+                                <th>Ceiling</th>
+                                <th>Others</th>
+                                <th>Total</th>
+                                <th></th>
+                            </tr></thead>
+                            <tbody id="sdlTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Live Load (kPa)</span>
+                    <div style="display:flex;gap:6px;">
+                        <button class="btn btn-sm btn-ghost" onclick="addLlRow()">+ Add Row</button>
+                        <button class="btn btn-sm btn-ghost" onclick="resetLlDefaults()">Reset Defaults</button>
+                    </div>
+                </div>
+                <div class="table-wrap">
+                    <div class="table-scroll">
+                        <table id="llTable">
+                            <thead><tr>
+                                <th style="text-align:left;">Floor Level</th>
+                                <th style="text-align:left;">Occupancy</th>
+                                <th style="text-align:left;">Color</th>
+                                <th>Live Load</th>
+                                <th></th>
+                            </tr></thead>
+                            <tbody id="llTableBody"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header"><span class="panel-title">Write to MIDAS</span></div>
+                <div class="form-row" style="align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;">Dead Load Case</label>
+                        <input type="text" id="dlLoadCase" class="input" value="SDL" style="width:100px;font-size:11px;" title="Static load case name in your MIDAS model (e.g. SDL, Dead Load)" />
+                    </div>
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;">Live Load Case</label>
+                        <input type="text" id="llLoadCase" class="input" value="LL" style="width:100px;font-size:11px;" title="Static load case name in your MIDAS model (e.g. LL, Live Load)" />
+                    </div>
+                    <span style="font-size:11px;color:var(--text-muted);">← must match existing load case names in your model</span>
+                </div>
+                <div class="form-row" style="align-items:center;gap:10px;flex-wrap:wrap;">
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;">Endpoint</label>
+                        <input type="text" id="floorLoadEndpoint" class="input" value="/db/FBLD" style="width:140px;font-size:11px;" />
+                    </div>
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;">Method</label>
+                        <select id="floorLoadMethod" class="input" style="width:90px;font-size:11px;">
+                            <option value="PUT" selected>PUT</option>
+                            <option value="POST">POST</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-blue" onclick="writeFloorLoadTypes()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        Write Floor Load Types
+                    </button>
+                    <button class="btn btn-ghost" onclick="probeFloorLoadEndpoint()" title="GET-test candidate endpoints to discover the right key">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        Probe Endpoint
+                    </button>
+                </div>
+                <div id="floorLoadResponse" style="margin-top:12px;font-size:11px;font-family:'Consolas',monospace;color:var(--text-muted);max-height:320px;overflow:auto;"></div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Alternative: MGT Command</span>
+                    <span style="font-size:11px;color:var(--text-muted);">paste into MIDAS &rarr; Tools &rarr; MCT/MGT Command Shell</span>
+                </div>
+                <div class="form-row" style="align-items:center;gap:10px;margin-bottom:10px;">
+                    <button class="btn btn-blue btn-sm" onclick="generateMgtCommand()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                        Generate MGT
+                    </button>
+                    <button class="btn btn-ghost btn-sm" onclick="copyMgtToClipboard()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                        Copy MGT
+                    </button>
+                    <label style="font-size:11px;color:var(--text-muted);display:flex;align-items:center;gap:6px;cursor:pointer;">
+                        <input type="checkbox" id="mgtNegativeSign" checked style="margin:0;" />
+                        Negative sign (gravity-down per MIDAS MGT convention)
+                    </label>
+                </div>
+                <textarea id="mgtOutput" placeholder='Click "Generate MGT" to produce the *FLOADTYPE block from your tables. Then copy and paste into the MIDAS MGT Command Shell and press Run.' style="width:100%;min-height:160px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-input);color:var(--text-primary);font-size:11px;font-family:'Consolas',monospace;resize:vertical;white-space:pre;"></textarea>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">Send Feedback to Claude</span>
+                    <span style="font-size:11px;color:var(--text-muted);">type a message, click Copy, paste it back into chat</span>
+                </div>
+                <textarea id="claudeFeedback" placeholder="Describe what you saw, what worked, what didn't, paste any error response here..." style="width:100%;min-height:90px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-input);color:var(--text-primary);font-size:12px;font-family:inherit;resize:vertical;"></textarea>
+                <div class="form-row" style="margin-top:10px;align-items:center;gap:10px;">
+                    <button class="btn btn-blue btn-sm" onclick="copyFeedbackToClipboard()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
+                        Copy Feedback
+                    </button>
+                    <button class="btn btn-ghost btn-sm" onclick="attachLastResponse()" title="Append the last MIDAS response to your feedback">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 01-8.49-8.49l9.19-9.19a4 4 0 015.66 5.66l-9.2 9.19a2 2 0 01-2.83-2.83l8.49-8.48"/></svg>
+                        Attach Last Response
+                    </button>
+                    <button class="btn btn-ghost btn-sm" onclick="document.getElementById('claudeFeedback').value=''">Clear</button>
+                </div>
+            </div>
+        </div>
+
         <!-- ════════════ FIBER AUTOMATION ════════════ -->
         <div id="tab-fiber" class="tab-page">
             <div class="page-header"><h2>Fiber Automation</h2><p>Automated fiber section analysis workflow via MIDAS API</p></div>
@@ -1282,31 +1443,6 @@ async function midasAPI(method, endpoint, body = null) {
         throw err;
     }
 }
-
-// ══════════════════════════════════════════════════════════════
-// THEME TOGGLE
-// ══════════════════════════════════════════════════════════════
-function toggleTheme() {
-    const html = document.documentElement;
-    const isDark = html.getAttribute("data-theme") !== "light";
-    html.setAttribute("data-theme", isDark ? "light" : "dark");
-    document.getElementById("themeIconSun").style.display = isDark ? "block" : "none";
-    document.getElementById("themeIconMoon").style.display = isDark ? "none" : "block";
-    document.getElementById("themeLabel").textContent = isDark ? "Light" : "Dark";
-    localStorage.setItem("theme", isDark ? "light" : "dark");
-}
-// Restore saved theme on load (default = light)
-(function() {
-    const saved = localStorage.getItem("theme");
-    if (saved === "dark") {
-        document.documentElement.setAttribute("data-theme", "dark");
-        document.addEventListener("DOMContentLoaded", () => {
-            document.getElementById("themeIconSun").style.display = "none";
-            document.getElementById("themeIconMoon").style.display = "block";
-            document.getElementById("themeLabel").textContent = "Dark";
-        });
-    }
-})();
 
 // CONNECTION
 // ══════════════════════════════════════════════════════════════
@@ -4737,6 +4873,480 @@ async function fetchLoads() {
     }
     setTimeout(hideProgress, 400);
 }
+
+// ══════════════════════════════════════════════════════════════
+// FLOOR LOAD TYPE  (SDL + LL → POST /db/FLDT)
+// ══════════════════════════════════════════════════════════════
+const SDL_DEFAULTS = [
+    { level: "Second", occupancy: "Commercial", color: "Green", topping: 1.25, duct: 0.20, ceiling: 0.10, others: 0 },
+    { level: "Third",  occupancy: "Commercial", color: "Green", topping: 1.25, duct: 0.20, ceiling: 0.10, others: 0 },
+    { level: "Fourth", occupancy: "Commercial", color: "Green", topping: 1.25, duct: 0.20, ceiling: 0.10, others: 0 },
+    { level: "Roof",   occupancy: "Roofing",    color: "Blue",  topping: 0,    duct: 0,    ceiling: 0,    others: 0.40 }
+];
+const LL_DEFAULTS = [
+    { level: "Second", occupancy: "Commercial", color: "Green", value: 4.8 },
+    { level: "Third",  occupancy: "Commercial", color: "Green", value: 4.8 },
+    { level: "Fourth", occupancy: "Commercial", color: "Green", value: 4.8 },
+    { level: "Roof",   occupancy: "Roofing",    color: "Blue",  value: 1.0 }
+];
+// MIDAS palette indices for the named colors used in the source table.
+// Adjust if MIDAS shows different colors after import.
+const COLOR_CODES = { Green: 5, Blue: 1, Red: 2, Yellow: 3, Cyan: 4, Magenta: 6, White: 7, Gray: 8 };
+const COLOR_NAMES = Object.keys(COLOR_CODES);
+
+function flNum(val, cls, align) {
+    return `<input type="number" step="0.01" min="0" value="${val}" class="${cls}" style="text-align:${align||"right"};" />`;
+}
+function flText(val, cls) {
+    return `<input type="text" value="${val}" class="${cls}" />`;
+}
+function flColor(selected) {
+    return `<select class="fl-color">${
+        COLOR_NAMES.map(c => `<option ${c===selected?"selected":""}>${c}</option>`).join("")
+    }</select>`;
+}
+function flDelBtn() {
+    return `<button class="fl-del-btn" onclick="this.closest('tr').remove();recalcSdlTotals();" title="Remove row">×</button>`;
+}
+
+function renderSdlTable(rows) {
+    const body = document.getElementById("sdlTableBody");
+    body.innerHTML = rows.map(r => `
+        <tr>
+            <td>${flText(r.level, "fl-level")}</td>
+            <td>${flText(r.occupancy, "fl-occ")}</td>
+            <td>${flColor(r.color)}</td>
+            <td>${flNum(r.topping, "sdl-topping")}</td>
+            <td>${flNum(r.duct, "sdl-duct")}</td>
+            <td>${flNum(r.ceiling, "sdl-ceiling")}</td>
+            <td>${flNum(r.others, "sdl-others")}</td>
+            <td class="cell-total sdl-total" style="font-weight:600;color:var(--accent-blue);text-align:right;">${(r.topping+r.duct+r.ceiling+r.others).toFixed(2)}</td>
+            <td class="cell-action">${flDelBtn()}</td>
+        </tr>`).join("");
+    recalcSdlTotals();
+}
+function renderLlTable(rows) {
+    const body = document.getElementById("llTableBody");
+    body.innerHTML = rows.map(r => `
+        <tr>
+            <td>${flText(r.level, "fl-level")}</td>
+            <td>${flText(r.occupancy, "fl-occ")}</td>
+            <td>${flColor(r.color)}</td>
+            <td>${flNum(r.value, "ll-value")}</td>
+            <td class="cell-action">${flDelBtn()}</td>
+        </tr>`).join("");
+}
+
+function recalcSdlTotals() {
+    document.querySelectorAll("#sdlTableBody tr").forEach(tr => {
+        const get = c => parseFloat((tr.querySelector("." + c) || {}).value) || 0;
+        const total = get("sdl-topping") + get("sdl-duct") + get("sdl-ceiling") + get("sdl-others");
+        const totalCell = tr.querySelector(".sdl-total");
+        if (totalCell) totalCell.textContent = total.toFixed(2);
+    });
+}
+
+// Excel-like behavior: paste TSV, arrow/enter keyboard nav across cells
+function setupExcelTable(tbodyId, onAfterPaste) {
+    const tbody = document.getElementById(tbodyId);
+    if (!tbody || tbody.dataset.excelWired) return;
+    tbody.dataset.excelWired = "1";
+
+    function grid() {
+        return [...tbody.querySelectorAll("tr")].map(tr =>
+            [...tr.querySelectorAll("input, select")]
+        );
+    }
+    function pos(el) {
+        const g = grid();
+        for (let r = 0; r < g.length; r++) {
+            const c = g[r].indexOf(el);
+            if (c >= 0) return { r, c, g };
+        }
+        return null;
+    }
+    function focusCell(el) {
+        if (!el) return;
+        el.focus();
+        if (el.select) try { el.select(); } catch (e) {}
+    }
+
+    tbody.addEventListener("input", (e) => {
+        if (!e.target.matches("input.sdl-topping, input.sdl-duct, input.sdl-ceiling, input.sdl-others")) return;
+        recalcSdlTotals();
+    });
+
+    tbody.addEventListener("keydown", (e) => {
+        const el = e.target;
+        if (!el.matches("input, select")) return;
+        const p = pos(el);
+        if (!p) return;
+        const { r, c, g } = p;
+        const inSelect = el.matches("select");
+
+        if (e.key === "Enter") {
+            e.preventDefault();
+            focusCell((g[r + 1] && g[r + 1][c]) || (g[0] && g[0][c]));
+        } else if (e.key === "ArrowDown") {
+            if (inSelect && !e.altKey) return;
+            e.preventDefault();
+            focusCell(g[r + 1] && g[r + 1][c]);
+        } else if (e.key === "ArrowUp") {
+            if (inSelect && !e.altKey) return;
+            e.preventDefault();
+            focusCell(g[r - 1] && g[r - 1][c]);
+        } else if (e.key === "ArrowRight" && el.selectionStart === el.value.length) {
+            e.preventDefault();
+            focusCell(g[r] && g[r][c + 1]);
+        } else if (e.key === "ArrowLeft" && el.selectionStart === 0) {
+            e.preventDefault();
+            focusCell(g[r] && g[r][c - 1]);
+        }
+    });
+
+    tbody.addEventListener("paste", (e) => {
+        const el = e.target;
+        if (!el.matches("input, select")) return;
+        const text = (e.clipboardData || window.clipboardData).getData("text");
+        if (!text) return;
+        const lines = text.replace(/\r/g, "").split("\n").filter(l => l.length);
+        if (lines.length === 1 && !lines[0].includes("\t")) return; // single value — let native paste run
+        e.preventDefault();
+        const p = pos(el);
+        if (!p) return;
+        const { r: sr, c: sc, g } = p;
+
+        let lastChange = null;
+        lines.forEach((line, dr) => {
+            const cells = line.split("\t");
+            const row = g[sr + dr];
+            if (!row) return;
+            cells.forEach((raw, dc) => {
+                const target = row[sc + dc];
+                if (!target) return;
+                const val = raw.trim();
+                if (target.matches("select")) {
+                    const opt = [...target.options].find(o => o.value.toLowerCase() === val.toLowerCase());
+                    if (opt) target.value = opt.value;
+                } else {
+                    target.value = val;
+                }
+                lastChange = target;
+            });
+        });
+        if (onAfterPaste) onAfterPaste();
+        if (lastChange) focusCell(lastChange);
+        showToast(`Pasted ${lines.length} row(s)`);
+    });
+}
+
+function addSdlRow() {
+    const blank = { level: "", occupancy: "", color: "Green", topping: 0, duct: 0, ceiling: 0, others: 0 };
+    const rows = readSdlRows();
+    rows.push(blank);
+    renderSdlTable(rows);
+}
+function addLlRow() {
+    const blank = { level: "", occupancy: "", color: "Green", value: 0 };
+    const rows = readLlRows();
+    rows.push(blank);
+    renderLlTable(rows);
+}
+function resetSdlDefaults() { renderSdlTable(SDL_DEFAULTS); }
+function resetLlDefaults()  { renderLlTable(LL_DEFAULTS); }
+
+function readSdlRows() {
+    return [...document.querySelectorAll("#sdlTableBody tr")].map(tr => ({
+        level:     tr.querySelector(".fl-level").value.trim(),
+        occupancy: tr.querySelector(".fl-occ").value.trim(),
+        color:     tr.querySelector(".fl-color").value,
+        topping:   parseFloat(tr.querySelector(".sdl-topping").value) || 0,
+        duct:      parseFloat(tr.querySelector(".sdl-duct").value)    || 0,
+        ceiling:   parseFloat(tr.querySelector(".sdl-ceiling").value) || 0,
+        others:    parseFloat(tr.querySelector(".sdl-others").value)  || 0
+    }));
+}
+function readLlRows() {
+    return [...document.querySelectorAll("#llTableBody tr")].map(tr => ({
+        level:     tr.querySelector(".fl-level").value.trim(),
+        occupancy: tr.querySelector(".fl-occ").value.trim(),
+        color:     tr.querySelector(".fl-color").value,
+        value:     parseFloat(tr.querySelector(".ll-value").value) || 0
+    }));
+}
+
+// Schema confirmed from midas-civil-python SDK: Load.FloorLoadDefine.json()
+//   { Assign: { <id>: { NAME, DESC, ITEM: [{LCNAME, FLOOR_LOAD, OPT_SUB_BEAM_WEIGHT}] } } }
+// Endpoint: PUT /db/FBLD. LCNAME must match an existing Static Load Case in the model.
+function buildFloorLoadPayload(sdlRows, llRows, dlCase, llCase) {
+    const assign = {};
+    let id = 1;
+    const llByKey = {};
+    for (const r of llRows) {
+        if (r.occupancy && r.level) llByKey[`${r.occupancy}|${r.level}`] = r;
+    }
+    const seen = new Set();
+
+    const buildItems = (sdl, ll) => {
+        const items = [];
+        if (sdl) {
+            const dlSubs = [sdl.topping, sdl.duct, sdl.ceiling, sdl.others].filter(v => v > 0);
+            for (const v of dlSubs) {
+                items.push({ LCNAME: dlCase, FLOOR_LOAD: v, OPT_SUB_BEAM_WEIGHT: false });
+            }
+        }
+        if (ll && ll.value > 0) {
+            items.push({ LCNAME: llCase, FLOOR_LOAD: ll.value, OPT_SUB_BEAM_WEIGHT: false });
+        }
+        return items;
+    };
+
+    for (const r of sdlRows) {
+        if (!r.occupancy || !r.level) continue;
+        const key = `${r.occupancy}|${r.level}`;
+        seen.add(key);
+        const ll = llByKey[key];
+        const items = buildItems(r, ll);
+        if (!items.length) continue;
+        assign[id++] = {
+            NAME: `${r.occupancy} - ${r.level}`,
+            DESC: r.color || "",
+            ITEM: items
+        };
+    }
+    // LL-only rows (no matching SDL row)
+    for (const r of llRows) {
+        if (!r.occupancy || !r.level || r.value <= 0) continue;
+        const key = `${r.occupancy}|${r.level}`;
+        if (seen.has(key)) continue;
+        assign[id++] = {
+            NAME: `${r.occupancy} - ${r.level}`,
+            DESC: r.color || "",
+            ITEM: [{ LCNAME: llCase, FLOOR_LOAD: r.value, OPT_SUB_BEAM_WEIGHT: false }]
+        };
+    }
+    return { Assign: assign };
+}
+
+// MIDAS returns HTTP 200 with `{"message": "error status"}` for invalid endpoints
+// or invalid payloads. Detect that shape and treat it as a failure.
+function isMidasError(result) {
+    if (!result || typeof result !== "object") return false;
+    if (typeof result.message === "string" && /error/i.test(result.message)) return true;
+    if (result.error) return true;
+    if (result.FAIL || result.fail) return true;
+    return false;
+}
+
+// Cached for the feedback panel's "Attach Last Response" button
+let lastFloorLoadResult = null;
+let lastFloorLoadPayload = null;
+
+async function writeFloorLoadTypes() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+    const sdl = readSdlRows();
+    const ll = readLlRows();
+    const dlCase = document.getElementById("dlLoadCase").value.trim() || "SDL";
+    const llCase = document.getElementById("llLoadCase").value.trim() || "LL";
+    const payload = buildFloorLoadPayload(sdl, ll, dlCase, llCase);
+    const count = Object.keys(payload.Assign).length;
+    if (!count) { showToast("Nothing to write — fill at least one row", "error"); return; }
+
+    const endpoint = document.getElementById("floorLoadEndpoint").value.trim() || "/db/FBLD";
+    const method = document.getElementById("floorLoadMethod").value || "PUT";
+    lastFloorLoadPayload = payload;
+
+    const respDiv = document.getElementById("floorLoadResponse");
+    respDiv.innerHTML = `<span style="color:var(--text-muted);">Sending ${count} floor load type(s) via ${method} ${endpoint}...</span>`;
+
+    showProgress("Writing Floor Load Types", `Sending ${count} type(s) to MIDAS`, `${method} ${endpoint}...`);
+    updateProgress(30);
+    try {
+        const result = await midasAPI(method, endpoint, payload);
+        lastFloorLoadResult = { method, endpoint, status: "ok", result };
+        updateProgress(100, "Done!");
+        if (isMidasError(result)) {
+            respDiv.innerHTML =
+                `<span style="color:var(--accent-red);">✗ MIDAS rejected the request.</span><br>` +
+                `<span style="color:var(--text-muted);">Likely causes:</span><br>` +
+                `<span style="color:var(--text-muted);">  1. Load case names "<code>${dlCase}</code>" / "<code>${llCase}</code>" don't exist in the model — fetch Loads tab to see valid names.</span><br>` +
+                `<span style="color:var(--text-muted);">  2. Try POST instead of PUT (or vice versa).</span><br>` +
+                `<pre style="white-space:pre-wrap;margin-top:8px;">Response:\n${JSON.stringify(result, null, 2)}</pre>` +
+                `<pre style="white-space:pre-wrap;margin-top:6px;color:var(--text-faint);">Payload sent:\n${JSON.stringify(payload, null, 2)}</pre>`;
+            showToast("MIDAS rejected the request — see panel", "error");
+        } else {
+            respDiv.innerHTML = `<span style="color:var(--accent-green);">✓ Wrote ${count} floor load type(s) via ${method} ${endpoint}.</span><br><pre style="white-space:pre-wrap;margin-top:6px;">${JSON.stringify(result, null, 2)}</pre>`;
+            showToast(`Wrote ${count} floor load types`, "success");
+        }
+    } catch (err) {
+        lastFloorLoadResult = { method, endpoint, status: "fail", error: err.message };
+        respDiv.innerHTML = `<span style="color:var(--accent-red);">✗ ${err.message}</span><br><span style="color:var(--text-muted);">Try the <b>Probe Endpoint</b> button or use <b>Generate MGT</b> as fallback.</span><br><pre style="white-space:pre-wrap;margin-top:6px;color:var(--text-faint);">Payload sent:\n${JSON.stringify(payload, null, 2)}</pre>`;
+        showToast("Write failed — see panel for details", "error");
+    }
+    setTimeout(hideProgress, 500);
+}
+
+// Try GET on common floor-load DB keys; report which return real data.
+async function probeFloorLoadEndpoint() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+    const candidates = [
+        "/db/FBLD",   // confirmed via midas-civil-python SDK source
+        "/db/FLDT", "/db/FLDP", "/db/FDLT", "/db/DFLT", "/db/DBFL",
+        "/db/FLLT", "/db/FLOR", "/db/FLOAD", "/db/FLDV", "/db/FLOORLOAD",
+        "/db/FLT",  "/db/FLOAD-DEF", "/db/FLDD"
+    ];
+    const respDiv = document.getElementById("floorLoadResponse");
+    respDiv.innerHTML = `<span style="color:var(--text-muted);">Probing ${candidates.length} endpoints...</span>`;
+    showProgress("Probing Endpoints", "GET-testing candidate floor load DB keys", "");
+    const results = [];
+    let i = 0;
+    for (const ep of candidates) {
+        updateProgress(Math.round((i / candidates.length) * 100), `Trying ${ep}...`);
+        try {
+            const r = await midasAPI("GET", ep);
+            results.push({ ep, status: "ok", body: r, error: isMidasError(r) });
+        } catch (err) {
+            results.push({ ep, status: "fail", body: null, error: true, msg: err.message });
+        }
+        i++;
+    }
+    setTimeout(hideProgress, 300);
+    const hits = results.filter(r => r.status === "ok" && !r.error);
+    const html = [
+        hits.length
+            ? `<span style="color:var(--accent-green);">✓ Found ${hits.length} valid endpoint(s):</span>`
+            : `<span style="color:var(--accent-orange);">No endpoint returned data. Floor load types may not exist in this model yet — that's OK, but it means we can't auto-detect the key. Try defining one floor load type manually in the MIDAS GUI, then probe again.</span>`,
+        ...results.map(r => {
+            const tag = r.status === "ok" && !r.error
+                ? `<span style="color:var(--accent-green);">[OK]</span>`
+                : `<span style="color:var(--text-faint);">[--]</span>`;
+            const detail = r.status === "ok"
+                ? (r.error ? "error status" : `keys: ${Object.keys(r.body).join(", ") || "(empty)"}`)
+                : r.msg;
+            return `${tag} <code>${r.ep}</code> &mdash; <span style="color:var(--text-muted);">${detail}</span>`;
+        })
+    ].join("<br>");
+    respDiv.innerHTML = html;
+    if (hits.length === 1) {
+        document.getElementById("floorLoadEndpoint").value = hits[0].ep;
+        showToast(`Found endpoint: ${hits[0].ep}`, "success");
+    } else if (hits.length > 1) {
+        showToast(`Found ${hits.length} candidates — pick one manually`, "success");
+    } else {
+        showToast("No endpoint detected — see panel", "error");
+    }
+}
+
+// MGT generator — produces *FLOADTYPE block matching MIDAS MGT Command Shell syntax:
+//   *FLOADTYPE
+//   ; NAME, DESC                                          ; 1st line
+//   ; LCNAME1, FLOAD1, bSBU1, ..., LCNAME8, FLOAD8, bSBU8 ; 2nd line
+//      <NAME>, <DESC>
+//      <LCNAME>, <FLOAD>, <YES|NO>[, <LCNAME>, <FLOAD>, <YES|NO>]*
+function generateMgtCommand() {
+    const sdl = readSdlRows();
+    const ll = readLlRows();
+    const dlCase = (document.getElementById("dlLoadCase").value || "SDL").trim();
+    const llCase = (document.getElementById("llLoadCase").value || "LL").trim();
+    const negative = document.getElementById("mgtNegativeSign").checked;
+    const sgn = v => (negative ? -Math.abs(v) : Math.abs(v));
+
+    const llByKey = {};
+    for (const r of ll) if (r.occupancy && r.level) llByKey[`${r.occupancy}|${r.level}`] = r;
+    const seen = new Set();
+
+    const blocks = [];
+    const pushBlock = (name, desc, items) => {
+        if (!items.length) return;
+        const subPairs = items.map(it => `${it.lc}, ${it.v}, ${it.bsbu ? "YES" : "NO"}`).join(", ");
+        blocks.push(`   ${name}, ${desc}\n   ${subPairs}`);
+    };
+
+    for (const r of sdl) {
+        if (!r.occupancy || !r.level) continue;
+        const key = `${r.occupancy}|${r.level}`;
+        seen.add(key);
+        const items = [];
+        for (const v of [r.topping, r.duct, r.ceiling, r.others]) {
+            if (v > 0) items.push({ lc: dlCase, v: sgn(v), bsbu: false });
+        }
+        const llRow = llByKey[key];
+        if (llRow && llRow.value > 0) items.push({ lc: llCase, v: sgn(llRow.value), bsbu: false });
+        pushBlock(`${r.occupancy} - ${r.level}`, r.color || "", items);
+    }
+    for (const r of ll) {
+        if (!r.occupancy || !r.level || r.value <= 0) continue;
+        const key = `${r.occupancy}|${r.level}`;
+        if (seen.has(key)) continue;
+        pushBlock(`${r.occupancy} - ${r.level}`, r.color || "",
+            [{ lc: llCase, v: sgn(r.value), bsbu: false }]);
+    }
+
+    if (!blocks.length) {
+        showToast("No data — fill at least one row", "error");
+        return;
+    }
+
+    const header = [
+        "*FLOADTYPE    ; Define Floor Load Type",
+        "; NAME, DESC                                                  ; 1st line",
+        "; LCNAME1, FLOAD1, bSBU1, ..., LCNAME8, FLOAD8, bSBU8         ; 2nd line"
+    ].join("\n");
+
+    document.getElementById("mgtOutput").value = header + "\n" + blocks.join("\n");
+    showToast(`Generated ${blocks.length} floor load type(s)`, "success");
+}
+
+function copyMgtToClipboard() {
+    const text = document.getElementById("mgtOutput").value;
+    if (!text.trim()) { showToast("Nothing to copy — click Generate MGT first", "error"); return; }
+    navigator.clipboard.writeText(text)
+        .then(() => showToast("MGT command copied — paste into MIDAS MGT Shell"))
+        .catch(() => showToast("Copy failed", "error"));
+}
+
+// Feedback panel — lets user compose a message and copy it back into chat with Claude
+function attachLastResponse() {
+    const ta = document.getElementById("claudeFeedback");
+    const parts = [];
+    parts.push(ta.value.trim());
+    if (lastFloorLoadResult) {
+        parts.push("\n--- Last MIDAS response ---");
+        parts.push(`${lastFloorLoadResult.method} ${lastFloorLoadResult.endpoint} → ${lastFloorLoadResult.status}`);
+        if (lastFloorLoadResult.result) parts.push(JSON.stringify(lastFloorLoadResult.result, null, 2));
+        if (lastFloorLoadResult.error)  parts.push(lastFloorLoadResult.error);
+    }
+    if (lastFloorLoadPayload) {
+        parts.push("\n--- Payload sent ---");
+        parts.push(JSON.stringify(lastFloorLoadPayload, null, 2));
+    }
+    if (parts.length === 1 && !parts[0]) {
+        showToast("Nothing to attach — write a request first or type a message", "error");
+        return;
+    }
+    ta.value = parts.filter(Boolean).join("\n");
+    showToast("Last response attached");
+}
+
+function copyFeedbackToClipboard() {
+    const text = document.getElementById("claudeFeedback").value.trim();
+    if (!text) { showToast("Type something first", "error"); return; }
+    navigator.clipboard.writeText(text)
+        .then(() => showToast("Feedback copied — paste into chat with Claude"))
+        .catch(() => showToast("Copy failed", "error"));
+}
+
+// Render defaults + wire Excel-like behavior on first load
+document.addEventListener("DOMContentLoaded", () => {
+    if (document.getElementById("sdlTableBody")) {
+        renderSdlTable(SDL_DEFAULTS);
+        setupExcelTable("sdlTableBody", recalcSdlTotals);
+    }
+    if (document.getElementById("llTableBody")) {
+        renderLlTable(LL_DEFAULTS);
+        setupExcelTable("llTableBody");
+    }
+});
 
 // ══════════════════════════════════════════════════════════════
 // COLUMN RESULTS (vertical elements only, beam-like input table)

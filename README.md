@@ -15,6 +15,14 @@ A web-based structural engineering dashboard that interfaces with MIDAS Gen via 
   - Rerun design with per-element overrides without re-fetching API data
   - Pass/Fail status badge, copy to clipboard, export CSV
 - **Column Results** - Column force/stress/deformation tables
+- **Floor Load Type** - Define superimposed dead load (SDL) and live load (LL) per occupancy and write to MIDAS:
+  - Two Excel-like tables (SDL with sub-loads Topping & Tiles / Duct / Ceiling / Others, auto-totaled; LL with single value)
+  - Click-to-edit cells, Tab/arrow nav, paste TSV blocks from Excel
+  - Two delivery paths from the same data:
+    - **API write** — `PUT /db/FBLD` with `{Assign: {<id>: {NAME, DESC, ITEM: [{LCNAME, FLOOR_LOAD, OPT_SUB_BEAM_WEIGHT}]}}}` (schema verified against the [midas-civil-python SDK](https://github.com/MIDASIT-Co-Ltd/midas-civil-python))
+    - **MGT generator** — produces a `*FLOADTYPE` block ready to paste into MIDAS Tools → MGT Command Shell
+  - Probe Endpoint button GET-tests candidate DB keys when MIDAS rejects
+  - In-app feedback panel: compose a message, attach the last MIDAS response/payload, and copy to clipboard
 - **Fiber Automation** - Fiber section analysis workflow
 
 ### 3D Reaction Visualization
