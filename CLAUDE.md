@@ -62,6 +62,8 @@ When unsure of a DB key or schema, check the [midas-civil-python SDK source](htt
 | Floor Load Type | PUT | `/db/FBLD` | Body: `{Assign: {<id>: {NAME, DESC, ITEM: [{LCNAME, FLOOR_LOAD, OPT_SUB_BEAM_WEIGHT}]}}}`. `LCNAME` must match an existing static load case name. No `iCOLOR` field — color is GUI-only. |
 | Group | POST/PUT | `/db/GRUP` | See `scripts/data/group.py` |
 | Reaction table query | POST | `/post/TABLE` | Body wrapped in `Argument` (TABLE_NAME, TABLE_TYPE, COMPONENTS, NODE_ELEMS) |
+| Fiber Division of Section | PUT | `/db/FIBR` | Confirmed via Probe (lowercase `/db/fibr` also works). Schema: per-item `{NAME, SECT_KEY, ASSIGN_TYPE, FIMP_NAME[<=6], FIBR_BASE[], OPT_MONITORED_FIBER, MONITORED_FIBER}`. Each `FIBR_BASE` entry: `{FIBR_BASE_KEY, REBAR_NAME, AREA, CENTER_Y, CENTER_Z, FIBER_MATL_ID, AREA_CONSIDER_REBAR, OPT_IS_REBAR, POINT_Y[], POINT_Z[]}`. `FIBER_MATL_ID` is **1-based** into `FIMP_NAME`. **Dependency**: FIMP records named in `FIMP_NAME[]` MUST already exist in the model (write `/db/FIMP` first) and `SECT_KEY` must reference an existing section. Rejected aliases: `/db/FIBER-DIV`, `/db/FBDV`, `/db/FBDIV`, `/db/SECDIV`, `/db/FIBDIV`. |
+| Inelastic Material Properties (Fiber) | PUT | `/db/FIMP` | Confirmed via Probe. **Not** `/db/IMFM` as the SDK's `mapi.py` suggests — that returns `error status`. Other rejected aliases: `/db/INEL`, `/db/MATL-INEL`, `/db/INELMAT`, `/db/IFM`. |
 
 MIDAS often returns HTTP 200 with `{"message": "error status"}` on schema/endpoint errors. Treat that body as a failure (`isMidasError()` in `index.html`).
 
