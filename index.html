@@ -1810,6 +1810,12 @@ Roof, 15.00, 0.00, Consider
                         </div>
                     </div>
                     <div class="form-row" style="align-items:center;gap:10px;margin-bottom:10px;">
+                        <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;flex:1;" title="Comma-separated fiber NOs that MIDAS should monitor during pushover. Same list applies to every section. Leave empty to skip the continuation line and emit bMONITOR=NO.">
+                            <label style="margin:0;white-space:nowrap;">Monitored fibers</label>
+                            <input type="text" id="fdMonitoredFibers" class="input" value="" placeholder="e.g. 121, 198, 220, 245, 242, 31, 214, 126, 176, 63, 174, 179, 40, 130, 89, 223, 176, 192" style="flex:1;font-size:11px;" />
+                        </div>
+                    </div>
+                    <div class="form-row" style="align-items:center;gap:10px;margin-bottom:10px;">
                         <button class="btn btn-blue btn-sm" onclick="generateFiberDivisionMGT()">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
                             Generate Fiber Division
@@ -7560,11 +7566,16 @@ function generateFiberMGT() {
             // area (not single long-bar area).
             "0", "0",                                         // ds, nLR
             String(nLong),                                    // nRNum (# of longitudinal bars)
-            String(input.dmain),                              // sR (long-bar size, integer mm)
+            // sR / sG MUST use "D" + diameter (mm). MIDAS validates these
+            // against its rebar DB only on RECORD CREATION — bare integers
+            // pass an UPDATE (existing record, only the warning fires) but
+            // fail "Run Error: command in line N" the first time the record
+            // doesn't already exist. Reference: MIDAS export uses "D28","D12".
+            "D" + input.dmain,                                // sR (long-bar size: "D" + mm)
             _fmtNum(Astot_m2),                                // RA (total long-bar area)
             "NO", _fmtNum(calc.rho_cc),                       // bpcc, pcc
             "0",                                              // nGR
-            String(input.dtie),                               // sG (tie size, integer mm)
+            "D" + input.dtie,                                 // sG (tie size: "D" + mm)
             _fmtNum(Atie_m2),                                 // GA (single TIE area, not single long-bar area)
             _fmtNum(s_m), _fmtNum(sp_m),                      // s, s'
             String(input.lx), String(input.ly),               // nGNumX, nGNumY
@@ -7755,6 +7766,14 @@ function generateFiberDivisionMGT() {
     const Ny = Math.max(1, parseInt(document.getElementById("fdNy").value) || 10);
     const Nz = Math.max(1, parseInt(document.getElementById("fdNz").value) || 10);
     const steelName = (document.getElementById("fdSteelName").value || "Grade 60").trim();
+    // Parse the optional comma/space-separated monitored-fiber NO list. If
+    // non-empty we emit bMONITOR=YES + the continuation line that MIDAS
+    // expects (every section in the model gets the same list — confirmed
+    // against from_midas.txt lines 7, 136, 264, ... where this row is
+    // identical across all sections). Empty → bMONITOR=NO (no continuation).
+    const monitoredRaw = (document.getElementById("fdMonitoredFibers") || {}).value || "";
+    const monitoredNOs = monitoredRaw.split(/[,\s]+/).map(s => s.trim()).filter(Boolean);
+    const monitorOn    = monitoredNOs.length > 0;
 
     const lines = ["*FIBER-DIVISION    ; Section Division for Fiber Model"];
     let totalFibers = 0, totalRebars = 0;
@@ -7774,12 +7793,16 @@ function generateFiberDivisionMGT() {
 
         // Line 1: NAME=hingeName, sectId, AssignType=1
         lines.push(`  NAME=${hName}, ${sectId}, 1`);
-        // Line 2: 6 FMTYPEs, bMONITOR=NO, 8 FNO sentinels.
-        // bMONITOR=YES would tell MIDAS to expect a continuation line with
-        // the monitored fiber NOs — and our first fiber-data line ("1, NO, ,
-        // ...") would then be misparsed as integer FNOs ("NO" fails as int,
-        // → "Parsing Error in line 4: The integer value is invalid").
-        lines.push(`       ${fmtypes.join(", ")}, NO, 0, 0, 0, 0, 0, 0, 0, 0`);
+        // Line 2: 6 FMTYPEs, bMONITOR, 8 FNO sentinels.
+        // - bMONITOR=NO  → no continuation; first fiber-data line follows.
+        // - bMONITOR=YES → MIDAS expects a continuation line listing the
+        //   monitored fiber NOs (matches MIDAS export format). Without
+        //   that line, MIDAS misparses the first fiber-data line as more
+        //   integer FNOs ("Parsing Error in line 4: integer value invalid").
+        lines.push(`       ${fmtypes.join(", ")}, ${monitorOn ? "YES" : "NO"}, 0, 0, 0, 0, 0, 0, 0, 0`);
+        if (monitorOn) {
+            lines.push(`       ${monitoredNOs.join(", ")}`);
+        }
 
         const concFibers  = _meshSection(input, Ny, Nz);
         const rebarFibers = _rebarFibers(input, concFibers.length + 1);
@@ -7926,6 +7949,11 @@ function buildFiberDivisionPayload() {
     const Ny = Math.max(1, parseInt(document.getElementById("fdNy").value) || 10);
     const Nz = Math.max(1, parseInt(document.getElementById("fdNz").value) || 10);
     const steelName = (document.getElementById("fdSteelName").value || "Grade 60").trim();
+    // Same monitored-fiber list as the MGT generator. Empty → OPT off / []
+    // (probe-verified path /db/FIBR accepts both forms).
+    const monitoredRaw = (document.getElementById("fdMonitoredFibers") || {}).value || "";
+    const monitoredNOs = monitoredRaw.split(/[,\s]+/).map(s => parseInt(s, 10)).filter(n => Number.isFinite(n));
+    const monitorOn    = monitoredNOs.length > 0;
 
     const assign = {};
     lastFiberConcreteResults.forEach(({ input }, idx) => {
@@ -7968,8 +7996,8 @@ function buildFiberDivisionPayload() {
             ASSIGN_TYPE: 0,                      // 0 = General
             FIMP_NAME: fimpNames,
             FIBR_BASE: fibrBase,
-            OPT_MONITORED_FIBER: false,
-            MONITORED_FIBER: []
+            OPT_MONITORED_FIBER: monitorOn,
+            MONITORED_FIBER: monitorOn ? monitoredNOs : []
         };
     });
     return { Assign: assign };
@@ -8559,8 +8587,46 @@ async function qaqcFiberDivision() {
         checks.push({ label: "ASSIGN_TYPE", status: a.ASSIGN_TYPE === s.ASSIGN_TYPE ? "ok" : "drift", expected: s.ASSIGN_TYPE, actual: a.ASSIGN_TYPE });
         const sn = (s.FIMP_NAME || []).join("|"), an = (a.FIMP_NAME || []).join("|");
         checks.push({ label: "FIMP_NAME[]", status: sn === an ? "ok" : "drift", expected: sn, actual: an });
-        const sf = (s.FIBR_BASE || []).length, af = (a.FIBR_BASE || []).length;
-        checks.push({ label: "FIBR_BASE count", status: sf === af ? "ok" : "drift", expected: sf, actual: af });
+        const sentBase = s.FIBR_BASE || [], gotBase = a.FIBR_BASE || [];
+        checks.push({ label: "FIBR_BASE count", status: sentBase.length === gotBase.length ? "ok" : "drift", expected: sentBase.length, actual: gotBase.length });
+
+        // Drill into FIBR_BASE: sample first concrete fiber, first rebar,
+        // and last entry. Also tally counts per FIBER_MATL_ID and isRebar.
+        const sampleIdxs = sentBase.length > 0 ? [
+            { idx: 0, label: "first" },
+            { idx: sentBase.findIndex(f => f.OPT_IS_REBAR), label: "first rebar" },
+            { idx: sentBase.length - 1, label: "last" }
+        ].filter(x => x.idx >= 0 && x.idx < sentBase.length) : [];
+        // Dedupe in case "first" and "first rebar" collide
+        const seen = new Set();
+        for (const { idx, label } of sampleIdxs) {
+            if (seen.has(idx)) continue;
+            seen.add(idx);
+            const sf = sentBase[idx], af = gotBase[idx] || {};
+            const tag = `FIBR_BASE[${idx}] (${label})`;
+            checks.push({ label: `${tag}.FIBR_BASE_KEY`, status: af.FIBR_BASE_KEY === sf.FIBR_BASE_KEY ? "ok" : "drift", expected: sf.FIBR_BASE_KEY, actual: af.FIBR_BASE_KEY });
+            checks.push({ label: `${tag}.OPT_IS_REBAR`,  status: af.OPT_IS_REBAR  === sf.OPT_IS_REBAR  ? "ok" : "drift", expected: sf.OPT_IS_REBAR,  actual: af.OPT_IS_REBAR });
+            checks.push({ label: `${tag}.FIBER_MATL_ID`, status: af.FIBER_MATL_ID === sf.FIBER_MATL_ID ? "ok" : "drift", expected: sf.FIBER_MATL_ID, actual: af.FIBER_MATL_ID });
+            const rn = _qaqcCmpNum(`${tag}.AREA`,     sf.AREA,     af.AREA);     if (rn) checks.push(rn);
+            const ry = _qaqcCmpNum(`${tag}.CENTER_Y`, sf.CENTER_Y, af.CENTER_Y); if (ry) checks.push(ry);
+            const rz = _qaqcCmpNum(`${tag}.CENTER_Z`, sf.CENTER_Z, af.CENTER_Z); if (rz) checks.push(rz);
+            if (sf.OPT_IS_REBAR) {
+                checks.push({ label: `${tag}.REBAR_NAME`, status: af.REBAR_NAME === sf.REBAR_NAME ? "ok" : "drift", expected: sf.REBAR_NAME, actual: af.REBAR_NAME });
+            } else {
+                const sentVerts = (sf.POINT_Y || []).length;
+                const gotVerts  = (af.POINT_Y || []).length;
+                checks.push({ label: `${tag}.POINT_Y count`, status: sentVerts === gotVerts ? "ok" : "drift", expected: sentVerts, actual: gotVerts });
+            }
+        }
+
+        // Material-id histogram — quickly catches off-by-one bugs in the
+        // 0-based mesh ↔ 1-based FIBER_MATL_ID mapping.
+        const tally = arr => arr.reduce((m, f) => { m[f.FIBER_MATL_ID || 0] = (m[f.FIBER_MATL_ID || 0] || 0) + 1; return m; }, {});
+        const sentH = tally(sentBase), gotH = tally(gotBase);
+        const mids = [...new Set([...Object.keys(sentH), ...Object.keys(gotH)])].sort((a, b) => +a - +b);
+        for (const mid of mids) {
+            checks.push({ label: `FIBER_MATL_ID=${mid} count`, status: sentH[mid] === gotH[mid] ? "ok" : "drift", expected: sentH[mid] || 0, actual: gotH[mid] || 0 });
+        }
 
         const bad = checks.filter(c => c.status !== "ok").length;
         if (bad === 0) pass++; else drift++;
@@ -8569,7 +8635,7 @@ async function qaqcFiberDivision() {
         for (const c of checks) lines.push(`&nbsp;&nbsp;${_qaqcRow(c)}`);
     }
 
-    const header = `<div style="margin-bottom:6px;"><b>QAQC ${ep}</b> — ${pass} passed, ${drift} drift, ${missing} missing</div>`;
+    const header = `<div style="margin-bottom:6px;"><b>QAQC ${ep}</b> — ${pass} passed, ${drift} drift, ${missing} missing &middot; <span style="color:var(--text-muted);">samples first/first-rebar/last + material-id histogram</span></div>`;
     respDiv.innerHTML = header + lines.join("<br>");
     showToast(`QAQC: ${pass} pass, ${drift} drift, ${missing} missing`, (drift || missing) ? "error" : "success");
 }
