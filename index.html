@@ -1576,6 +1576,48 @@ Roof, 15.00, 0.00, Consider
                 <div id="modesProbeOutput" style="margin-top:12px;font-size:11px;font-family:'Consolas',monospace;color:var(--text-muted);"></div>
             </div>
 
+            <!-- Mode Shape Screenshots (3D iso + plan view per mode) -->
+            <div class="panel" style="margin-top:12px;">
+                <div class="panel-header">
+                    <span class="panel-title">Mode Shape Screenshots</span>
+                    <span style="font-size:11px;color:var(--text-muted);margin-left:auto;">
+                        Captures via <code>/view/capture</code> — requires MIDAS Gen running locally with Open API enabled.
+                    </span>
+                </div>
+                <div class="form-row" style="align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;">Modes</label>
+                        <input type="number" id="modeShotCount" class="input" value="3" min="1" max="12" style="width:60px;font-size:11px;" />
+                    </div>
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;">Mode name prefix</label>
+                        <input type="text" id="modeShotPrefix" class="input" value="Mode" style="width:90px;font-size:11px;" title="MIDAS load case name pattern. Built as &lt;prefix&gt;&lt;n&gt; — e.g. Mode1, Mode2." />
+                    </div>
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;">3D angle (H,V)</label>
+                        <input type="number" id="modeShotIsoH" class="input" value="30" style="width:60px;font-size:11px;" />
+                        <input type="number" id="modeShotIsoV" class="input" value="30" style="width:60px;font-size:11px;" />
+                    </div>
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;">Image size</label>
+                        <input type="number" id="modeShotW" class="input" value="800" min="200" max="3000" style="width:80px;font-size:11px;" />
+                        <span style="font-size:11px;color:var(--text-muted);">×</span>
+                        <input type="number" id="modeShotH" class="input" value="600" min="200" max="3000" style="width:80px;font-size:11px;" />
+                    </div>
+                </div>
+                <div class="form-row" style="align-items:center;gap:10px;">
+                    <button class="btn btn-blue" onclick="captureModeShapes()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        Capture Mode Shapes
+                    </button>
+                    <span id="modeShotStatus" style="font-size:11px;color:var(--text-muted);"></span>
+                </div>
+
+                <div id="modeShotGrid" style="display:none;margin-top:14px;grid-template-columns:auto 1fr 1fr;gap:8px;align-items:center;">
+                    <!-- populated by captureModeShapes() — display flips to grid on first capture -->
+                </div>
+            </div>
+
             <div id="modesEmpty" class="empty-state">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 5l1.5 14L9 5l1.5 14L13 5l1.5 14L17 5l1.5 14"/></svg>
                 <h3>No mode data</h3>
@@ -5685,6 +5727,110 @@ async function probeVibrationModes() {
     out.innerHTML = html;
     if (hits.length) showToast(`${hits.length} TABLE_TYPE(s) working`, "success");
     else             showToast("No mode data — run modal analysis first", "error");
+}
+
+// Capture 3D iso + plan view JPGs of vibration mode shapes via /view/capture.
+// MIDAS writes images to the local disk on whatever host runs MIDAS Gen, so
+// the Flask server on the same machine reads them back through /api/local-image.
+async function captureModeShapes() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+
+    const count  = Math.max(1, Math.min(12, parseInt(document.getElementById("modeShotCount").value) || 3));
+    const prefix = document.getElementById("modeShotPrefix").value.trim() || "Mode";
+    const isoH   = parseFloat(document.getElementById("modeShotIsoH").value);
+    const isoV   = parseFloat(document.getElementById("modeShotIsoV").value);
+    const w      = parseInt(document.getElementById("modeShotW").value) || 800;
+    const h      = parseInt(document.getElementById("modeShotH").value) || 600;
+    const status = document.getElementById("modeShotStatus");
+    const grid   = document.getElementById("modeShotGrid");
+
+    let captureDir;
+    try {
+        const r = await fetch("/api/capture-dir");
+        const j = await r.json();
+        captureDir = j && j.dir;
+        if (!captureDir) throw new Error("missing dir");
+    } catch (e) {
+        showToast("Backend unreachable — capture needs server.py running locally", "error");
+        return;
+    }
+    const sep = captureDir.includes("\\") ? "\\" : "/";
+
+    const views = [
+        { key: "iso",  label: `3D Iso (H${isoH}°/V${isoV}°)`, H: isoH, V: isoV },
+        { key: "plan", label: "Plan (top-down)",              H: 0,    V: 90  }
+    ];
+
+    grid.style.display = "grid";
+    grid.innerHTML =
+        `<div style="font-weight:600;font-size:11px;color:var(--text-muted);">Mode</div>` +
+        views.map(v => `<div style="font-weight:600;font-size:11px;color:var(--text-muted);text-align:center;">${escapeHtml(v.label)}</div>`).join("") +
+        Array.from({ length: count }, (_, i) => {
+            const n = i + 1;
+            return `<div style="font-weight:600;">${escapeHtml(prefix)}${n}</div>` +
+                   views.map(v => `<div id="modeShotCell_${v.key}_${n}" style="background:var(--bg-secondary);border:1px solid var(--border);border-radius:4px;min-height:120px;display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--text-muted);padding:6px;">pending...</div>`).join("");
+        }).join("");
+
+    showProgress("Capturing Mode Shapes", `${count} mode(s) × ${views.length} views`, "POST /view/capture");
+    const total = count * views.length;
+    let done = 0, okCount = 0;
+
+    for (let n = 1; n <= count; n++) {
+        const lcName = `${prefix}${n}`;
+        for (const v of views) {
+            done++;
+            updateProgress(Math.round((done / total) * 100), `${lcName} — ${v.label}`);
+            const fileName = `mode${n}_${v.key}.jpg`;
+            const exportPath = captureDir + (captureDir.endsWith(sep) ? "" : sep) + fileName;
+            const payload = {
+                Argument: {
+                    SET_MODE: "post",
+                    SET_HIDDEN: true,
+                    EXPORT_PATH: exportPath,
+                    HEIGHT: h,
+                    WIDTH: w,
+                    ACTIVE: { ACTIVE_MODE: "Active" },
+                    ANGLE: { HORIZONTAL: v.H, VERTICAL: v.V },
+                    DISPLAY: {
+                        NODE: { NODE: false, NODE_NUMBER: false },
+                        PERSPECTIVE: true,
+                        ZOOM_LEVEL: 100
+                    },
+                    RESULT_GRAPHIC: {
+                        CURRENT_MODE: "VibrationModeShapes",
+                        LOAD_CASE_COMB: { NAME: lcName },
+                        COMPONENTS: { COMP: "Md-XYZ" },
+                        TYPE_OF_DISPLAY: {
+                            MODE_SHAPE: true,
+                            UNDEFORMED: true,
+                            LEGEND: { OPT_CHECK: true, POSITION: "right", VALUE_EXP: false, DECIMAL_PT: 3 }
+                        },
+                        CONTOUR: { OPT_CHECK: false }
+                    }
+                }
+            };
+            const cell = document.getElementById(`modeShotCell_${v.key}_${n}`);
+            try {
+                const r = await midasAPI("POST", "/view/capture", payload);
+                if (isMidasError(r)) {
+                    const msg = (r && r.message) ? r.message : "MIDAS rejected /view/capture";
+                    cell.innerHTML = `<span style="color:var(--accent-orange);font-size:10px;text-align:center;">${escapeHtml(msg)}</span>`;
+                } else {
+                    const url = `/api/local-image?name=${encodeURIComponent(fileName)}&_=${Date.now()}`;
+                    cell.innerHTML = `<img src="${url}" alt="${escapeHtml(lcName)} ${escapeHtml(v.label)}" style="max-width:100%;height:auto;display:block;border-radius:3px;" onerror="this.parentElement.innerHTML='<span style=&quot;color:var(--accent-orange);font-size:10px;&quot;>Image missing on disk</span>'" />`;
+                    okCount++;
+                }
+            } catch (e) {
+                cell.innerHTML = `<span style="color:var(--accent-orange);font-size:10px;text-align:center;">${escapeHtml(e.message)}</span>`;
+            }
+        }
+    }
+
+    setTimeout(hideProgress, 300);
+    status.innerHTML = okCount === total
+        ? `<span style="color:var(--accent-green);">✓ ${okCount}/${total} captured to <code>${escapeHtml(captureDir)}</code></span>`
+        : `<span style="color:var(--accent-orange);">${okCount}/${total} captured — check API log</span>`;
+    showToast(okCount ? `Captured ${okCount}/${total} mode shape views` : "Capture failed", okCount ? "success" : "error");
 }
 
 function _modesGet(which) {

@@ -3,12 +3,20 @@ Flask backend for MIDAS Gen NX API Dashboard.
 Serves the frontend and provides a CORS proxy to the MIDAS API.
 """
 import os
+import mimetypes
+import tempfile
 import requests
-from flask import Flask, send_from_directory, request, jsonify, Response
+from flask import Flask, send_from_directory, request, jsonify, Response, send_file
 
 app = Flask(__name__, static_folder=".", static_url_path="")
 
 MIDAS_BASE_URL = os.environ.get("MIDAS_BASE_URL", "https://moa-engineers.midasit.com:443/gen")
+
+# Folder used for /view/capture screenshots produced by MIDAS. Both MIDAS Gen
+# and this Flask server must be running on the same machine since /view/capture
+# writes to local disk on whatever host is running MIDAS.
+CAPTURE_DIR = os.path.join(tempfile.gettempdir(), "midas_capture")
+os.makedirs(CAPTURE_DIR, exist_ok=True)
 
 
 @app.route("/")
@@ -55,6 +63,34 @@ def proxy():
         return jsonify({"error": "Cannot reach MIDAS API"}), 502
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/capture-dir")
+def capture_dir():
+    """Returns the absolute path the frontend should pass as EXPORT_PATH for
+    /view/capture. A single shared folder makes cleanup and path validation
+    trivial on the /api/local-image side."""
+    return jsonify({"dir": CAPTURE_DIR})
+
+
+@app.route("/api/local-image")
+def local_image():
+    """Serve a JPG that MIDAS just wrote to CAPTURE_DIR. Restricted to that
+    folder so the endpoint can't be used to read arbitrary files."""
+    name = request.args.get("name", "")
+    if not name or "/" in name or "\\" in name or ".." in name:
+        return jsonify({"error": "Invalid name"}), 400
+
+    full = os.path.realpath(os.path.join(CAPTURE_DIR, name))
+    if not full.startswith(os.path.realpath(CAPTURE_DIR) + os.sep):
+        return jsonify({"error": "Path escapes capture dir"}), 400
+    if not os.path.isfile(full):
+        return jsonify({"error": "File not found"}), 404
+
+    mime = mimetypes.guess_type(full)[0] or "image/jpeg"
+    resp = send_file(full, mimetype=mime)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 @app.route("/health")
