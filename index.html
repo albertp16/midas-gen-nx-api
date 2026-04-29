@@ -398,6 +398,31 @@
         .empty-state h3 { font-size: 15px; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
         .empty-state p { font-size: 13px; max-width: 380px; margin: 0 auto; }
 
+        /* ═══════════════════════ Mode Shape Gallery ═══════════════════════ */
+        .ms-gallery {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+            gap: 12px;
+        }
+        .ms-card {
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg-input);
+            padding: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .ms-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11px;
+            color: var(--text-muted);
+        }
+        .ms-card img { width: 100%; height: auto; border-radius: 4px; background: #fff; }
+        .ms-card pre { margin: 0; }
+
         /* ═══════════════════════ Toast ═══════════════════════ */
         .toast {
             position: fixed; bottom: 24px; right: 24px;
@@ -1574,6 +1599,49 @@ Roof, 15.00, 0.00, Consider
                 </div>
 
                 <div id="modesProbeOutput" style="margin-top:12px;font-size:11px;font-family:'Consolas',monospace;color:var(--text-muted);"></div>
+            </div>
+
+            <!-- ════════ Mode Shape Image Capture (3D + Plan) ════════ -->
+            <div class="panel" style="margin-top:12px;">
+                <div class="panel-header">
+                    <span class="panel-title">Mode Shape Capture</span>
+                    <span style="font-size:11px;color:var(--text-muted);">3D Isometric + Plan view, base64 PNG</span>
+                </div>
+                <div class="form-row" style="align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;">Modes</label>
+                        <input type="number" id="msNumModes" class="input" value="3" min="1" max="50" style="width:60px;font-size:11px;" title="Capture modes 1..N" />
+                    </div>
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;">Width</label>
+                        <input type="number" id="msImgW" class="input" value="800" min="200" max="3840" style="width:70px;font-size:11px;" />
+                    </div>
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;">Height</label>
+                        <input type="number" id="msImgH" class="input" value="600" min="200" max="2160" style="width:70px;font-size:11px;" />
+                    </div>
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;">Image Endpoint</label>
+                        <input type="text" id="msImgEndpoint" class="input" value="/post/RESULT_IMAGE" style="width:160px;font-size:11px;" title="POST endpoint that returns the rendered mode-shape image" />
+                    </div>
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;">View Endpoint</label>
+                        <input type="text" id="msViewEndpoint" class="input" value="/view/ANGLE" style="width:140px;font-size:11px;" title="Endpoint that sets the active viewport angle" />
+                    </div>
+                </div>
+                <div class="form-row" style="align-items:center;gap:10px;">
+                    <button class="btn btn-blue" onclick="captureModeShapes()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        Capture Mode Shapes
+                    </button>
+                    <button class="btn btn-ghost" onclick="probeModeShapeEndpoints()" title="Try candidate REST endpoints to discover the right paths">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        Probe Endpoints
+                    </button>
+                    <span style="font-size:11px;color:var(--text-muted);">Run modal analysis first. Loops 3D + Plan for modes 1..N.</span>
+                </div>
+                <div id="msGallery" class="ms-gallery" style="margin-top:12px;"></div>
+                <div id="msStatus" style="margin-top:8px;font-size:11px;font-family:'Consolas',monospace;color:var(--text-muted);"></div>
             </div>
 
             <div id="modesEmpty" class="empty-state">
@@ -5722,6 +5790,195 @@ function downloadModesCSV(which) {
     a.href = url; a.download = fname + ".csv"; a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     showToast(`Downloaded ${fname}.csv`);
+}
+
+// ══════════════════════════════════════════════════════════════
+// MODE SHAPE IMAGE CAPTURE — 3D Isometric + Plan (top)
+// Loops modes 1..N × {3D, Plan}. View angle set via /view/ANGLE,
+// images returned by /post/RESULT_IMAGE as base64. Endpoints/keys
+// are best-guess from the midas_civil Python wrapper conventions
+// (Result.IMAGE / View.Angle / ResultGraphic.VibrationModeShapes);
+// the Probe button + editable endpoint inputs let users correct.
+// ══════════════════════════════════════════════════════════════
+
+// 3D iso ≈ SW-isometric (Civil convention). Plan = looking down.
+const MS_VIEW_3D   = { HORIZONTAL: 30, VERTICAL: 30 };
+const MS_VIEW_PLAN = { HORIZONTAL: 0,  VERTICAL: 90 };
+
+function buildModeShapePayload(modeNum, view, w, h) {
+    return {
+        Argument: {
+            TYPE: "VIBRATION_MODE",
+            MODE: modeNum,
+            COMPONENT: "Md-XYZ",
+            VIEW_ANGLE: view,
+            IMAGE_SIZE: { WIDTH: w, HEIGHT: h },
+            OUTPUT: "BASE64"
+        }
+    };
+}
+
+// Walk common shapes to find a base64 image string. MIDAS varies
+// between { IMAGE: "..." }, { Argument: { IMAGE: "..." } }, etc.
+function extractBase64Image(resp) {
+    if (!resp) return null;
+    if (typeof resp === "string") {
+        // Could be a raw base64 string, or "data:image/...;base64,...".
+        return resp.length > 100 ? resp : null;
+    }
+    const KEYS = ["IMAGE", "IMG", "BASE64", "DATA", "image", "img", "base64", "data"];
+    for (const k of KEYS) {
+        const v = resp[k];
+        if (typeof v === "string" && v.length > 100) return v;
+    }
+    if (resp.Argument) {
+        const inner = extractBase64Image(resp.Argument);
+        if (inner) return inner;
+    }
+    if (resp.result) {
+        const inner = extractBase64Image(resp.result);
+        if (inner) return inner;
+    }
+    // Last resort: scan all string values for one that looks like base64
+    for (const v of Object.values(resp)) {
+        if (typeof v === "string" && v.length > 200 && /^[A-Za-z0-9+/=\r\n]+$/.test(v.slice(0, 100))) {
+            return v;
+        }
+    }
+    return null;
+}
+
+function renderModeShapeCard(parent, mode, label, tag, b64, errMsg) {
+    const card = document.createElement("div");
+    card.className = "ms-card";
+    const filename = `mode-${mode}-${tag}.png`;
+    if (b64) {
+        const src = b64.startsWith("data:") ? b64 : `data:image/png;base64,${b64}`;
+        card.innerHTML =
+            `<div class="ms-card-header">` +
+                `<span><b>Mode ${mode}</b> &mdash; ${label}</span>` +
+                `<a href="${src}" download="${filename}" class="btn btn-ghost btn-sm">Download</a>` +
+            `</div>` +
+            `<img src="${src}" alt="${filename}">`;
+    } else {
+        const safeMsg = (errMsg || "Unknown error")
+            .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        card.innerHTML =
+            `<div class="ms-card-header">` +
+                `<span><b>Mode ${mode}</b> &mdash; ${label}</span>` +
+                `<span style="color:var(--accent-red);">FAILED</span>` +
+            `</div>` +
+            `<pre style="white-space:pre-wrap;font-size:10px;color:var(--accent-red);">${safeMsg}</pre>`;
+    }
+    parent.appendChild(card);
+}
+
+async function captureModeShapes() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+    const N = parseInt(document.getElementById("msNumModes").value) || 3;
+    const w = parseInt(document.getElementById("msImgW").value) || 800;
+    const h = parseInt(document.getElementById("msImgH").value) || 600;
+    const imgEp = document.getElementById("msImgEndpoint").value.trim() || "/post/RESULT_IMAGE";
+    const viewEp = document.getElementById("msViewEndpoint").value.trim() || "/view/ANGLE";
+
+    const gallery = document.getElementById("msGallery");
+    gallery.innerHTML = "";
+    const status = document.getElementById("msStatus");
+    status.textContent = "";
+
+    const tasks = [];
+    for (let m = 1; m <= N; m++) {
+        tasks.push({ mode: m, view: MS_VIEW_3D,   label: "3D Isometric", tag: "3d"   });
+        tasks.push({ mode: m, view: MS_VIEW_PLAN, label: "Plan (top)",   tag: "plan" });
+    }
+    const total = tasks.length;
+    showProgress("Capturing Mode Shapes", `${N} modes × 2 views = ${total} images`, "");
+    let done = 0, ok = 0;
+
+    for (const t of tasks) {
+        updateProgress(Math.round(done / total * 100), `Mode ${t.mode} — ${t.label}...`);
+        try {
+            // Set viewport angle (best-effort; image payload also carries
+            // VIEW_ANGLE inline so this is redundant if /view/ANGLE 404s).
+            try { await midasAPI("PUT", viewEp, { Argument: t.view }); }
+            catch (_) { /* swallow — fall through to image POST */ }
+
+            const resp = await midasAPI("POST", imgEp, buildModeShapePayload(t.mode, t.view, w, h));
+            if (isMidasError(resp)) {
+                throw new Error(resp.message || "MIDAS rejected the request");
+            }
+            const b64 = extractBase64Image(resp);
+            if (!b64) throw new Error("No image data in response (check endpoint / response keys)");
+            renderModeShapeCard(gallery, t.mode, t.label, t.tag, b64);
+            ok++;
+        } catch (err) {
+            renderModeShapeCard(gallery, t.mode, t.label, t.tag, null, err.message);
+        }
+        done++;
+    }
+    updateProgress(100, "Done!");
+    setTimeout(hideProgress, 400);
+    status.textContent = `Captured ${ok}/${total} images.`;
+    if (ok === 0) {
+        showToast("No images captured — try Probe Endpoints", "error");
+    } else if (ok < total) {
+        showToast(`Captured ${ok}/${total} — some failed`, "error");
+    } else {
+        showToast(`Captured ${ok} mode shape image(s)`, "success");
+    }
+}
+
+// Try candidate endpoints with a minimal payload to discover the right
+// path. Mirrors probeFloorLoadEndpoint() pattern.
+async function probeModeShapeEndpoints() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+    const status = document.getElementById("msStatus");
+    const candidates = [
+        { kind: "image", method: "POST", ep: "/post/RESULT_IMAGE" },
+        { kind: "image", method: "POST", ep: "/post/RESULTIMAGE"  },
+        { kind: "image", method: "POST", ep: "/post/IMAGE"        },
+        { kind: "image", method: "POST", ep: "/post/IMG"          },
+        { kind: "image", method: "POST", ep: "/post/RES_IMG"      },
+        { kind: "view",  method: "PUT",  ep: "/view/ANGLE"        },
+        { kind: "view",  method: "PUT",  ep: "/view"              },
+        { kind: "view",  method: "POST", ep: "/post/VIEW_ANGLE"   }
+    ];
+    status.innerHTML = `Probing ${candidates.length} endpoints...`;
+    showProgress("Probing Endpoints", "Testing candidate image / view paths", "");
+    const results = [];
+    let i = 0;
+    for (const c of candidates) {
+        updateProgress(Math.round(i / candidates.length * 100), `${c.method} ${c.ep}...`);
+        try {
+            const body = c.kind === "image"
+                ? buildModeShapePayload(1, MS_VIEW_3D, 400, 300)
+                : { Argument: MS_VIEW_3D };
+            const r = await midasAPI(c.method, c.ep, body);
+            const err = isMidasError(r);
+            results.push({ ...c, ok: !err, body: r, msg: err ? (r.message || "error envelope") : "" });
+        } catch (e) {
+            results.push({ ...c, ok: false, msg: e.message });
+        }
+        i++;
+    }
+    setTimeout(hideProgress, 300);
+    const html = results.map(r => {
+        const tag = r.ok ? `<span style="color:var(--accent-green);">[OK]</span>`
+                         : `<span style="color:var(--text-faint);">[--]</span>`;
+        const detail = r.ok ? "responded" : (r.msg || "no data");
+        return `${tag} <code>${r.method} ${r.ep}</code> <span style="color:var(--text-muted);">(${r.kind}) — ${detail}</span>`;
+    }).join("<br>");
+    status.innerHTML = html;
+
+    // Auto-fill the first OK candidate per kind
+    const imgHit  = results.find(r => r.ok && r.kind === "image");
+    const viewHit = results.find(r => r.ok && r.kind === "view");
+    if (imgHit)  document.getElementById("msImgEndpoint").value  = imgHit.ep;
+    if (viewHit) document.getElementById("msViewEndpoint").value = viewHit.ep;
+
+    const hits = results.filter(r => r.ok).length;
+    if (hits) showToast(`Probe done — ${hits} hit(s)`, "success");
+    else      showToast("No endpoint responded — check MIDAS version", "error");
 }
 
 // ══════════════════════════════════════════════════════════════
