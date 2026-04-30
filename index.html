@@ -631,13 +631,9 @@
         <div class="sidebar-section">
             <div class="sidebar-label">Results</div>
             <ul class="sidebar-nav">
-                <li><a onclick="switchTab('drift')" data-tab="drift">
+                <li><a onclick="switchTab('drift'); setStoryResultType('drift')" data-tab="drift">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
-                    Story Drift
-                </a></li>
-                <li><a onclick="switchTab('displacement')" data-tab="displacement">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 22V8l7-6 7 6v14"/><line x1="10" y1="6" x2="10" y2="22"/><path d="M10 12l4 2"/><path d="M10 16l4 2"/></svg>
-                    Displacement
+                    Drift &amp; Displacement
                 </a></li>
                 <li><a onclick="switchTab('reaction')" data-tab="reaction">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22V8"/><path d="M5 12H2a10 10 0 0020 0h-3"/><circle cx="12" cy="5" r="3"/></svg>
@@ -654,6 +650,10 @@
                 <li><a onclick="switchTab('modes')" data-tab="modes">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h2"/><path d="M20 12h2"/><path d="M5 5l1.5 14L9 5l1.5 14L13 5l1.5 14L17 5l1.5 14"/></svg>
                     Vibration Modes
+                </a></li>
+                <li><a onclick="switchTab('irregularity')" data-tab="irregularity">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 17l4-6 3 3 4-7"/><circle cx="11" cy="11" r="1"/><circle cx="14" cy="14" r="1"/><circle cx="18" cy="7" r="1"/></svg>
+                    Irregularity
                 </a></li>
             </ul>
         </div>
@@ -851,88 +851,103 @@ Roof, 15.00, 0.00, Consider
             </div>
         </div>
 
-        <!-- ════════════ STORY DRIFT ════════════ -->
+        <!-- ════════════ STORY DRIFT & DISPLACEMENT ════════════ -->
+        <!-- Combined tab — both share Load Cases / Direction inputs and a chart area;
+             a result-type toggle swaps which set of params + plot is visible. The
+             plotDrift() / plotDisplacement() functions are unchanged and continue to
+             read their own scoped DOM IDs (driftXxx vs dispXxx). -->
         <div id="tab-drift" class="tab-page">
-            <div class="page-header"><h2>Story Drift</h2><p>Plot story drift ratios for multiple load cases</p></div>
-            <div class="panel">
-                <div class="panel-header"><span class="panel-title">Parameters</span></div>
-                <div class="form-row" style="margin-bottom:12px;">
-                    <div class="form-group" style="flex:2;">
-                        <label>Load Cases <span style="font-size:10px;color:var(--text-muted)">(Ctrl/Shift+click for multiple)</span></label>
-                        <select id="driftLoadCases" class="input" multiple style="min-height:90px;">
-                            <option selected>Ex(ST)</option><option selected>EX +(ST)</option><option selected>EX -(ST)</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Direction</label>
-                        <select id="driftDirection" class="input" onchange="updateDriftLoadCases()">
-                            <option value="X">X Direction</option>
-                            <option value="Y">Y Direction</option>
-                            <option value="BOTH">Both (two plots)</option>
-                            <option value="MIX">Mix (X + Y in one plot)</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group"><label>Scale Factor</label><input type="number" id="driftScaleFactor" class="input" value="5.95" step="0.01" style="width:100px;" /></div>
-                    <div class="form-group"><label>Allowable Ratio</label><input type="number" id="driftAllowable" class="input" value="0.025" step="0.001" style="width:100px;" /></div>
-                    <button class="btn btn-blue" onclick="plotDrift()">Plot Drift</button>
-                </div>
-            </div>
-            <div class="chart-wrapper" id="driftChartWrapper" style="display:none;">
-                <div style="display:flex; gap:8px; margin-bottom:8px; justify-content:flex-end; width:100%;">
-                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer;">
-                        <input type="checkbox" id="driftShowValues" checked onchange="redrawDriftIfReady()" style="accent-color:var(--accent-blue);" />
-                        Show Values
-                    </label>
-                    <button class="btn btn-ghost btn-sm" onclick="downloadAllDriftCanvases()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                        Download Image
-                    </button>
-                </div>
-                <div id="driftCanvasContainer"></div>
-            </div>
-        </div>
+            <div class="page-header"><h2>Story Drift &amp; Displacement</h2><p>Plot story drift ratios or story displacements for multiple load cases</p></div>
 
-        <!-- ════════════ DISPLACEMENT ════════════ -->
-        <div id="tab-displacement" class="tab-page">
-            <div class="page-header"><h2>Story Displacement</h2><p>Plot story displacement for multiple load cases</p></div>
             <div class="panel">
-                <div class="panel-header"><span class="panel-title">Parameters</span></div>
-                <div class="form-row" style="margin-bottom:12px;">
-                    <div class="form-group" style="flex:2;">
-                        <label>Load Cases <span style="font-size:10px;color:var(--text-muted)">(Ctrl/Shift+click for multiple)</span></label>
-                        <select id="dispLoadCases" class="input" multiple style="min-height:90px;">
-                            <option selected>Ex(ST)</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Direction</label>
-                        <select id="dispDirection" class="input" onchange="updateDispLoadCases()">
-                            <option value="X">X Direction</option>
-                            <option value="Y">Y Direction</option>
-                            <option value="BOTH">Both (two plots)</option>
-                            <option value="MIX">Mix (X + Y in one plot)</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <button class="btn btn-blue" onclick="plotDisplacement()">Plot Displacement</button>
+                <div class="panel-header"><span class="panel-title">Result Type</span></div>
+                <div class="form-row" style="gap:8px;">
+                    <button class="btn btn-blue" id="storyResultBtn-drift" onclick="setStoryResultType('drift')">Story Drift</button>
+                    <button class="btn btn-ghost" id="storyResultBtn-disp" onclick="setStoryResultType('disp')">Story Displacement</button>
                 </div>
             </div>
-            <div class="chart-wrapper" id="dispChartWrapper" style="display:none;">
-                <div style="display:flex; gap:8px; margin-bottom:8px; justify-content:flex-end; width:100%;">
-                    <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer;">
-                        <input type="checkbox" id="dispShowValues" checked onchange="redrawDispIfReady()" style="accent-color:var(--accent-blue);" />
-                        Show Values
-                    </label>
-                    <button class="btn btn-ghost btn-sm" onclick="downloadAllDispCanvases()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                        Download Image
-                    </button>
+
+            <!-- Drift section -->
+            <div id="storyResultSection-drift">
+                <div class="panel">
+                    <div class="panel-header"><span class="panel-title">Parameters</span></div>
+                    <div class="form-row" style="margin-bottom:12px;">
+                        <div class="form-group" style="flex:2;">
+                            <label>Load Cases <span style="font-size:10px;color:var(--text-muted)">(Ctrl/Shift+click for multiple)</span></label>
+                            <select id="driftLoadCases" class="input" multiple style="min-height:90px;">
+                                <option selected>Ex(ST)</option><option selected>EX +(ST)</option><option selected>EX -(ST)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Direction</label>
+                            <select id="driftDirection" class="input" onchange="updateDriftLoadCases()">
+                                <option value="X">X Direction</option>
+                                <option value="Y">Y Direction</option>
+                                <option value="BOTH">Both (two plots)</option>
+                                <option value="MIX">Mix (X + Y in one plot)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group"><label>Scale Factor</label><input type="number" id="driftScaleFactor" class="input" value="5.95" step="0.01" style="width:100px;" /></div>
+                        <div class="form-group"><label>Allowable Ratio</label><input type="number" id="driftAllowable" class="input" value="0.025" step="0.001" style="width:100px;" /></div>
+                        <button class="btn btn-blue" onclick="plotDrift()">Plot Drift</button>
+                    </div>
                 </div>
-                <div id="dispCanvasContainer">
-                    <div id="dispCanvas" style="width:100%;height:500px;"></div>
+                <div class="chart-wrapper" id="driftChartWrapper" style="display:none;">
+                    <div style="display:flex; gap:8px; margin-bottom:8px; justify-content:flex-end; width:100%;">
+                        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer;">
+                            <input type="checkbox" id="driftShowValues" checked onchange="redrawDriftIfReady()" style="accent-color:var(--accent-blue);" />
+                            Show Values
+                        </label>
+                        <button class="btn btn-ghost btn-sm" onclick="downloadAllDriftCanvases()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            Download Image
+                        </button>
+                    </div>
+                    <div id="driftCanvasContainer"></div>
+                </div>
+            </div>
+
+            <!-- Displacement section -->
+            <div id="storyResultSection-disp" style="display:none;">
+                <div class="panel">
+                    <div class="panel-header"><span class="panel-title">Parameters</span></div>
+                    <div class="form-row" style="margin-bottom:12px;">
+                        <div class="form-group" style="flex:2;">
+                            <label>Load Cases <span style="font-size:10px;color:var(--text-muted)">(Ctrl/Shift+click for multiple)</span></label>
+                            <select id="dispLoadCases" class="input" multiple style="min-height:90px;">
+                                <option selected>Ex(ST)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Direction</label>
+                            <select id="dispDirection" class="input" onchange="updateDispLoadCases()">
+                                <option value="X">X Direction</option>
+                                <option value="Y">Y Direction</option>
+                                <option value="BOTH">Both (two plots)</option>
+                                <option value="MIX">Mix (X + Y in one plot)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <button class="btn btn-blue" onclick="plotDisplacement()">Plot Displacement</button>
+                    </div>
+                </div>
+                <div class="chart-wrapper" id="dispChartWrapper" style="display:none;">
+                    <div style="display:flex; gap:8px; margin-bottom:8px; justify-content:flex-end; width:100%;">
+                        <label style="display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text-muted);cursor:pointer;">
+                            <input type="checkbox" id="dispShowValues" checked onchange="redrawDispIfReady()" style="accent-color:var(--accent-blue);" />
+                            Show Values
+                        </label>
+                        <button class="btn btn-ghost btn-sm" onclick="downloadAllDispCanvases()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            Download Image
+                        </button>
+                    </div>
+                    <div id="dispCanvasContainer">
+                        <div id="dispCanvas" style="width:100%;height:500px;"></div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1604,11 +1619,25 @@ Roof, 15.00, 0.00, Consider
                         <span style="font-size:11px;color:var(--text-muted);">×</span>
                         <input type="number" id="modeShotH" class="input" value="600" min="200" max="3000" style="width:80px;font-size:11px;" />
                     </div>
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;cursor:pointer;display:flex;align-items:center;gap:4px;">
+                            <input type="checkbox" id="modeShotContour" style="margin:0;cursor:pointer;" />
+                            Contour + legend
+                        </label>
+                    </div>
                 </div>
                 <div class="form-row" style="align-items:center;gap:10px;">
                     <button class="btn btn-blue" onclick="captureModeShapes()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/><circle cx="12" cy="13" r="4"/></svg>
                         Capture Mode Shapes
+                    </button>
+                    <button class="btn btn-ghost" onclick="probeModeShapeCapture()" title="Try a minimal capture, then progressively add result-graphic payload to localize the failure (endpoint vs. mode shape vs. load case name).">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        Probe
+                    </button>
+                    <button class="btn btn-ghost" onclick="downloadAllModeShots()" title="Download every captured image (you can also click an individual image to save just that one).">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Download All
                     </button>
                     <span id="modeShotStatus" style="font-size:11px;color:var(--text-muted);"></span>
                 </div>
@@ -1616,12 +1645,107 @@ Roof, 15.00, 0.00, Consider
                 <div id="modeShotGrid" style="display:none;margin-top:14px;grid-template-columns:auto 1fr 1fr;gap:8px;align-items:center;">
                     <!-- populated by captureModeShapes() — display flips to grid on first capture -->
                 </div>
+
+                <div id="modeShotProbeOutput" style="margin-top:12px;font-size:11px;font-family:'Consolas',monospace;color:var(--text-muted);line-height:1.6;"></div>
             </div>
 
             <div id="modesEmpty" class="empty-state">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M5 5l1.5 14L9 5l1.5 14L13 5l1.5 14L17 5l1.5 14"/></svg>
                 <h3>No mode data</h3>
                 <p>Click "Fetch Modes" to retrieve eigenvalue (with mass participation %) and participation vector results. Run modal analysis in MIDAS first.</p>
+            </div>
+        </div>
+
+        <!-- ════════════ IRREGULARITY CHECK ════════════ -->
+        <div id="tab-irregularity" class="tab-page">
+            <div class="page-header">
+                <h2>Irregularity Check &mdash; NSCP 2015</h2>
+                <p>Runs every irregularity table the MIDAS Gen API exposes for the selected country code. Native checks: Torsional (1a/1b), Stiffness/Soft Story (1a/1b), Weight/Mass (2), and Capacity/Weak Story (5a/5b).</p>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header"><span class="panel-title">Parameters</span></div>
+                <div class="form-row" style="align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;">Country code</label>
+                        <select id="irregCountry" class="input" style="width:130px;font-size:11px;">
+                            <option selected>NSCP2015</option>
+                            <option>ASCE7-16</option>
+                            <option>ASCE7-10</option>
+                            <option>KBC2009</option>
+                            <option>KBC2016</option>
+                            <option>UBC97</option>
+                            <option>NTC2008</option>
+                            <option>EUROCODE8</option>
+                            <option>IS1893:2016</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;">Story drift method</label>
+                        <select id="irregDriftMethod" class="input" style="width:240px;font-size:11px;">
+                            <option selected>Max.DriftofOuterExtremePoints</option>
+                            <option>CenterOfMassDrift</option>
+                            <option>AllVerticalElements</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;">Stiffness method</label>
+                        <select id="irregStiffMethod" class="input" style="width:200px;font-size:11px;">
+                            <option selected>1/StoryDriftRatio</option>
+                            <option>ShearForceToDriftRatio</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;">Decimals</label>
+                        <input type="number" id="irregDecimals" class="input" value="4" min="0" max="10" style="width:60px;font-size:11px;" />
+                    </div>
+                </div>
+                <div class="form-row" style="align-items:center;gap:10px;">
+                    <button class="btn btn-blue" onclick="runAllIrregularityChecks()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+                        Run All Checks
+                    </button>
+                    <button class="btn btn-ghost" onclick="probeIrregularityChecks()" title="Try every candidate TABLE_TYPE per check and show which one MIDAS accepts. Run this first if Run All comes back empty.">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                        Probe
+                    </button>
+                    <span id="irregStatus" style="font-size:11px;color:var(--text-muted);"></span>
+                </div>
+            </div>
+
+            <div id="irregResultsArea">
+                <!-- Each check renders into its own panel; hidden until the fetch returns data. -->
+                <div class="panel" id="irregPanel-torsional" style="margin-top:12px;display:none;">
+                    <div class="panel-header"><span class="panel-title">Torsional Irregularity (NSCP 208.4.5.1, Type 1a / 1b)</span><span id="irregMeta-torsional" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span></div>
+                    <div class="table-wrap"><div class="table-scroll"><table id="irregTable-torsional"><thead><tr></tr></thead><tbody></tbody></table></div></div>
+                </div>
+                <div class="panel" id="irregPanel-stiffness" style="margin-top:12px;display:none;">
+                    <div class="panel-header"><span class="panel-title">Stiffness Irregularity / Soft Story (NSCP 208.4.5.2, Type 1a / 1b)</span><span id="irregMeta-stiffness" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span></div>
+                    <div class="table-wrap"><div class="table-scroll"><table id="irregTable-stiffness"><thead><tr></tr></thead><tbody></tbody></table></div></div>
+                </div>
+                <div class="panel" id="irregPanel-weight" style="margin-top:12px;display:none;">
+                    <div class="panel-header"><span class="panel-title">Weight / Mass Irregularity (NSCP 208.4.5.2, Type 2)</span><span id="irregMeta-weight" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span></div>
+                    <div class="table-wrap"><div class="table-scroll"><table id="irregTable-weight"><thead><tr></tr></thead><tbody></tbody></table></div></div>
+                </div>
+                <div class="panel" id="irregPanel-capacity" style="margin-top:12px;display:none;">
+                    <div class="panel-header"><span class="panel-title">Capacity Irregularity / Weak Story (NSCP 208.4.5.2, Type 5a / 5b)</span><span id="irregMeta-capacity" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span></div>
+                    <div class="table-wrap"><div class="table-scroll"><table id="irregTable-capacity"><thead><tr></tr></thead><tbody></tbody></table></div></div>
+                </div>
+
+                <div id="irregProbeOutput" style="margin-top:12px;font-size:11px;font-family:'Consolas',monospace;color:var(--text-muted);line-height:1.6;"></div>
+            </div>
+
+            <div class="panel" style="margin-top:12px;background:transparent;border:1px dashed var(--border);">
+                <div class="panel-header"><span class="panel-title" style="color:var(--text-muted);">Not covered by the API</span></div>
+                <div style="padding:10px 14px;font-size:11px;color:var(--text-muted);line-height:1.6;">
+                    NSCP 2015 also defines plan irregularities the API does not check automatically — these still require manual review:
+                    <b>Type 2</b> Re-entrant corners (projection &gt; 15% of plan dim),
+                    <b>Type 3</b> Diaphragm discontinuity (open area &gt; 50% gross, or stiffness change &gt; 50%),
+                    <b>Type 4</b> Out-of-plane offsets in vertical seismic-resisting elements,
+                    <b>Type 5</b> Nonparallel systems, and vertical
+                    <b>Type 3</b> Vertical geometric irregularity (horizontal dim &gt; 130% of adjacent),
+                    <b>Type 4</b> In-plane discontinuity in vertical lateral elements.
+                </div>
             </div>
         </div>
 
@@ -3707,6 +3831,21 @@ function updateDriftLoadCases() {
     populateSelect("driftLoadCases", getFilteredLoadCases(dir));
 }
 
+// Toggle the visible result-type section inside the merged Drift & Displacement
+// tab. Both sections retain their own DOM IDs so plotDrift() / plotDisplacement()
+// continue to work unchanged.
+function setStoryResultType(type) {
+    const isDrift = type === "drift";
+    const driftSec = document.getElementById("storyResultSection-drift");
+    const dispSec  = document.getElementById("storyResultSection-disp");
+    if (driftSec) driftSec.style.display = isDrift ? ""     : "none";
+    if (dispSec)  dispSec.style.display  = isDrift ? "none" : "";
+    const driftBtn = document.getElementById("storyResultBtn-drift");
+    const dispBtn  = document.getElementById("storyResultBtn-disp");
+    if (driftBtn) driftBtn.className = isDrift ? "btn btn-blue" : "btn btn-ghost";
+    if (dispBtn)  dispBtn.className  = isDrift ? "btn btn-ghost" : "btn btn-blue";
+}
+
 function updateDispLoadCases() {
     const dir = document.getElementById("dispDirection").value;
     populateSelect("dispLoadCases", getFilteredLoadCases(dir));
@@ -5729,6 +5868,73 @@ async function probeVibrationModes() {
     else             showToast("No mode data — run modal analysis first", "error");
 }
 
+// /view/capture returns {"message":"MIDAS GEN NX command complete"} on success — a
+// single-key envelope that the generic isMidasError() flags as failure. Use this
+// capture-specific check instead of touching the shared helper.
+function _isCaptureOk(r) {
+    if (!r || typeof r !== "object") return false;
+    if (typeof r.message === "string" && /complete|success|done/i.test(r.message)) return true;
+    return !isMidasError(r);
+}
+
+// Pull the most useful error string out of a midasAPI() failure or a 200-with-error envelope
+// so the UI shows MIDAS's actual rejection reason instead of just "HTTP 400".
+function _captureErrorMessage(e) {
+    if (!e) return "unknown error";
+    const body = e.body !== undefined ? e.body : e;
+    if (typeof body === "string") return body.slice(0, 240) || (e.message || "empty body");
+    if (body && typeof body === "object") {
+        if (body.message) return String(body.message).slice(0, 240);
+        if (body.error)   return String(typeof body.error === "string" ? body.error : JSON.stringify(body.error)).slice(0, 240);
+        try { return JSON.stringify(body).slice(0, 240); } catch { /* fallthrough */ }
+    }
+    return e.message || "unknown error";
+}
+
+// Build the full /view/capture payload for one mode + one view. Schema matches
+// the canonical example from the midas-gen-python SDK (_view.py): MODE_SHAPE/
+// UNDEFORMED are {OPT_CHECK} objects (not bare booleans), CONTOUR/LEGEND live
+// inside TYPE_OF_DISPLAY, and the LC name is "Mode N" with a space.
+function _buildModeCapturePayload(exportPath, w, h, lcName, angleH, angleV, contour) {
+    // Empty {} = MIDAS uses defaults (off). For visible contour + colorbar, the SDK
+    // requires the full field set — bare OPT_CHECK:true is silently ignored. Schema
+    // mirrors midas-gen-python/_view.py lines 139–189 (Contour/Legend _json()).
+    const contourBlock = contour
+        ? { OPT_CHECK: true, NUM_OF_COLOR: 12, COLOR_TYPE: "rgb" }
+        : {};
+    const legendBlock = contour
+        ? { OPT_CHECK: true, POSITION: "right", VALUE_EXP: false, DECIMAL_PT: 2 }
+        : {};
+    return {
+        Argument: {
+            SET_MODE: "post",
+            SET_HIDDEN: true,
+            EXPORT_PATH: exportPath,
+            HEIGHT: h,
+            WIDTH: w,
+            ACTIVE: { ACTIVE_MODE: "Active" },
+            ANGLE: { HORIZONTAL: angleH, VERTICAL: angleV },
+            DISPLAY: {
+                NODE: { NODE: false, NODE_NUMBER: false },
+                PERSPECTIVE: true,
+                ZOOM_LEVEL: 100
+            },
+            RESULT_GRAPHIC: {
+                CURRENT_MODE: "VibrationModeShapes",
+                LOAD_CASE_COMB: { NAME: lcName },
+                COMPONENTS: { COMP: "Md-XYZ" },
+                TYPE_OF_DISPLAY: {
+                    VALUES:     {},
+                    MODE_SHAPE: { OPT_CHECK: true },
+                    UNDEFORMED: { OPT_CHECK: true },
+                    LEGEND:     legendBlock,
+                    CONTOUR:    contourBlock
+                }
+            }
+        }
+    };
+}
+
 // Capture 3D iso + plan view JPGs of vibration mode shapes via /view/capture.
 // MIDAS writes images to the local disk on whatever host runs MIDAS Gen, so
 // the Flask server on the same machine reads them back through /api/local-image.
@@ -5739,10 +5945,11 @@ async function captureModeShapes() {
     const prefix = document.getElementById("modeShotPrefix").value.trim() || "Mode";
     const isoH   = parseFloat(document.getElementById("modeShotIsoH").value);
     const isoV   = parseFloat(document.getElementById("modeShotIsoV").value);
-    const w      = parseInt(document.getElementById("modeShotW").value) || 800;
-    const h      = parseInt(document.getElementById("modeShotH").value) || 600;
-    const status = document.getElementById("modeShotStatus");
-    const grid   = document.getElementById("modeShotGrid");
+    const w       = parseInt(document.getElementById("modeShotW").value) || 800;
+    const h       = parseInt(document.getElementById("modeShotH").value) || 600;
+    const contour = !!document.getElementById("modeShotContour").checked;
+    const status  = document.getElementById("modeShotStatus");
+    const grid    = document.getElementById("modeShotGrid");
 
     let captureDir;
     try {
@@ -5776,52 +5983,30 @@ async function captureModeShapes() {
     let done = 0, okCount = 0;
 
     for (let n = 1; n <= count; n++) {
-        const lcName = `${prefix}${n}`;
+        // MIDAS load case names for vibration modes are "Mode 1", "Mode 2", ... — note the space.
+        const lcName = `${prefix} ${n}`;
         for (const v of views) {
             done++;
             updateProgress(Math.round((done / total) * 100), `${lcName} — ${v.label}`);
             const fileName = `mode${n}_${v.key}.jpg`;
             const exportPath = captureDir + (captureDir.endsWith(sep) ? "" : sep) + fileName;
-            const payload = {
-                Argument: {
-                    SET_MODE: "post",
-                    SET_HIDDEN: true,
-                    EXPORT_PATH: exportPath,
-                    HEIGHT: h,
-                    WIDTH: w,
-                    ACTIVE: { ACTIVE_MODE: "Active" },
-                    ANGLE: { HORIZONTAL: v.H, VERTICAL: v.V },
-                    DISPLAY: {
-                        NODE: { NODE: false, NODE_NUMBER: false },
-                        PERSPECTIVE: true,
-                        ZOOM_LEVEL: 100
-                    },
-                    RESULT_GRAPHIC: {
-                        CURRENT_MODE: "VibrationModeShapes",
-                        LOAD_CASE_COMB: { NAME: lcName },
-                        COMPONENTS: { COMP: "Md-XYZ" },
-                        TYPE_OF_DISPLAY: {
-                            MODE_SHAPE: true,
-                            UNDEFORMED: true,
-                            LEGEND: { OPT_CHECK: true, POSITION: "right", VALUE_EXP: false, DECIMAL_PT: 3 }
-                        },
-                        CONTOUR: { OPT_CHECK: false }
-                    }
-                }
-            };
+            const payload = _buildModeCapturePayload(exportPath, w, h, lcName, v.H, v.V, contour);
             const cell = document.getElementById(`modeShotCell_${v.key}_${n}`);
             try {
                 const r = await midasAPI("POST", "/view/capture", payload);
-                if (isMidasError(r)) {
+                if (!_isCaptureOk(r)) {
                     const msg = (r && r.message) ? r.message : "MIDAS rejected /view/capture";
                     cell.innerHTML = `<span style="color:var(--accent-orange);font-size:10px;text-align:center;">${escapeHtml(msg)}</span>`;
                 } else {
+                    // Download-friendly filename baked into the anchor so per-image clicks save with a meaningful name.
+                    const dlName = `${prefix.replace(/\s+/g, "_") || "Mode"}${n}_${v.key}.jpg`;
                     const url = `/api/local-image?name=${encodeURIComponent(fileName)}&_=${Date.now()}`;
-                    cell.innerHTML = `<img src="${url}" alt="${escapeHtml(lcName)} ${escapeHtml(v.label)}" style="max-width:100%;height:auto;display:block;border-radius:3px;" onerror="this.parentElement.innerHTML='<span style=&quot;color:var(--accent-orange);font-size:10px;&quot;>Image missing on disk</span>'" />`;
+                    cell.innerHTML = `<a href="${url}" download="${escapeHtml(dlName)}" title="Click image to download" style="display:block;line-height:0;"><img src="${url}" alt="${escapeHtml(lcName)} ${escapeHtml(v.label)}" style="max-width:100%;height:auto;display:block;border-radius:3px;" onerror="this.parentElement.parentElement.innerHTML='<span style=&quot;color:var(--accent-orange);font-size:10px;&quot;>Image missing on disk</span>'" /></a>`;
                     okCount++;
                 }
             } catch (e) {
-                cell.innerHTML = `<span style="color:var(--accent-orange);font-size:10px;text-align:center;">${escapeHtml(e.message)}</span>`;
+                const msg = _captureErrorMessage(e);
+                cell.innerHTML = `<span style="color:var(--accent-orange);font-size:10px;text-align:center;">HTTP ${e.status || "?"}<br>${escapeHtml(msg)}</span>`;
             }
         }
     }
@@ -5831,6 +6016,325 @@ async function captureModeShapes() {
         ? `<span style="color:var(--accent-green);">✓ ${okCount}/${total} captured to <code>${escapeHtml(captureDir)}</code></span>`
         : `<span style="color:var(--accent-orange);">${okCount}/${total} captured — check API log</span>`;
     showToast(okCount ? `Captured ${okCount}/${total} mode shape views` : "Capture failed", okCount ? "success" : "error");
+}
+
+// Trigger a download for every successfully captured image. Walks the grid for
+// <a download> wrappers (added by captureModeShapes on success), creates a fresh
+// anchor per file, and clicks them with a 100ms stagger so the browser doesn't
+// dedupe simultaneous saves.
+function downloadAllModeShots() {
+    const links = document.querySelectorAll('#modeShotGrid a[download]');
+    if (!links.length) { showToast("No images to download — run Capture first", "error"); return; }
+    links.forEach((src, i) => {
+        setTimeout(() => {
+            const a = document.createElement("a");
+            a.href     = src.href;
+            a.download = src.download || `mode_shot_${i + 1}.jpg`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }, i * 100);
+    });
+    showToast(`Downloading ${links.length} image(s)`, "success");
+}
+
+// Probe /view/capture with progressively richer payloads to localize what's failing
+// when captures return HTTP 400. Tests the endpoint itself, then result-graphic for
+// the first mode under several CURRENT_MODE / LOAD_CASE_COMB.NAME combinations.
+async function probeModeShapeCapture() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+
+    let captureDir;
+    try {
+        const r = await fetch("/api/capture-dir");
+        const j = await r.json();
+        captureDir = j && j.dir;
+        if (!captureDir) throw new Error("missing dir");
+    } catch (e) {
+        showToast("Backend unreachable — capture needs server.py running locally", "error");
+        return;
+    }
+    const sep = captureDir.includes("\\") ? "\\" : "/";
+    const probePath = captureDir + (captureDir.endsWith(sep) ? "" : sep) + "probe.jpg";
+    const prefix = (document.getElementById("modeShotPrefix").value || "Mode").trim();
+
+    // Common ANGLE/DISPLAY block reused across cases.
+    const baseArg = {
+        SET_MODE: "post",
+        SET_HIDDEN: true,
+        EXPORT_PATH: probePath,
+        HEIGHT: 400,
+        WIDTH: 400,
+        ACTIVE: { ACTIVE_MODE: "Active" },
+        ANGLE: { HORIZONTAL: 30, VERTICAL: 30 },
+        DISPLAY: { NODE: { NODE: false, NODE_NUMBER: false }, PERSPECTIVE: true, ZOOM_LEVEL: 100 }
+    };
+    // Schema matches the midas-gen-python SDK (_view.py): MODE_SHAPE/UNDEFORMED
+    // are {OPT_CHECK} objects, LEGEND/CONTOUR live inside TYPE_OF_DISPLAY.
+    const sdkGraphic = (lcName) => ({
+        CURRENT_MODE: "VibrationModeShapes",
+        LOAD_CASE_COMB: { NAME: lcName },
+        COMPONENTS: { COMP: "Md-XYZ" },
+        TYPE_OF_DISPLAY: {
+            VALUES:     {},
+            MODE_SHAPE: { OPT_CHECK: true },
+            UNDEFORMED: { OPT_CHECK: true },
+            LEGEND:     {},
+            CONTOUR:    {}
+        }
+    });
+    const wrap = (resultGraphic) => ({ Argument: resultGraphic ? { ...baseArg, RESULT_GRAPHIC: resultGraphic } : { ...baseArg } });
+
+    const cases = [
+        { label: "Plain capture (no RESULT_GRAPHIC) — endpoint reachability", payload: wrap(null) },
+        { label: `Canonical schema + NAME="${prefix} 1"`,                     payload: wrap(sdkGraphic(`${prefix} 1`)) },
+        // Fallbacks in case the user named load cases differently in MIDAS
+        { label: `Canonical schema + NAME="${prefix}1" (no space)`,           payload: wrap(sdkGraphic(`${prefix}1`)) },
+        { label: `Canonical schema + NAME="1" (numeric)`,                     payload: wrap(sdkGraphic("1")) },
+        { label: `Canonical schema + NAME="${prefix} 2" (mode 2)`,            payload: wrap(sdkGraphic(`${prefix} 2`)) }
+    ];
+
+    const out = document.getElementById("modeShotProbeOutput");
+    out.innerHTML = `<span style="color:var(--text-muted);">Probing /view/capture with ${cases.length} payload variants...</span>`;
+    showProgress("Probing /view/capture", `${cases.length} variant payloads`, "POST /view/capture");
+
+    const results = [];
+    for (let i = 0; i < cases.length; i++) {
+        const c = cases[i];
+        updateProgress(Math.round((i / cases.length) * 100), c.label);
+        try {
+            const r = await midasAPI("POST", "/view/capture", c.payload);
+            if (_isCaptureOk(r)) {
+                results.push({ ...c, ok: true, status: 200, errMsg: null, msg: r && r.message });
+            } else {
+                results.push({ ...c, ok: false, status: 200, errMsg: (r && r.message) || "200 with error envelope" });
+            }
+        } catch (e) {
+            results.push({ ...c, ok: false, status: e.status || 0, errMsg: _captureErrorMessage(e) });
+        }
+    }
+    setTimeout(hideProgress, 300);
+
+    const okCount      = results.filter(r => r.ok).length;
+    const plainOk      = results[0] && results[0].ok;
+    const graphicOk    = okCount > (plainOk ? 1 : 0);
+    const html = results.map(r => {
+        const tag = r.ok
+            ? `<span style="color:var(--accent-green);">[OK 200]</span>`
+            : `<span style="color:var(--accent-orange);">[FAIL ${r.status || "ERR"}]</span>`;
+        const detail = r.ok ? escapeHtml(r.msg || "200 OK") : escapeHtml(r.errMsg);
+        return `${tag} ${escapeHtml(r.label)}<br>&nbsp;&nbsp;<span style="color:var(--text-muted);">${detail}</span>`;
+    }).join("<br>");
+
+    // Embed probe.jpg as ground truth — if the file exists on disk, /view/capture
+    // really did write it (some MIDAS builds return success messages but skip the file).
+    const proofImg = plainOk
+        ? `<br><br><span style="color:var(--text-muted);">Plain-capture proof (probe.jpg from disk):</span><br><img src="/api/local-image?name=probe.jpg&_=${Date.now()}" alt="probe" style="max-width:300px;height:auto;border:1px solid var(--border);border-radius:3px;margin-top:4px;" onerror="this.outerHTML='<span style=&quot;color:var(--accent-orange);&quot;>(file not on disk — MIDAS reported success but didn\\'t write probe.jpg)</span>'" />`
+        : "";
+
+    const hint =
+        !plainOk
+            ? `<span style="color:var(--accent-orange);">Endpoint failed.</span> Open a model in MIDAS Gen, then re-run the probe.`
+            : !graphicOk
+                ? `<span style="color:var(--accent-orange);">Endpoint works but every RESULT_GRAPHIC variant was rejected with "second query is wrong".</span> This means MIDAS accepts /view/capture but doesn't like the inner mode-shape query. Most likely causes: (1) modal analysis hasn't been run yet — verify the Eigenvalue Mode table on this tab populates; (2) the LOAD_CASE_COMB schema for vibration modes differs from the SDK example — try variations of TYPE / STEP_INDEX above. The Eigenvalue table headers may hint at the correct NAME format.`
+                : `<span style="color:var(--accent-green);">Working combination found.</span> Update _buildModeCapturePayload to match the [OK] variant above.`;
+
+    out.innerHTML = html + proofImg + `<br><br><span style="font-size:10px;">${hint}</span>`;
+    showToast(`Probe: ${okCount}/${cases.length} accepted`, okCount ? "success" : "error");
+}
+
+// ══════════════════════════════════════════════════════════════
+// IRREGULARITY CHECK — NSCP 2015 / ASCE 7
+// ══════════════════════════════════════════════════════════════
+// MIDAS exposes four story-irregularity tables via /post/TABLE. The exact
+// TABLE_TYPE strings aren't documented in the SDK source — manual page titles
+// suggest names like "Torsional Irregularity Check Table" but the API casing
+// can vary. We try multiple candidates per check and use whichever returns data.
+const IRREGULARITY_CHECKS = [
+    {
+        key:   "torsional",
+        label: "Torsional Irregularity",
+        candidates: [
+            "TORSIONALIRREGULARITYCHECK",
+            "TORSIONAL_IRREGULARITY_CHECK",
+            "TORSIONALIRREGULARITY",
+            "TORSIONIRREGULARITY",
+            "STORYTORSIONALIRREGULARITYCHECK"
+        ]
+    },
+    {
+        key:   "stiffness",
+        label: "Stiffness Irregularity / Soft Story",
+        candidates: [
+            "STIFFNESSIRREGULARITYCHECK",
+            "STIFFNESS_IRREGULARITY_CHECK",
+            "SOFTSTORYCHECK",
+            "SOFTSTORY",
+            "STIFFNESSIRREGULARITY"
+        ]
+    },
+    {
+        key:   "weight",
+        label: "Weight / Mass Irregularity",
+        candidates: [
+            "WEIGHTIRREGULARITYCHECK",
+            "MASSIRREGULARITYCHECK",
+            "WEIGHT_IRREGULARITY_CHECK",
+            "MASS_IRREGULARITY_CHECK",
+            "WEIGHTIRREGULARITY",
+            "MASSIRREGULARITY"
+        ]
+    },
+    {
+        key:   "capacity",
+        label: "Capacity Irregularity / Weak Story",
+        candidates: [
+            "CAPACITYIRREGULARITYCHECK",
+            "CAPACITY_IRREGULARITY_CHECK",
+            "WEAKSTORYCHECK",
+            "WEAKSTORY",
+            "CAPACITYIRREGULARITY"
+        ]
+    }
+];
+
+// Cache of the working TABLE_TYPE per check key, populated by probe or first
+// successful Run All call so subsequent runs skip the trial loop.
+const _irregResolved = {};
+
+function _buildIrregPayload(tableType) {
+    return {
+        Argument: {
+            TABLE_NAME: "SS_Table",
+            TABLE_TYPE: tableType,
+            UNIT: { FORCE: "KN", DIST: "M" },
+            STYLES: {
+                FORMAT: "Fixed",
+                PLACE: parseInt(document.getElementById("irregDecimals").value) || 4
+            },
+            COUNTRY_CODE:           document.getElementById("irregCountry").value     || "NSCP2015",
+            STORY_DRIFT_METHOD:     document.getElementById("irregDriftMethod").value || "Max.DriftofOuterExtremePoints",
+            STORY_STIFFNESS_METHOD: document.getElementById("irregStiffMethod").value || "1/StoryDriftRatio"
+        }
+    };
+}
+
+// Try a single TABLE_TYPE and return one of:
+//   { ok:true,  headers, rows }                — populated table
+//   { ok:false, status:200, errMsg, empty:true }— 200 but no rows / error envelope
+//   { ok:false, status:N,   errMsg }           — HTTP failure
+async function _tryIrregFetch(tableType) {
+    try {
+        const r = await midasAPI("POST", "/post/TABLE", _buildIrregPayload(tableType));
+        if (isMidasError(r)) {
+            return { ok: false, status: 200, errMsg: (r && r.message) || "error envelope" };
+        }
+        const { headers, rows } = extractTableData(r);
+        if (headers.length && rows.length) return { ok: true, headers, rows };
+        return { ok: false, status: 200, empty: true, errMsg: "200 but no rows" };
+    } catch (e) {
+        return { ok: false, status: e.status || 0, errMsg: _captureErrorMessage(e) };
+    }
+}
+
+// Render one check's table. Reuses the generic renderTable() helper for
+// consistent column/row formatting and sticky headers.
+function _renderIrregularityResult(key, headers, rows, workingType) {
+    document.getElementById(`irregPanel-${key}`).style.display = "";
+    document.getElementById(`irregMeta-${key}`).textContent = `${rows.length} row(s) — TABLE_TYPE: ${workingType}`;
+    renderTable(`irregTable-${key}`, headers, rows);
+}
+
+function _hideIrregularityPanel(key) {
+    document.getElementById(`irregPanel-${key}`).style.display = "none";
+}
+
+// Run every irregularity check sequentially. For each, walks the candidate
+// TABLE_TYPE list and uses the first one that returns rows.
+async function runAllIrregularityChecks() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+    const status = document.getElementById("irregStatus");
+    const probeOut = document.getElementById("irregProbeOutput");
+    probeOut.innerHTML = "";
+
+    showProgress("Running Irregularity Checks", `${IRREGULARITY_CHECKS.length} checks`, "POST /post/TABLE");
+    let okCount = 0;
+    const skipped = [];
+
+    for (let i = 0; i < IRREGULARITY_CHECKS.length; i++) {
+        const chk = IRREGULARITY_CHECKS[i];
+        updateProgress(Math.round((i / IRREGULARITY_CHECKS.length) * 100), chk.label);
+
+        // Try the cached working name first, then fall through to remaining candidates.
+        const order = _irregResolved[chk.key]
+            ? [_irregResolved[chk.key], ...chk.candidates.filter(c => c !== _irregResolved[chk.key])]
+            : chk.candidates;
+
+        let success = null;
+        for (const t of order) {
+            const r = await _tryIrregFetch(t);
+            if (r.ok) { success = { ...r, type: t }; break; }
+        }
+
+        if (success) {
+            _irregResolved[chk.key] = success.type;
+            _renderIrregularityResult(chk.key, success.headers, success.rows, success.type);
+            okCount++;
+        } else {
+            _hideIrregularityPanel(chk.key);
+            skipped.push(chk.label);
+        }
+    }
+    setTimeout(hideProgress, 300);
+
+    status.innerHTML = okCount === IRREGULARITY_CHECKS.length
+        ? `<span style="color:var(--accent-green);">✓ All ${okCount} checks returned data</span>`
+        : okCount === 0
+            ? `<span style="color:var(--accent-orange);">No checks returned data — click Probe to see which TABLE_TYPE MIDAS accepts.</span>`
+            : `<span style="color:var(--accent-orange);">${okCount}/${IRREGULARITY_CHECKS.length} checks returned data — missing: ${skipped.join(", ")}. Click Probe for details.</span>`;
+    showToast(`Irregularity: ${okCount}/${IRREGULARITY_CHECKS.length} checks ran`, okCount ? "success" : "error");
+}
+
+// Try every candidate per check and report each attempt. Useful when Run All
+// returns empty for one of the checks — the probe pinpoints whether MIDAS
+// rejected the schema, returned an empty table, or threw an HTTP error.
+async function probeIrregularityChecks() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+    const out = document.getElementById("irregProbeOutput");
+    const total = IRREGULARITY_CHECKS.reduce((n, c) => n + c.candidates.length, 0);
+    out.innerHTML = `<span style="color:var(--text-muted);">Probing ${total} TABLE_TYPE candidates across ${IRREGULARITY_CHECKS.length} checks...</span>`;
+    showProgress("Probing Irregularity API", `${total} candidate TABLE_TYPEs`, "POST /post/TABLE");
+
+    const lines = [];
+    let done = 0;
+    for (const chk of IRREGULARITY_CHECKS) {
+        lines.push(`<br><b style="color:var(--text-primary);">${escapeHtml(chk.label)}</b>`);
+        let firstHit = null;
+        for (const t of chk.candidates) {
+            done++;
+            updateProgress(Math.round((done / total) * 100), `${chk.label} — ${t}`);
+            const r = await _tryIrregFetch(t);
+            if (r.ok) {
+                if (!firstHit) firstHit = t;
+                lines.push(`<span style="color:var(--accent-green);">[OK]</span> <code>${escapeHtml(t)}</code> &mdash; <span style="color:var(--text-muted);">${r.rows.length} row(s) × ${r.headers.length} col(s)</span>`);
+            } else if (r.status === 200) {
+                lines.push(`<span style="color:var(--text-faint);">[--]</span> <code>${escapeHtml(t)}</code> &mdash; <span style="color:var(--text-muted);">${escapeHtml(r.errMsg)}</span>`);
+            } else {
+                lines.push(`<span style="color:var(--accent-orange);">[FAIL ${r.status}]</span> <code>${escapeHtml(t)}</code> &mdash; <span style="color:var(--text-muted);">${escapeHtml(r.errMsg)}</span>`);
+            }
+        }
+        if (firstHit) _irregResolved[chk.key] = firstHit;
+    }
+    setTimeout(hideProgress, 300);
+
+    const resolved = Object.keys(_irregResolved).length;
+    const summary = resolved === IRREGULARITY_CHECKS.length
+        ? `<span style="color:var(--accent-green);">All ${resolved} check types resolved.</span> Click Run All Checks to populate the tables.`
+        : resolved
+            ? `<span style="color:var(--accent-orange);">${resolved}/${IRREGULARITY_CHECKS.length} resolved.</span> Missing checks may need their analysis to be run first in MIDAS, or use a TABLE_TYPE not in the candidate list — check the API log.`
+            : `<span style="color:var(--accent-orange);">No candidate worked.</span> Confirm the model has a story setup and a seismic load case, then re-probe.`;
+    out.innerHTML = lines.join("<br>") + `<br><br>${summary}`;
+    showToast(`Probe: ${resolved}/${IRREGULARITY_CHECKS.length} resolved`, resolved ? "success" : "error");
 }
 
 function _modesGet(which) {
