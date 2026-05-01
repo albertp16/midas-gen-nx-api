@@ -1906,9 +1906,10 @@ Roof, 15.00, 0.00, Consider
                     <span id="irregPlotMeta-inplane" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span>
                 </div>
                 <div style="padding:6px 14px 0;font-size:10px;color:var(--text-muted);">
-                    3D view of all vertical elements. Red columns are discontinuous (no matching column at the story below within position tolerance). Halftone columns are continuous.
+                    3D view (top) and 2D X-Z elevation (bottom) of all vertical elements. Red columns are discontinuous (no matching column at the story below within position tolerance). Halftone columns are continuous.
                 </div>
-                <div id="irregPlotCanvas-inplane" style="width:100%;min-height:560px;padding:8px 14px;"></div>
+                <div id="irregPlotCanvas-inplane" style="width:100%;min-height:480px;padding:8px 14px;"></div>
+                <div id="irregPlotCanvas-inplane-elev" style="width:100%;min-height:380px;padding:8px 14px;border-top:1px dashed var(--border);"></div>
             </div>
         </div>
 
@@ -7277,15 +7278,20 @@ async function loadIrregPlotData() {
     }
 
     updateProgress(85, "Grouping by story + running checks...");
-    const ztol  = parseFloat(document.getElementById("irregPlotZTol").value) || 200;
-    const xytol = parseFloat(document.getElementById("irregPlotTol").value)  || 100;
-    const ratio = parseFloat(document.getElementById("irregPlotRatio").value) || 1.3;
+    // Form inputs are labeled "mm". Auto-convert to the model's native unit so
+    // grouping/matching tolerances aren't 1000× too large (or small) when
+    // coords are stored in metres rather than millimetres.
+    const ztolMM  = parseFloat(document.getElementById("irregPlotZTol").value) || 200;
+    const xytolMM = parseFloat(document.getElementById("irregPlotTol").value)  || 100;
+    const ztol    = isMM ? ztolMM  : ztolMM  / 1000;
+    const xytol   = isMM ? xytolMM : xytolMM / 1000;
+    const ratio   = parseFloat(document.getElementById("irregPlotRatio").value) || 1.3;
 
     const stories = _groupColumnsByStory(columns, ztol);
-    const type3 = _checkVerticalGeometric(stories, ratio);
-    const type4 = _checkInPlaneDiscontinuity(stories, xytol);
+    const type3   = _checkVerticalGeometric(stories, ratio);
+    const type4   = _checkInPlaneDiscontinuity(stories, xytol);
 
-    _irregPlotCache = { columns, stories, type3, type4, ratio, xytol };
+    _irregPlotCache = { columns, stories, type3, type4, ratio, xytol, isMM, unitLabel: isMM ? "mm" : "m" };
     setTimeout(hideProgress, 200);
     renderIrregPlots();
 
@@ -7381,95 +7387,132 @@ function renderIrregPlots() {
     document.getElementById("irregPlotPanel-inplane").style.display = "";
 }
 
-// Type 3 plot: stacked plan views (X-Y) per story. Each story gets its own
-// trace; flagged stories use bright red, non-flagged use halftone grey when
-// the toggle is on (otherwise a discrete color cycle).
+// Type 3 plot: 3D stacked footprint. Each story renders as:
+//   - markers at every column's (x, y, zMax)
+//   - a closed rectangle outline of the story's bounding box at zMax
+// so the building silhouette is visible vertically. Flagged stories use red
+// fills; halftone toggle dims the non-flagged ones.
 function _renderType3Plot() {
     if (typeof Plotly === "undefined") { showToast("Plotly not loaded", "error"); return; }
-    const { stories, type3 } = _irregPlotCache;
+    const { stories, type3, unitLabel } = _irregPlotCache;
     const halftone = document.getElementById("irregPlotHalftone").checked;
     const palette = ["#58a6ff", "#3fb950", "#f0883e", "#d2a8ff", "#79c0ff", "#d29922"];
 
-    const traces = type3.map((s, i) => {
+    const traces = [];
+    type3.forEach((s, i) => {
         const flagged = s.flagged;
         const color = flagged ? "#f85149" : palette[i % palette.length];
-        const opacity = (halftone && !flagged) ? 0.18 : 1;
-        return {
+        const opacity = (halftone && !flagged) ? 0.22 : 1;
+        // Column-top markers
+        traces.push({
+            type: "scatter3d",
+            mode: "markers",
             x: s.columns.map(c => c.x),
             y: s.columns.map(c => c.y),
-            mode: "markers+text",
-            type: "scatter",
-            name: `Story ${i + 1} (z=${(s.zMax / 1000).toFixed(2)} m)${flagged ? " ⚠" : ""}`,
-            marker: { size: flagged ? 12 : 8, color, line: { width: flagged ? 2 : 1, color: flagged ? "#fff" : color }, opacity },
-            text: flagged ? s.columns.map(() => "") : [],
-            hovertemplate: `Story ${i + 1}<br>x=%{x:.0f} mm<br>y=%{y:.0f} mm<br>wx=${s.wx.toFixed(0)} mm · wy=${s.wy.toFixed(0)} mm<br>ratio vs adjacent=${s.ratioAdjacent.toFixed(2)}<extra></extra>`
-        };
+            z: s.columns.map(_ => s.zMax),
+            name: `Story ${i + 1} (z=${s.zMax.toFixed(2)} ${unitLabel})${flagged ? " ⚠" : ""}`,
+            marker: { size: flagged ? 6 : 4, color, opacity, line: { width: flagged ? 2 : 0, color: "#fff" } },
+            hovertemplate: `Story ${i + 1}<br>x=%{x:.2f} ${unitLabel}<br>y=%{y:.2f} ${unitLabel}<br>z=%{z:.2f} ${unitLabel}<br>wx=${s.wx.toFixed(2)} · wy=${s.wy.toFixed(2)}<br>ratio vs adjacent=${s.ratioAdjacent.toFixed(2)}<extra></extra>`,
+            legendgroup: `story-${i}`,
+            showlegend: true
+        });
+        // Bounding-box outline at this story's elevation — this is the
+        // "footprint" that NSCP Type 3 measures.
+        const xs = s.columns.map(c => c.x), ys = s.columns.map(c => c.y);
+        if (xs.length) {
+            const x0 = Math.min(...xs), x1 = Math.max(...xs);
+            const y0 = Math.min(...ys), y1 = Math.max(...ys);
+            traces.push({
+                type: "scatter3d",
+                mode: "lines",
+                x: [x0, x1, x1, x0, x0],
+                y: [y0, y0, y1, y1, y0],
+                z: [s.zMax, s.zMax, s.zMax, s.zMax, s.zMax],
+                line: { color, width: flagged ? 6 : 3 },
+                opacity,
+                name: `Footprint ${i + 1}`,
+                legendgroup: `story-${i}`,
+                showlegend: false,
+                hoverinfo: "skip"
+            });
+        }
     });
 
     Plotly.newPlot("irregPlotCanvas-vertical", traces, {
-        title: { text: `Plan Footprint per Story — Type 3 (NSCP 130% threshold)`, font: { size: 13 } },
-        xaxis: { title: "X (mm)", zeroline: false },
-        yaxis: { title: "Y (mm)", scaleanchor: "x", scaleratio: 1, zeroline: false },
+        title: { text: `Vertical Footprint per Story — Type 3 (NSCP 130% threshold)`, font: { size: 13 } },
+        scene: {
+            xaxis: { title: `X (${unitLabel})` },
+            yaxis: { title: `Y (${unitLabel})` },
+            zaxis: { title: `Z (${unitLabel})` },
+            aspectmode: "data",
+            camera: { eye: { x: 1.6, y: 1.6, z: 1.0 } }
+        },
         showlegend: true,
         legend: { x: 1.02, y: 1, font: { size: 10 } },
-        margin: { t: 40, l: 60, r: 180, b: 50 },
-        paper_bgcolor: "white",
-        plot_bgcolor: "#fafafa"
+        margin: { t: 40, l: 0, r: 0, b: 0 },
+        paper_bgcolor: "white"
     }, { responsive: true, displaylogo: false });
 
     document.getElementById("irregPlotMeta-vertical").textContent =
         `${type3.filter(s => s.flagged).length} flagged of ${type3.length} stor${type3.length === 1 ? "y" : "ies"}`;
 }
 
-// Type 4 plot: 3D view of every column (line from zMin to zMax). Discontinuous
-// columns drawn red; others in halftone grey (or full color when halftone off).
+// Type 4: TWO plots side-by-side vertically:
+//   1) 3D view of every column from zMin → zMax
+//   2) 2D X-Z elevation (looking from +Y) — each column drawn as a vertical
+//      line at its X coordinate, easy to spot discontinuities at a glance.
 function _renderType4Plot() {
     if (typeof Plotly === "undefined") return;
-    const { columns, type4 } = _irregPlotCache;
+    const { columns, type4, unitLabel } = _irregPlotCache;
     const halftone = document.getElementById("irregPlotHalftone").checked;
 
     const flaggedSet = new Set(type4.filter(c => c.flagged).map(c => c.id));
 
-    // Two traces: critical (red) + others (halftone or grey)
+    // Build line-segment arrays for both 3D and 2D traces in one pass.
     const critX = [], critY = [], critZ = [], critText = [];
     const normX = [], normY = [], normZ = [], normText = [];
+    // 2D elevation: x = X coord, y = Z elevation
+    const critXel = [], critZel = [], critTextEl = [];
+    const normXel = [], normZel = [], normTextEl = [];
 
     for (const c of columns) {
         const isFlagged = flaggedSet.has(c.id);
-        const X = isFlagged ? critX : normX;
-        const Y = isFlagged ? critY : normY;
-        const Z = isFlagged ? critZ : normZ;
-        const T = isFlagged ? critText : normText;
-        // Plotly 3D line: x/y/z arrays with null between segments
-        X.push(c.x, c.x, null);
-        Y.push(c.y, c.y, null);
-        Z.push(c.zMin, c.zMax, null);
-        const label = `Col ${c.id} · sect ${c.section || "—"}<br>x=${c.x.toFixed(0)}, y=${c.y.toFixed(0)}<br>z: ${c.zMin.toFixed(0)}→${c.zMax.toFixed(0)} mm`;
-        T.push(label, label, "");
+        const label = `Col ${c.id} · sect ${c.section || "—"}<br>x=${c.x.toFixed(2)}, y=${c.y.toFixed(2)} ${unitLabel}<br>z: ${c.zMin.toFixed(2)}→${c.zMax.toFixed(2)} ${unitLabel}`;
+        if (isFlagged) {
+            critX.push(c.x, c.x, null);  critY.push(c.y, c.y, null);  critZ.push(c.zMin, c.zMax, null);
+            critText.push(label, label, "");
+            critXel.push(c.x, c.x, null); critZel.push(c.zMin, c.zMax, null);
+            critTextEl.push(label, label, "");
+        } else {
+            normX.push(c.x, c.x, null);  normY.push(c.y, c.y, null);  normZ.push(c.zMin, c.zMax, null);
+            normText.push(label, label, "");
+            normXel.push(c.x, c.x, null); normZel.push(c.zMin, c.zMax, null);
+            normTextEl.push(label, label, "");
+        }
     }
 
-    const traces = [];
-    if (normX.length) traces.push({
+    // ── 3D view ──
+    const traces3d = [];
+    if (normX.length) traces3d.push({
         type: "scatter3d", mode: "lines",
         x: normX, y: normY, z: normZ,
         name: "Continuous",
         line: { color: halftone ? "rgba(120,120,120,0.18)" : "#7aa6d6", width: 4 },
         text: normText, hoverinfo: "text"
     });
-    if (critX.length) traces.push({
+    if (critX.length) traces3d.push({
         type: "scatter3d", mode: "lines",
         x: critX, y: critY, z: critZ,
         name: "Discontinuous",
         line: { color: "#f85149", width: 8 },
         text: critText, hoverinfo: "text"
     });
-
-    Plotly.newPlot("irregPlotCanvas-inplane", traces, {
-        title: { text: "Vertical Elements — Type 4 (red = discontinuous)", font: { size: 13 } },
+    Plotly.newPlot("irregPlotCanvas-inplane", traces3d, {
+        title: { text: "3D View — vertical elements (red = discontinuous)", font: { size: 13 } },
         scene: {
-            xaxis: { title: "X (mm)", showbackground: false },
-            yaxis: { title: "Y (mm)", showbackground: false },
-            zaxis: { title: "Z (mm)", showbackground: false },
+            xaxis: { title: `X (${unitLabel})`, showbackground: false },
+            yaxis: { title: `Y (${unitLabel})`, showbackground: false },
+            zaxis: { title: `Z (${unitLabel})`, showbackground: false },
             aspectmode: "data",
             camera: { eye: { x: 1.6, y: 1.6, z: 1.0 } }
         },
@@ -7477,6 +7520,33 @@ function _renderType4Plot() {
         legend: { x: 0.85, y: 0.95 },
         margin: { t: 40, l: 0, r: 0, b: 0 },
         paper_bgcolor: "white"
+    }, { responsive: true, displaylogo: false });
+
+    // ── 2D X-Z elevation (vertical-line plot) ──
+    const traces2d = [];
+    if (normXel.length) traces2d.push({
+        type: "scatter", mode: "lines",
+        x: normXel, y: normZel,
+        name: "Continuous",
+        line: { color: halftone ? "rgba(120,120,120,0.22)" : "#7aa6d6", width: 3 },
+        text: normTextEl, hoverinfo: "text"
+    });
+    if (critXel.length) traces2d.push({
+        type: "scatter", mode: "lines",
+        x: critXel, y: critZel,
+        name: "Discontinuous",
+        line: { color: "#f85149", width: 5 },
+        text: critTextEl, hoverinfo: "text"
+    });
+    Plotly.newPlot("irregPlotCanvas-inplane-elev", traces2d, {
+        title: { text: "X-Z Elevation — each column as a vertical line", font: { size: 13 } },
+        xaxis: { title: `X (${unitLabel})`, zeroline: false },
+        yaxis: { title: `Z (${unitLabel})`, zeroline: false },
+        showlegend: true,
+        legend: { x: 1.02, y: 1, font: { size: 10 } },
+        margin: { t: 40, l: 60, r: 180, b: 50 },
+        paper_bgcolor: "white",
+        plot_bgcolor: "#fafafa"
     }, { responsive: true, displaylogo: false });
 
     document.getElementById("irregPlotMeta-inplane").textContent =
