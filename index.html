@@ -2021,6 +2021,13 @@ Roof, 15.00, 0.00, Consider
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                             Copy MGT
                         </button>
+                        <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;" title="Trailing application token on each *FIBER-MATL line. Use TIMEHISTORY for nonlinear time-history runs, PUSHOVER for static pushover.">
+                            <label style="margin:0;font-size:11px;">Application</label>
+                            <select id="fiberApplication" class="input" style="width:130px;font-size:11px;">
+                                <option value="TIMEHISTORY" selected>TIMEHISTORY</option>
+                                <option value="PUSHOVER">PUSHOVER</option>
+                            </select>
+                        </div>
                         <span style="font-size:11px;color:var(--text-muted);">MGT format from concretedesignpy/mgt/fiber.py — paste into MIDAS Tools &rarr; MGT Shell</span>
                     </div>
                     <textarea id="fiberMgtOutput" placeholder='Click "Generate MGT" to produce the inelastic material data lines (CONC MANDER + STEEL PM).' style="width:100%;min-height:160px;padding:10px 12px;border:1px solid var(--border);border-radius:6px;background:var(--bg-input);color:var(--text-primary);font-size:11px;font-family:'Consolas','SF Mono',monospace;resize:vertical;white-space:pre;"></textarea>
@@ -8804,14 +8811,21 @@ function _fmtNum(v) {
 //   bpx, px, bpy, py, bflx, flx, bfly, fly,
 //   NO, 0, bR, bps, ps,
 //   TIMEHISTORY
-const FIBER_APPLICATION = "TIMEHISTORY";  // or "PUSHOVER" — matches sample
+// Default trailing token if the UI selector is missing for any reason; the
+// runtime value comes from #fiberApplication (PUSHOVER vs TIMEHISTORY).
+const FIBER_APPLICATION_DEFAULT = "TIMEHISTORY";
 
 function generateFiberMGT() {
     if (!lastFiberConcreteResults.length && !lastFiberSteelRows.length) {
         showToast("Click Calculate first", "error"); return;
     }
+    // Application token is user-selectable: TIMEHISTORY for nonlinear
+    // time-history runs, PUSHOVER for static pushover. MIDAS expects this
+    // as the trailing field on every *FIBER-MATL line.
+    const fiberApplication =
+        (document.getElementById("fiberApplication") || {}).value
+        || FIBER_APPLICATION_DEFAULT;
     const lines = ["*FIBER-MATL    ; Inelastic Material Properties"];
-    let key = 1;
 
     lastFiberConcreteResults.forEach(({ input, calc }) => {
         const fcoExp_kPa = FCO_EXPECT_FACTOR * input.fco * MPA_TO_KPA;
@@ -8843,7 +8857,7 @@ function generateFiberMGT() {
         const et_unitless = ft_kPa / Ec_kPa;
 
         const conf = [
-            String(key++), input.name + "_CONF", "CONC", "MANDER",
+            input.name + "_CONF", "CONC", "MANDER",
             "1",                                              // nConc=1 confined
             "YES", _fmtNum(fcoExp_kPa),                       // bfco=YES, fco (override the linked-material default)
             "NO",  _fmtNum(EPS_CO_UNCONFINED),                // beco, eco
@@ -8893,14 +8907,14 @@ function generateFiberMGT() {
             "NO", _fmtNum(fly_kPa),                           // bfly, fly
             "NO", "0",                                        // 2nd bfyh (circular), 0
             "NO", "NO", "0",                                  // bR, bps, ps
-            FIBER_APPLICATION
+            fiberApplication
         ];
         lines.push(" " + conf.join(", "));
 
         // Unconfined — uses empty rebar designations and zeros for confinement fields
         // Same bfco/nft/ft/et pattern as confined (per MIDAS reference record 26).
         const unconf = [
-            String(key++), input.name + "_UNCONF", "CONC", "MANDER",
+            input.name + "_UNCONF", "CONC", "MANDER",
             "0",                                              // nConc=0 unconfined
             "YES", _fmtNum(fcoExp_kPa),                       // bfco=YES, fco (override)
             "NO",  _fmtNum(EPS_CO_UNCONFINED),
@@ -8926,7 +8940,7 @@ function generateFiberMGT() {
             "NO", "0", "NO", "0",
             "NO", "0", "NO", "0",
             "NO", "0", "NO", "NO", "0",
-            FIBER_APPLICATION
+            fiberApplication
         ];
         lines.push(" " + unconf.join(", "));
     });
@@ -8936,12 +8950,12 @@ function generateFiberMGT() {
         // fy and fu are EXPECTED (1.25 × raw) — reference "GRADE 60 EXPECTED"
         // shows fy=517125 (=1.25×414000) and fu=594693.75 (=1.25×475755).
         const steel = [
-            String(key++), s.name, "STEEL", "PM",
+            s.name, "STEEL", "PM",
             _fmtNum(FY_EXPECT_FACTOR * s.fy * MPA_TO_KPA),
             _fmtNum(FY_EXPECT_FACTOR * s.fu * MPA_TO_KPA),
             _fmtNum(s.Es * MPA_TO_KPA),
             _fmtNum(s.esh), _fmtNum(s.esu),
-            FIBER_APPLICATION                                 // trailing PUSHOVER/TIMEHISTORY token
+            fiberApplication                                  // trailing PUSHOVER/TIMEHISTORY token
         ];
         lines.push(" " + steel.join(", "));
     });
