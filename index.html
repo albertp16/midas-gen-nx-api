@@ -1119,9 +1119,16 @@ Roof, 15.00, 0.00, Consider
                                 Show maximum (envelope of all cases)
                             </label>
                         </div>
+                        <div class="form-group">
+                            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:normal;">
+                                <input type="checkbox" id="cnShowPerCorner" onchange="cnRedrawPlots()" />
+                                Show per-corner plots (1 plot / corner)
+                            </label>
+                        </div>
                     </div>
                     <div id="cnPlotGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;"></div>
                     <div id="cnEnvelopeGrid" style="margin-top:16px;"></div>
+                    <div id="cnCornerGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px;"></div>
                 </div>
             </div>
 
@@ -5309,17 +5316,20 @@ function cnRedrawPlots() {
     if (!cnLastResults) return;
     const grid = document.getElementById("cnPlotGrid");
     const envGrid = document.getElementById("cnEnvelopeGrid");
+    const cornerGrid = document.getElementById("cnCornerGrid");
     if (!grid) return;
     grid.innerHTML = "";
     if (envGrid) envGrid.innerHTML = "";
+    if (cornerGrid) cornerGrid.innerHTML = "";
     document.getElementById("cnPlotsWrapper").style.display = "block";
     const quantity = document.getElementById("cnQuantity").value;
     const avgOnly = document.getElementById("cnAvgOnly").checked;
     const showValues = document.getElementById("cnShowValues").checked;
     const showEnv = (document.getElementById("cnShowEnvelope") || {}).checked || false;
+    const showPerCorner = (document.getElementById("cnShowPerCorner") || {}).checked || false;
     const ratioFmt = (document.getElementById("cnRatioFmt") || {}).value || "dec";
     const { loadCases, computed } = cnLastResults;
-    cnLastPlotConfig = { quantity, avgOnly, showValues, ratioFmt, showEnv };
+    cnLastPlotConfig = { quantity, avgOnly, showValues, ratioFmt, showEnv, showPerCorner };
 
     // Re-render the drift table too so its ratio columns honour the selected format
     if (cnLastResults) cnRenderDriftTable();
@@ -5342,6 +5352,129 @@ function cnRedrawPlots() {
         envGrid.appendChild(cell);
         cnDrawOnePlot(divId, "Envelope (max of all cases)", envFloors, quantity, avgOnly, showValues, ratioFmt);
     }
+
+    if (showPerCorner && cornerGrid) {
+        for (let cornerIdx = 0; cornerIdx < 4; cornerIdx++) {
+            const cell = document.createElement("div");
+            cell.style.cssText = "background:var(--bg-secondary);border:1px solid var(--accent-blue);border-radius:var(--radius);padding:10px;";
+            const divId = `cnCornerPlot_${cornerIdx}`;
+            cell.innerHTML = `<div id="${divId}" style="width:100%;height:440px;"></div>`;
+            cornerGrid.appendChild(cell);
+            cnDrawCornerPlot(divId, cornerIdx, quantity, showValues, ratioFmt);
+        }
+    }
+}
+
+// Per-corner view: one plot per corner-node position. X = quantity, Y = floor.
+// Traces = one per load case (so the user sees how a single corner responds to
+// each EQ direction). Average trace = mean across the 4 LCs.
+function cnDrawCornerPlot(divId, cornerIdx, quantity, showValues, ratioFmt) {
+    const div = document.getElementById(divId);
+    if (!div) return;
+    const { loadCases, computed } = cnLastResults;
+    // Pick any non-empty LC's perFloor as the floor reference (all LCs share floor order)
+    const refFloors = (loadCases.map(lc => computed[lc] || []).find(a => a.length)) || [];
+    if (!refFloors.length) {
+        div.innerHTML = `<div style="padding:24px;color:var(--text-muted);text-align:center;">No data for Corner ${cornerIdx + 1}</div>`;
+        return;
+    }
+    const PAL = (typeof plotlyPalette === "function") ? plotlyPalette() : { bg: "#fff", text: "#000", textMuted: "#666", border: "#ccc", gridMinor: "#eee" };
+    const meta = cnQuantityMeta(quantity);
+    const isRatio = meta.source === "ratio";
+    const rfmt = cnRatioFormatMeta(ratioFmt || "dec");
+    const yCats = refFloors.map(f => f.floor);
+    const COLORS_LOCAL = (typeof COLORS !== "undefined" && COLORS.length) ? COLORS : ["#0969da", "#1a7f37", "#9a6700", "#cf222e"];
+
+    // Figure out the node IDs at this corner across floors (for tooltip context).
+    // The same column index in the grid points at different node IDs per floor.
+    const nodeIdLabels = refFloors.map(f => f.nodes[cornerIdx]).filter(n => n != null);
+    const titleSuffix = nodeIdLabels.length
+        ? ` — nodes [${nodeIdLabels.join(", ")}]`
+        : "";
+
+    const traces = [];
+    // One trace per load case
+    loadCases.forEach((lc, lcIdx) => {
+        const arr = computed[lc] || [];
+        const raw = arr.map(f => cnExtractValue(f, cornerIdx, meta));
+        const xs = isRatio ? raw.map(v => v == null ? null : v * rfmt.scale) : raw;
+        if (xs.every(x => x == null)) return;
+        traces.push({
+            type: "scatter", mode: showValues ? "lines+markers+text" : "lines+markers",
+            name: lc,
+            x: xs, y: yCats,
+            text: showValues ? raw.map(v => v == null ? "" : cnFormatValue(v, meta, rfmt)) : undefined,
+            textposition: "middle right",
+            textfont: { family: "Consolas, 'SF Mono', monospace", size: 9, color: PAL.text },
+            line: { color: COLORS_LOCAL[lcIdx % COLORS_LOCAL.length], width: 1.8 },
+            marker: { color: COLORS_LOCAL[lcIdx % COLORS_LOCAL.length], size: 8 },
+            hovertemplate: `<b>${lc}</b><br>%{y}: %{x}${rfmt.suffix}<extra></extra>`,
+            connectgaps: false
+        });
+    });
+
+    // Mean across LCs at this corner (for a quick reference line)
+    const meanRaw = refFloors.map((_, i) => {
+        const vs = loadCases.map(lc => {
+            const arr = computed[lc] || [];
+            return arr[i] ? cnExtractValue(arr[i], cornerIdx, meta) : null;
+        }).filter(v => v != null && Number.isFinite(v));
+        return vs.length ? vs.reduce((a, b) => a + b, 0) / vs.length : null;
+    });
+    const meanXs = isRatio ? meanRaw.map(v => v == null ? null : v * rfmt.scale) : meanRaw;
+    if (!meanRaw.every(v => v == null)) {
+        traces.push({
+            type: "scatter", mode: showValues ? "lines+markers+text" : "lines+markers",
+            name: "Mean of cases",
+            x: meanXs, y: yCats,
+            text: showValues ? meanRaw.map(v => v == null ? "" : cnFormatValue(v, meta, rfmt)) : undefined,
+            textposition: "middle right",
+            textfont: { family: "Consolas, 'SF Mono', monospace", size: 10, color: PAL.text, weight: 700 },
+            line: { color: "#cf222e", width: 2.5, dash: "dash" },
+            marker: { color: "#cf222e", size: 9, symbol: "diamond" },
+            hovertemplate: `<b>Mean of cases</b><br>%{y}: %{x}${rfmt.suffix}<extra></extra>`
+        });
+    }
+
+    const xUnit = isRatio ? (rfmt.suffix ? ` (${rfmt.suffix})` : "") : (meta.unit ? ` (${meta.unit})` : "");
+    const sf = (cnLastResults && cnLastResults.scaleFactor) || 1.0;
+    const Rval = (cnLastResults && cnLastResults.R) || (sf / 0.7);
+    const sfBadge = sf !== 1.0 ? ` <span style="font-size:10px;color:${PAL.textMuted};">(Δ<sub>M</sub>, R = ${Rval})</span>` : "";
+    const allowable = (cnLastResults && cnLastResults.allowable) || 0;
+    const shapes = [], annotations = [];
+    if (isRatio && allowable > 0) {
+        const limit = allowable * rfmt.scale;
+        shapes.push({ type: "line", xref: "x", yref: "paper", x0: limit, x1: limit, y0: 0, y1: 1, line: { color: "#cf222e", width: 1.5, dash: "dash" }});
+        shapes.push({ type: "line", xref: "x", yref: "paper", x0: -limit, x1: -limit, y0: 0, y1: 1, line: { color: "#cf222e", width: 1.5, dash: "dash" }});
+        annotations.push({ x: limit, y: 1, xref: "x", yref: "paper", text: `Allowable ${(allowable * rfmt.scale).toFixed(rfmt.decimals)}${rfmt.suffix}`, showarrow: false, font: { size: 10, color: "#cf222e" }, xanchor: "left", yanchor: "top", bgcolor: PAL.bg, borderpad: 2 });
+    }
+
+    const layout = {
+        title: { text: `<b>Corner ${cornerIdx + 1}</b>${titleSuffix} — ${meta.label}${sfBadge}`, font: { size: 13, color: PAL.text }, x: 0.5, xanchor: "center" },
+        paper_bgcolor: PAL.bg, plot_bgcolor: PAL.bg,
+        xaxis: {
+            title: { text: meta.label + xUnit, font: { size: 11, color: PAL.textMuted } },
+            gridcolor: PAL.gridMinor, linecolor: PAL.border, zeroline: true, zerolinecolor: PAL.border,
+            mirror: true, showline: true, ticks: "outside", ticklen: 4,
+            tickformat: isRatio ? rfmt.tickformat : undefined,
+            ticksuffix: isRatio && rfmt.suffix ? rfmt.suffix : undefined,
+            exponentformat: "none"
+        },
+        yaxis: {
+            title: { text: "Floor", font: { size: 11, color: PAL.textMuted } },
+            type: "category", categoryorder: "array", categoryarray: yCats,
+            gridcolor: PAL.gridMinor, linecolor: PAL.border,
+            mirror: true, showline: true, ticks: "outside", ticklen: 4, automargin: true
+        },
+        margin: { l: 80, r: 30, t: 50, b: 60 },
+        showlegend: true,
+        legend: { orientation: "h", y: -0.18, xanchor: "center", x: 0.5, font: { size: 10 } },
+        font: { family: "Segoe UI, system-ui, sans-serif", color: PAL.text },
+        shapes, annotations
+    };
+    const config = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["lasso2d", "select2d"] };
+    Plotly.react(div, traces, layout, config);
+    requestAnimationFrame(() => { try { Plotly.Plots.resize(div); } catch (e) {} });
 }
 
 // Build a synthetic per-floor record where each value is the max-absolute across
@@ -5569,16 +5702,23 @@ function cnFormatValue(v, meta, rfmt) {
 
 function cnDownloadAllPlots() {
     if (!cnLastResults) { showToast("Run analysis first", "error"); return; }
-    cnLastResults.loadCases.forEach((lc, idx) => {
-        const div = document.getElementById(`cnPlot_${idx}`);
+    const dl = (id, name) => {
+        const div = document.getElementById(id);
         if (!div) return;
         Plotly.toImage(div, { format: "png", height: 600, width: 900, scale: 2 })
             .then(dataUrl => {
                 const a = document.createElement("a");
-                a.download = `controlnode_${lc.replace(/[^A-Za-z0-9]/g, "_")}.png`;
+                a.download = name;
                 a.href = dataUrl; a.click();
             });
+    };
+    cnLastResults.loadCases.forEach((lc, idx) => {
+        dl(`cnPlot_${idx}`, `controlnode_LC_${lc.replace(/[^A-Za-z0-9]/g, "_")}.png`);
     });
+    if (document.getElementById("cnPlot_env")) dl("cnPlot_env", "controlnode_envelope.png");
+    for (let i = 0; i < 4; i++) {
+        if (document.getElementById(`cnCornerPlot_${i}`)) dl(`cnCornerPlot_${i}`, `controlnode_corner_${i + 1}.png`);
+    }
 }
 
 // ── Output tables ────────────────────────────────────────────
