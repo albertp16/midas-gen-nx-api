@@ -4788,6 +4788,28 @@ const CN_EMPTY_ROW = ["", "", "", "", "", "", ""];
 const CN_NODE_COLS = [3, 4, 5, 6]; // column indexes of the 4 corner-node cells
 const CN_DEFAULT_LC_HINTS = [/EX\s*\+|^EX$|EXP/i, /EX\s*-|EXM/i, /EY\s*\+|^EY$|EYP/i, /EY\s*-|EYM/i];
 
+// MIDAS sometimes returns STORY_HEIGHT = 0 even when STORY_LEVEL is correct.
+// Resolve effective height per floor: declared height if > 0, else elevation
+// difference to the floor below; for the lowest floor, fall back to its level
+// (treats ground as z=0). Returns map: lowercased-name -> {name, level, height, _computed}.
+function cnResolveStoryHeights(stories) {
+    if (!stories || !stories.length) return {};
+    const sorted = [...stories].sort((a, b) => a.level - b.level);
+    const map = {};
+    sorted.forEach((s, i) => {
+        const declared = parseFloat(s.height) || 0;
+        let h = declared > 0 ? declared : null;
+        let computed = false;
+        if (h == null) {
+            if (i === 0) h = parseFloat(s.level) || 0;
+            else h = (parseFloat(s.level) || 0) - (parseFloat(sorted[i - 1].level) || 0);
+            computed = true;
+        }
+        map[s.name.trim().toLowerCase()] = { name: s.name, level: parseFloat(s.level) || 0, height: h, _computed: computed };
+    });
+    return map;
+}
+
 // ── Grid setup ────────────────────────────────────────────────
 function cnSetupGrid() {
     const container = document.getElementById("cnGrid");
@@ -4815,10 +4837,9 @@ function cnSetupGrid() {
         afterChange: (changes, source) => {
             if (source === "loadData") return;
             cnUpdateBadge();
-            // If the Floor cell changed, look up elev/height from storyDataCache
+            // If the Floor cell changed, look up elev/height from resolved cache
             if (changes && storyDataCache && storyDataCache.length) {
-                const byName = {};
-                storyDataCache.forEach(s => { byName[s.name.trim().toLowerCase()] = s; });
+                const byName = cnResolveStoryHeights(storyDataCache);
                 changes.forEach(([row, col, , newVal]) => {
                     if (col !== 0) return;
                     const story = byName[(newVal || "").toString().trim().toLowerCase()];
@@ -4868,13 +4889,19 @@ function cnSyncFloorsFromStory() {
         return;
     }
     if (!cnHot) cnSetupGrid();
+    const resolved = cnResolveStoryHeights(storyDataCache);
     // Sort top → bottom for the grid (matches MIDAS GUI ordering)
     const sorted = [...storyDataCache].sort((a, b) => b.level - a.level);
-    const rows = sorted.map(s => [s.name, s.level, s.height, "", "", "", ""]);
+    const rows = sorted.map(s => {
+        const r = resolved[s.name.trim().toLowerCase()];
+        return [s.name, r ? r.level : s.level, r ? r.height : s.height, "", "", "", ""];
+    });
     if (!rows.length) rows.push(CN_EMPTY_ROW.slice());
     cnHot.loadData(rows);
     cnUpdateBadge();
-    showToast(`${rows.length} floor${rows.length === 1 ? "" : "s"} loaded with elevations — fill in corner nodes`);
+    const computedCount = Object.values(resolved).filter(r => r._computed).length;
+    const hint = computedCount ? ` (${computedCount} height${computedCount === 1 ? "" : "s"} computed from elevation differences — STORY_HEIGHT was 0)` : "";
+    showToast(`${rows.length} floor${rows.length === 1 ? "" : "s"} loaded${hint}`);
 }
 
 async function cnRefreshLoadCases() {
@@ -5045,13 +5072,20 @@ async function cnRunAnalysis() {
         step++;
     }
 
-    // Build per-LC, per-floor displacement & drift records
-    const floors = orderedFloors.map(r => ({
-        name: r.floor,
-        level: r.story ? r.story.level : null,
-        height: r.story ? r.story.height : null,
-        nodes: r.nodes
-    }));
+    // Build per-LC, per-floor displacement & drift records.
+    // Use the resolver to fall back to elevation differences when STORY_HEIGHT is 0.
+    const resolved = cnResolveStoryHeights(storyDataCache || []);
+    const floors = orderedFloors.map(r => {
+        const key = r.floor.trim().toLowerCase();
+        const rs = resolved[key];
+        return {
+            name: r.floor,
+            level: rs ? rs.level : (r.story ? r.story.level : null),
+            height: rs ? rs.height : (r.story ? r.story.height : null),
+            heightComputed: rs ? rs._computed : false,
+            nodes: r.nodes
+        };
+    });
 
     cnLastResults = { loadCases: lcs, floors, byLc, computed: cnComputeAll(floors, lcs, byLc) };
 
