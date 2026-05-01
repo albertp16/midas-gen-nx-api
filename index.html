@@ -7169,11 +7169,39 @@ async function probeIrregularityChecks() {
 let _irregPlotCache = null;   // { stories: [...], columns: [...], type3: [...], type4: [...] }
 
 // A frame element is treated as "vertical" when |Δz| dominates over |Δx|+|Δy|.
-function _isVerticalElem(ni, nj) {
+// Threshold is unit-aware via the model-scale parameter so this works whether
+// coordinates are stored in mm or m.
+function _isVerticalElem(ni, nj, scale) {
     const dx = Math.abs(ni.X - nj.X);
     const dy = Math.abs(ni.Y - nj.Y);
     const dz = Math.abs(ni.Z - nj.Z);
-    return dz > 100 && dz >= 5 * Math.max(dx, dy);  // >100mm tall & ≥5× horizontal offset
+    // scale is the typical "story height" — at least 0.5×scale tall and 5× the
+    // horizontal offset. scale is auto-detected below from the model's Z range.
+    return dz > 0.5 * scale && dz >= 5 * Math.max(dx, dy);
+}
+
+// Pull (X, Y, Z) from a node record regardless of MIDAS API response variant.
+// /db/node usually returns flat {X, Y, Z}, but some builds nest under "Coords"
+// or use lowercase keys.
+function _nodeXYZ(n) {
+    if (!n) return null;
+    const x = n.X ?? n.x ?? (n.Coords && n.Coords[0]);
+    const y = n.Y ?? n.y ?? (n.Coords && n.Coords[1]);
+    const z = n.Z ?? n.z ?? (n.Coords && n.Coords[2]);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return null;
+    return { X: x, Y: y, Z: z };
+}
+
+// Pull node IDs from an element record. MIDAS responses vary:
+//   { NODE: [i, j] }   ← most common
+//   { NODE: { I, J } }
+//   { I_NODE, J_NODE } ← older shape
+function _elemNodeIds(e) {
+    if (!e) return [];
+    if (Array.isArray(e.NODE)) return e.NODE;
+    if (e.NODE && typeof e.NODE === "object") return Object.values(e.NODE);
+    if (e.I_NODE && e.J_NODE) return [e.I_NODE, e.J_NODE];
+    return [];
 }
 
 async function loadIrregPlotData() {
@@ -7196,30 +7224,55 @@ async function loadIrregPlotData() {
 
     const nodes = (nodeData && nodeData.NODE) || {};
     const elems = (elemData && elemData.ELEM) || {};
+
+    // Auto-detect units from Z range. Building Z spans typically:
+    //   metres → 0–50; millimetres → 0–50,000.
+    let zMin = Infinity, zMax = -Infinity;
+    let badNodes = 0;
+    for (const n of Object.values(nodes)) {
+        const c = _nodeXYZ(n);
+        if (!c) { badNodes++; continue; }
+        if (c.Z < zMin) zMin = c.Z;
+        if (c.Z > zMax) zMax = c.Z;
+    }
+    const zSpan = (zMax - zMin) || 1;
+    // "scale" ≈ typical story height. Use zSpan/10 (10 stories average) bounded
+    // to a reasonable range. Falls back to 3 (m) if span is meaningless.
+    const scale = Math.max(zSpan / 10, zSpan > 100 ? 100 : 0.1);
+    const isMM = zSpan > 100;
+
+    // Tally element TYPE values so we can show the user what's actually in
+    // /db/elem if our detection misses everything.
+    const typeTally = {};
+    let twoNodeCount = 0;
     const columns = [];
     for (const [id, e] of Object.entries(elems)) {
-        // MIDAS frame elements: TYPE = "BEAM" (i.e., 1D frame). Walls are area
-        // elements and would need /db/elem with TYPE="WALL" handled separately —
-        // for now we focus on column-like frame elements which cover the common
-        // NSCP Type 3/4 cases.
-        if (String(e.TYPE).toUpperCase() !== "BEAM") continue;
-        const ni = nodes[e.NODE && e.NODE[0]];
-        const nj = nodes[e.NODE && e.NODE[1]];
+        const t = String(e.TYPE || "?").toUpperCase();
+        typeTally[t] = (typeTally[t] || 0) + 1;
+        const nodeIds = _elemNodeIds(e);
+        if (nodeIds.length < 2) continue;
+        twoNodeCount++;
+        const ni = _nodeXYZ(nodes[nodeIds[0]]);
+        const nj = _nodeXYZ(nodes[nodeIds[1]]);
         if (!ni || !nj) continue;
-        if (!_isVerticalElem(ni, nj)) continue;
-        const zMin = Math.min(ni.Z, nj.Z);
-        const zMax = Math.max(ni.Z, nj.Z);
+        if (!_isVerticalElem(ni, nj, scale)) continue;
         columns.push({
             id: parseInt(id),
             x:    (ni.X + nj.X) / 2,
             y:    (ni.Y + nj.Y) / 2,
-            zMin, zMax,
-            section: e.SECT
+            zMin: Math.min(ni.Z, nj.Z),
+            zMax: Math.max(ni.Z, nj.Z),
+            section: e.SECT,
+            elemType: t
         });
     }
     if (!columns.length) {
         hideProgress();
-        showToast("No vertical-frame elements found in /db/elem", "error");
+        const tallyStr = Object.entries(typeTally).map(([t, n]) => `${t}:${n}`).join(", ") || "(empty)";
+        const diag = `No vertical elements detected. /db/elem returned ${Object.keys(elems).length} element(s): ${tallyStr}. ${twoNodeCount} have ≥2 nodes. Z range: ${zMin.toFixed(1)} → ${zMax.toFixed(1)} (${isMM ? "mm" : "m"}). Check the API log for the raw response.`;
+        document.getElementById("irregPlotStatus").innerHTML = `<span style="color:var(--accent-orange);">${escapeHtml(diag)}</span>`;
+        logEntry(`<span class="log-status-err">Irregular Plotter — element type tally: ${tallyStr}</span>`);
+        showToast("No vertical elements — see status note for diagnostics", "error");
         return;
     }
 
