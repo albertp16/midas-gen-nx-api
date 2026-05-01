@@ -52,7 +52,29 @@ Standalone scripts are invoked directly: `py scripts/beam/beam_solver.py`.
 
 ## MIDAS API endpoints (verified)
 
-When unsure of a DB key or schema, check the [midas-civil-python SDK source](https://github.com/MIDASIT-Co-Ltd/midas-civil-python/blob/main/midas_civil/_load.py) — each class has `create()` / `get()` / `delete()` methods that name the exact endpoint, plus a `json()` classmethod that shows the payload shape. Verified so far:
+### Where to look first when researching the API
+
+When you don't know an endpoint URL, payload shape, TABLE_TYPE string, or DB key, check these sources in this order:
+
+1. **[MIDAS API Online Manual](https://support.midasuser.com/hc/ko/articles/33016922742937-MIDAS-API-Online-Manual)** — official reference (Korean locale path; auto-translates / mirrors via the same article ID for other locales). Use it for endpoint listings and conceptual overviews. Note: MIDASIT's own help center sometimes 403s anonymous fetches; if WebFetch blocks, fall back to the SDK sources below or use the [English manual root](https://manual.midasuser.com).
+
+2. **[midas-gen-python SDK source](https://github.com/MIDASIT-Co-Ltd/midas-gen-python)** — closest to this project's target (Gen NX). Useful files:
+   - `midas_gen/_view.py` — `/view/capture` payload (RESULT_GRAPHIC.CURRENT_MODE, TYPE_OF_DISPLAY, MODE_SHAPE/UNDEFORMED/LEGEND/CONTOUR `_json()` shapes). The `VibrationModeShapes()` static method shows the canonical mode-shape capture payload.
+   - `midas_gen/_result_table.py` — every supported `/post/TABLE` TABLE_TYPE the SDK exposes (REACTIONG, BEAMFORCE, PLATEFORCE…). If a TABLE_TYPE isn't in this file, it's almost certainly not exposed by the API even if MIDAS GUI shows the table.
+   - `midas_gen/_load.py` — DB endpoints (load cases, fiber materials, etc.).
+
+3. **[midas-civil-python SDK source](https://github.com/MIDASIT-Co-Ltd/midas-civil-python)** — broader coverage; schema patterns often match Gen NX even when the SDK isn't published for Gen. Especially `_view.py` and `_result_table.py` mirror Gen.
+
+### Known API gaps in Gen NX (confirmed empirically via Probe buttons)
+
+The MIDAS GUI surfaces several Result Tables that `/post/TABLE` does **not**. When the user asks for a feature that maps to one of these, the workflow is: client-side derivation from raw data tables, or a clipboard-paste import from the GUI's result window.
+
+- **Torsional / Stiffness / Capacity Irregularity Check tables** — none exposed. Only the raw underlying tables work: `STORY_DRIFT_X`, `STORY_DRIFT_Y`, `STORY_MASS`. Probed names that all return `"error creating utbl. (ex PostMode ...)"`: `TORSIONALIRREGULARITYCHECK`, `STIFFNESSIRREGULARITYCHECK`, `WEIGHTIRREGULARITYCHECK`, `CAPACITYIRREGULARITYCHECK`, plus 50+ STORY_*_X/Y variants. The Irregularity tab in `index.html` derives Torsional + Stiffness + Mass NSCP 2015 checks client-side; Capacity uses a manual-input table with a "Paste from MIDAS" clipboard-bridge button as the practical workaround.
+- **Story shear, story strength, per-column shear capacity** — not exposed. If a feature needs these, prefer paste-from-GUI or computed proxies over chasing TABLE_TYPE candidates.
+
+### Verified endpoints
+
+When unsure of a DB key or schema, the SDK `create()` / `get()` / `delete()` methods name the exact endpoint, and the `json()` classmethod shows the payload shape. Verified so far:
 
 | Feature | Method | Endpoint | Schema notes |
 |---|---|---|---|
