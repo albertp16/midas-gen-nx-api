@@ -1802,10 +1802,14 @@ Roof, 15.00, 0.00, Consider
                         Gen NX does not return per-story shear strength via API. Enter the sum of column nominal shear capacities (ΣφVn) per story per direction below. Stories auto-populate after Run All Checks.
                         NSCP Type 5a if V<sub>i</sub> &lt; 0.8·V<sub>above</sub>; 5b (extreme) if V<sub>i</sub> &lt; 0.65·V<sub>above</sub>.
                     </div>
-                    <div style="display:flex;gap:8px;padding:0 14px 10px;align-items:center;">
+                    <div style="display:flex;gap:8px;padding:0 14px 10px;align-items:center;flex-wrap:wrap;">
                         <button class="btn btn-ghost btn-sm" onclick="populateCapacityInput()">Auto-populate stories</button>
+                        <button class="btn btn-ghost btn-sm" onclick="pasteCapacityFromMidas()" title="Paste the MIDAS Result-[Capacity Irregularity Check] table from clipboard. Run the check in MIDAS GUI, select all rows, Ctrl+C, then click here. Strength1 and Strength2 columns auto-fill the X / Y inputs below.">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M16 4h2a2 2 0 012 2v14a2 2 0 01-2 2H6a2 2 0 01-2-2V6a2 2 0 012-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>
+                            Paste from MIDAS
+                        </button>
                         <button class="btn btn-blue btn-sm" onclick="runCapacityCheck()">Compute Check</button>
-                        <span id="capacityInputHint" style="font-size:10px;color:var(--text-faint);">Run All Checks first to populate the story list, then edit strengths and click Compute.</span>
+                        <span id="capacityInputHint" style="font-size:10px;color:var(--text-faint);">Run All Checks first to populate the story list, then either fill manually, paste from MIDAS, and click Compute.</span>
                     </div>
                     <div class="table-wrap" style="max-width:560px;margin:0 14px 10px;">
                         <table id="capacityInputTable" style="width:100%;font-size:11px;">
@@ -6719,6 +6723,86 @@ function populateCapacityInput() {
         </tr>
     `).join("");
     document.getElementById("capacityInputHint").textContent = `${_irregStoryList.length} stories loaded — edit strengths and click Compute.`;
+}
+
+// Read the MIDAS Result-[Capacity Irregularity Check] window from the clipboard,
+// parse the TSV (or fall back to a manual prompt), and fill the strength inputs
+// by story name. Native MIDAS layout (the typical column order):
+//   0:Story, 1:Level, 2:Height, 3:Angle1, 4:Strength1, 5:Upper1, 6:Ratio1, 7:Remark1,
+//   8:Angle2, 9:Strength2, 10:Upper2, 11:Ratio2, 12:Remark2
+// Strength1 = X-direction (Angle 0°), Strength2 = Y-direction (Angle 90°).
+async function pasteCapacityFromMidas() {
+    if (!_irregStoryList.length) {
+        showToast("Run All Checks first to populate stories", "error");
+        return;
+    }
+
+    let text = "";
+    try {
+        text = await navigator.clipboard.readText();
+    } catch (e) {
+        text = window.prompt(
+            "Browser denied clipboard access. Paste the MIDAS Capacity Irregularity Check rows here (Ctrl+V):",
+            ""
+        ) || "";
+    }
+    if (!text || !text.trim()) {
+        showToast("Clipboard empty — copy the MIDAS table first (select rows, Ctrl+C)", "error");
+        return;
+    }
+
+    // Tokenise: TSV (Excel/MIDAS clipboard) is most common, but accept multi-space too.
+    const rawLines = text.replace(/\r/g, "").split("\n").filter(l => l.trim().length);
+    const rows = rawLines.map(l => l.includes("\t") ? l.split("\t") : l.split(/\s{2,}/));
+
+    // Try to detect column positions from a header row first.
+    let storyIdx = -1, s1Idx = -1, s2Idx = -1;
+    if (rows.length) {
+        const lower = rows[0].map(c => String(c).toLowerCase());
+        storyIdx = lower.findIndex(h => h.trim() === "story");
+        s1Idx = lower.findIndex(h => /story\s*shear\s*strength.*1/.test(h));
+        s2Idx = lower.findIndex(h => /story\s*shear\s*strength.*2/.test(h));
+    }
+    // Fallback: assume the canonical MIDAS column order shown in the screenshot.
+    if (storyIdx < 0 || s1Idx < 0 || s2Idx < 0) {
+        storyIdx = 0; s1Idx = 4; s2Idx = 9;
+    }
+
+    // Walk rows, skipping the "Angle = 0 [Deg]" / "Input angle..." / blank header rows.
+    const byStory = {};
+    for (const r of rows) {
+        if (r.length <= Math.max(storyIdx, s1Idx, s2Idx)) continue;
+        const story = String(r[storyIdx] || "").trim();
+        if (!story || /angle\s*=|input\s+angle/i.test(story)) continue;
+        const x = parseFloat(String(r[s1Idx]).replace(/,/g, ""));
+        const y = parseFloat(String(r[s2Idx]).replace(/,/g, ""));
+        if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+        byStory[story] = { x, y };
+    }
+    if (!Object.keys(byStory).length) {
+        showToast("No valid rows parsed — verify you copied the data rows including Story / Strength1 / Strength2 columns", "error");
+        return;
+    }
+
+    // Match by story name against the existing input rows. Inputs were created
+    // with data-story attributes by populateCapacityInput().
+    let filled = 0, unmatched = [];
+    document.querySelectorAll(".capacity-strength-x").forEach(inp => {
+        const s = inp.dataset.story;
+        if (byStory[s]) { inp.value = byStory[s].x.toFixed(4); filled++; }
+        else            { unmatched.push(s); }
+    });
+    document.querySelectorAll(".capacity-strength-y").forEach(inp => {
+        const s = inp.dataset.story;
+        if (byStory[s]) inp.value = byStory[s].y.toFixed(4);
+    });
+
+    const storiesParsed = Object.keys(byStory).length;
+    document.getElementById("capacityInputHint").innerHTML =
+        `<span style="color:var(--accent-green);">Pasted ${storiesParsed} story(ies); filled ${filled} input row(s).</span>` +
+        (unmatched.length ? ` <span style="color:var(--accent-orange);">No paste data for: ${unmatched.join(", ")}.</span>` : "") +
+        ` Click <b>Compute Check</b> to verify NSCP 5a / 5b ratios against MIDAS's.`;
+    showToast(`Filled ${filled} story(ies) from MIDAS — click Compute Check`, "success");
 }
 
 function runCapacityCheck() {
