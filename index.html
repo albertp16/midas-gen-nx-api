@@ -876,6 +876,7 @@ Roof, 15.00, 0.00, Consider
                             <label>Load Cases <span style="font-size:10px;color:var(--text-muted)">(Ctrl/Shift+click for multiple)</span></label>
                             <select id="driftLoadCases" class="input" multiple style="min-height:90px;">
                                 <option selected>Ex(ST)</option><option selected>EX +(ST)</option><option selected>EX -(ST)</option>
+                                <option selected>Ey(ST)</option><option selected>EY +(ST)</option><option selected>EY -(ST)</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -917,7 +918,8 @@ Roof, 15.00, 0.00, Consider
                         <div class="form-group" style="flex:2;">
                             <label>Load Cases <span style="font-size:10px;color:var(--text-muted)">(Ctrl/Shift+click for multiple)</span></label>
                             <select id="dispLoadCases" class="input" multiple style="min-height:90px;">
-                                <option selected>Ex(ST)</option>
+                                <option selected>Ex(ST)</option><option selected>EX +(ST)</option><option selected>EX -(ST)</option>
+                                <option selected>Ey(ST)</option><option selected>EY +(ST)</option><option selected>EY -(ST)</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -1665,6 +1667,15 @@ Roof, 15.00, 0.00, Consider
 
             <div class="panel">
                 <div class="panel-header"><span class="panel-title">Parameters</span></div>
+                <div class="form-row" style="margin-bottom:12px;">
+                    <div class="form-group" style="flex:2;">
+                        <label>Seismic Load Cases <span style="font-size:10px;color:var(--text-muted)">(Ctrl/Shift+click for multiple — at least one required)</span></label>
+                        <select id="irregLoadCases" class="input" multiple style="min-height:90px;">
+                            <option selected>Ex(ST)</option><option selected>EX +(ST)</option><option selected>EX -(ST)</option>
+                            <option selected>Ey(ST)</option><option selected>EY +(ST)</option><option selected>EY -(ST)</option>
+                        </select>
+                    </div>
+                </div>
                 <div class="form-row" style="align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
                     <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
                         <label style="margin:0;">Country code</label>
@@ -1709,27 +1720,100 @@ Roof, 15.00, 0.00, Consider
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                         Probe
                     </button>
+                    <button class="btn btn-ghost" onclick="downloadAllIrregularityCSVs()" title="Download every visible result table as a separate .csv file (one click → one file per panel).">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Download All CSVs
+                    </button>
                     <span id="irregStatus" style="font-size:11px;color:var(--text-muted);"></span>
                 </div>
             </div>
 
             <div id="irregResultsArea">
-                <!-- Each check renders into its own panel; hidden until the fetch returns data. -->
-                <div class="panel" id="irregPanel-torsional" style="margin-top:12px;display:none;">
-                    <div class="panel-header"><span class="panel-title">Torsional Irregularity (NSCP 208.4.5.1, Type 1a / 1b)</span><span id="irregMeta-torsional" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span></div>
-                    <div class="table-wrap"><div class="table-scroll"><table id="irregTable-torsional"><thead><tr></tr></thead><tbody></tbody></table></div></div>
+                <!-- Direction tab — filters every panel that has X/Y data without re-fetching. -->
+                <div class="panel" style="margin-top:12px;">
+                    <div class="panel-header"><span class="panel-title">Direction</span></div>
+                    <div class="form-row" style="gap:8px;padding:0 14px 10px;">
+                        <button class="btn btn-blue btn-sm" id="irregDirBtn-both" onclick="setIrregularityDirection('both')">Both (X + Y)</button>
+                        <button class="btn btn-ghost btn-sm" id="irregDirBtn-x"    onclick="setIrregularityDirection('x')">X Only</button>
+                        <button class="btn btn-ghost btn-sm" id="irregDirBtn-y"    onclick="setIrregularityDirection('y')">Y Only</button>
+                        <span style="font-size:11px;color:var(--text-muted);align-self:center;margin-left:6px;">
+                            Filters drift panels and the Direction column in Torsional / Stiffness / Capacity checks. Mass panels are always shown (mass is direction-invariant).
+                        </span>
+                    </div>
                 </div>
-                <div class="panel" id="irregPanel-stiffness" style="margin-top:12px;display:none;">
-                    <div class="panel-header"><span class="panel-title">Stiffness Irregularity / Soft Story (NSCP 208.4.5.2, Type 1a / 1b)</span><span id="irregMeta-stiffness" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span></div>
-                    <div class="table-wrap"><div class="table-scroll"><table id="irregTable-stiffness"><thead><tr></tr></thead><tbody></tbody></table></div></div>
+
+                <!-- Raw API tables (the only ones Gen NX actually exposes) -->
+                <div class="panel" id="irregPanel-drift_x" style="margin-top:12px;display:none;">
+                    <div class="panel-header"><span class="panel-title">Story Drift &mdash; X direction (raw API)</span><span id="irregMeta-drift_x" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span></div>
+                    <div class="table-wrap"><div class="table-scroll"><table id="irregTable-drift_x"><thead><tr></tr></thead><tbody></tbody></table></div></div>
                 </div>
-                <div class="panel" id="irregPanel-weight" style="margin-top:12px;display:none;">
-                    <div class="panel-header"><span class="panel-title">Weight / Mass Irregularity (NSCP 208.4.5.2, Type 2)</span><span id="irregMeta-weight" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span></div>
-                    <div class="table-wrap"><div class="table-scroll"><table id="irregTable-weight"><thead><tr></tr></thead><tbody></tbody></table></div></div>
+                <div class="panel" id="irregPanel-drift_y" style="margin-top:12px;display:none;">
+                    <div class="panel-header"><span class="panel-title">Story Drift &mdash; Y direction (raw API)</span><span id="irregMeta-drift_y" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span></div>
+                    <div class="table-wrap"><div class="table-scroll"><table id="irregTable-drift_y"><thead><tr></tr></thead><tbody></tbody></table></div></div>
                 </div>
-                <div class="panel" id="irregPanel-capacity" style="margin-top:12px;display:none;">
-                    <div class="panel-header"><span class="panel-title">Capacity Irregularity / Weak Story (NSCP 208.4.5.2, Type 5a / 5b)</span><span id="irregMeta-capacity" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span></div>
-                    <div class="table-wrap"><div class="table-scroll"><table id="irregTable-capacity"><thead><tr></tr></thead><tbody></tbody></table></div></div>
+                <div class="panel" id="irregPanel-mass_raw" style="margin-top:12px;display:none;">
+                    <div class="panel-header"><span class="panel-title">Story Mass (raw API)</span><span id="irregMeta-mass_raw" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span></div>
+                    <div class="table-wrap"><div class="table-scroll"><table id="irregTable-mass_raw"><thead><tr></tr></thead><tbody></tbody></table></div></div>
+                </div>
+
+                <!-- Computed checks (client-side, NSCP 2015 thresholds) -->
+                <div class="panel" id="irregPanel-torsional_check" style="margin-top:12px;display:none;">
+                    <div class="panel-header">
+                        <span class="panel-title">Torsional Irregularity Check &mdash; NSCP 208.4.5.1 (Type 1a / 1b)</span>
+                        <span id="irregMeta-torsional_check" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span>
+                    </div>
+                    <div style="padding:6px 14px 0;font-size:10px;color:var(--text-muted);">
+                        Computed client-side: ratio = Max Drift / CoM Drift. Type 1a if &gt; 1.2, Type 1b (extreme) if &gt; 1.4.
+                    </div>
+                    <div class="table-wrap"><div class="table-scroll"><table id="irregTable-torsional_check"><thead><tr></tr></thead><tbody></tbody></table></div></div>
+                </div>
+                <div class="panel" id="irregPanel-mass_check" style="margin-top:12px;display:none;">
+                    <div class="panel-header">
+                        <span class="panel-title">Weight / Mass Irregularity Check &mdash; NSCP 208.4.5.2 (Type 2)</span>
+                        <span id="irregMeta-mass_check" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span>
+                    </div>
+                    <div style="padding:6px 14px 0;font-size:10px;color:var(--text-muted);">
+                        Computed client-side per NSCP 2015: irregular when story weight exceeds 150% of an adjacent story's weight. Roof exempt if lighter than the floor below.
+                    </div>
+                    <div class="table-wrap"><div class="table-scroll"><table id="irregTable-mass_check"><thead><tr></tr></thead><tbody></tbody></table></div></div>
+                </div>
+
+                <!-- Stiffness check using the user-selected "1/StoryDriftRatio" method:
+                     K_eff = h/Δ — needs only drift + height, both already in STORY_DRIFT_X/Y. -->
+                <div class="panel" id="irregPanel-stiffness_check" style="margin-top:12px;display:none;">
+                    <div class="panel-header">
+                        <span class="panel-title">Stiffness Irregularity / Soft Story &mdash; NSCP 208.4.5.2 (Type 1a / 1b)</span>
+                        <span id="irregMeta-stiffness_check" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span>
+                    </div>
+                    <div style="padding:6px 14px 0;font-size:10px;color:var(--text-muted);">
+                        Computed client-side using the <i>1/StoryDriftRatio</i> stiffness method: K<sub>eff</sub> = h/Δ. NSCP 1a if K &lt; 0.7·K<sub>above</sub> or K &lt; 0.8·avg(3 above); 1b (extreme) if K &lt; 0.6·K<sub>above</sub> or K &lt; 0.7·avg.
+                    </div>
+                    <div class="table-wrap"><div class="table-scroll"><table id="irregTable-stiffness_check"><thead><tr></tr></thead><tbody></tbody></table></div></div>
+                </div>
+                <!-- Capacity check — manual input since Gen NX doesn't expose per-story strength.
+                     Stories auto-populate after a Run All; user fills per-story ΣφVn and clicks Compute. -->
+                <div class="panel" id="irregPanel-capacity_check" style="margin-top:12px;">
+                    <div class="panel-header">
+                        <span class="panel-title">Capacity Irregularity / Weak Story &mdash; NSCP 208.4.5.2 (Type 5a / 5b)</span>
+                        <span id="irregMeta-capacity_check" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span>
+                    </div>
+                    <div style="padding:10px 14px;font-size:11px;color:var(--text-muted);line-height:1.6;">
+                        <span style="color:var(--accent-orange);">Manual input required.</span>
+                        Gen NX does not return per-story shear strength via API. Enter the sum of column nominal shear capacities (ΣφVn) per story per direction below. Stories auto-populate after Run All Checks.
+                        NSCP Type 5a if V<sub>i</sub> &lt; 0.8·V<sub>above</sub>; 5b (extreme) if V<sub>i</sub> &lt; 0.65·V<sub>above</sub>.
+                    </div>
+                    <div style="display:flex;gap:8px;padding:0 14px 10px;align-items:center;">
+                        <button class="btn btn-ghost btn-sm" onclick="populateCapacityInput()">Auto-populate stories</button>
+                        <button class="btn btn-blue btn-sm" onclick="runCapacityCheck()">Compute Check</button>
+                        <span id="capacityInputHint" style="font-size:10px;color:var(--text-faint);">Run All Checks first to populate the story list, then edit strengths and click Compute.</span>
+                    </div>
+                    <div class="table-wrap" style="max-width:560px;margin:0 14px 10px;">
+                        <table id="capacityInputTable" style="width:100%;font-size:11px;">
+                            <thead><tr><th style="text-align:left;padding:6px 8px;">Story</th><th style="text-align:right;padding:6px 8px;">Strength X (kN)</th><th style="text-align:right;padding:6px 8px;">Strength Y (kN)</th></tr></thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                    <div class="table-wrap" id="irregTableWrap-capacity_check" style="display:none;"><div class="table-scroll"><table id="irregTable-capacity_check"><thead><tr></tr></thead><tbody></tbody></table></div></div>
                 </div>
 
                 <div id="irregProbeOutput" style="margin-top:12px;font-size:11px;font-family:'Consolas',monospace;color:var(--text-muted);line-height:1.6;"></div>
@@ -6146,54 +6230,99 @@ async function probeModeShapeCapture() {
 // ══════════════════════════════════════════════════════════════
 // IRREGULARITY CHECK — NSCP 2015 / ASCE 7
 // ══════════════════════════════════════════════════════════════
-// MIDAS exposes four story-irregularity tables via /post/TABLE. The exact
-// TABLE_TYPE strings aren't documented in the SDK source — manual page titles
-// suggest names like "Torsional Irregularity Check Table" but the API casing
-// can vary. We try multiple candidates per check and use whichever returns data.
+// Empirically (via Probe), Gen NX only exposes the *raw* story tables
+// (STORY_DRIFT_X/Y, STORY_MASS) — the four computed irregularity check tables
+// shown in the GUI's "Results > Story" menu are NOT surfaced by /post/TABLE.
+// We fetch the raw tables and compute Torsional + Mass checks client-side per
+// NSCP 2015 §208.4.5; Stiffness + Capacity require shear/strength data that
+// isn't in the raw API surface, so those panels show a status note.
+const IRREGULARITY_RAW = [
+    // DIST=M for drifts so the soft-story panel reads the same units (m) as the
+    // native MIDAS Stiffness Irregularity Check window — drift like 0.0066 m
+    // instead of 6.6 mm makes the K = h/Δ ratio numbers more legible too.
+    { key: "drift_x",  label: "Story Drift (X)", tableType: "STORY_DRIFT_X", distUnit: "M" },
+    { key: "drift_y",  label: "Story Drift (Y)", tableType: "STORY_DRIFT_Y", distUnit: "M" },
+    { key: "mass_raw", label: "Story Mass",      tableType: "STORY_MASS",    distUnit: "M" }
+];
+
+// Kept for the Probe button only — broad name candidates so probe still shows
+// the rejection envelope if MIDAS ever surfaces these tables in a future build.
 const IRREGULARITY_CHECKS = [
+    {
+        key:   "control",
+        label: "Control: STORY_DRIFT_X (known-good — confirms payload shape)",
+        candidates: ["STORY_DRIFT_X"]
+    },
     {
         key:   "torsional",
         label: "Torsional Irregularity",
         candidates: [
-            "TORSIONALIRREGULARITYCHECK",
-            "TORSIONAL_IRREGULARITY_CHECK",
-            "TORSIONALIRREGULARITY",
-            "TORSIONIRREGULARITY",
-            "STORYTORSIONALIRREGULARITYCHECK"
+            // Bare names first (STORY_MASS pattern — short, no directional, no _IRREGULARITY)
+            "STORY_TORSION",
+            "STORY_TORSIONAL",
+            "STORY_RIGIDITY",
+            "STORY_ECCENTRICITY",
+            "STORY_CENTER",
+            // Then directional
+            "STORY_TORSION_X",                "STORY_TORSION_Y",
+            "STORY_TORSIONAL_X",              "STORY_TORSIONAL_Y",
+            "STORY_RIGIDITY_X",               "STORY_RIGIDITY_Y",
+            // Verbose fallbacks
+            "STORY_TORSIONAL_IRREGULARITY",
+            "STORY_TORSIONAL_IRREGULARITY_X", "STORY_TORSIONAL_IRREGULARITY_Y",
+            "TORSIONALIRREGULARITYCHECK"
         ]
     },
     {
         key:   "stiffness",
         label: "Stiffness Irregularity / Soft Story",
         candidates: [
+            "STORY_STIFFNESS",
+            "STORY_SOFTSTORY",
+            "STORY_RIGIDITY",
+            "STORY_DRIFT_ANGLE",
+            // Directional
+            "STORY_STIFFNESS_X",              "STORY_STIFFNESS_Y",
+            "STORY_SOFTSTORY_X",              "STORY_SOFTSTORY_Y",
+            "STORY_DRIFT_STIFFNESS_X",        "STORY_DRIFT_STIFFNESS_Y",
+            // Verbose fallbacks
+            "STORY_STIFFNESS_IRREGULARITY",
+            "STORY_STIFFNESS_IRREGULARITY_X", "STORY_STIFFNESS_IRREGULARITY_Y",
             "STIFFNESSIRREGULARITYCHECK",
-            "STIFFNESS_IRREGULARITY_CHECK",
-            "SOFTSTORYCHECK",
-            "SOFTSTORY",
-            "STIFFNESSIRREGULARITY"
+            "SOFTSTORYCHECK"
         ]
     },
     {
         key:   "weight",
         label: "Weight / Mass Irregularity",
         candidates: [
+            "STORY_MASS",   // <-- known working
+            "STORY_WEIGHT",
+            "STORY_WEIGHT_IRREGULARITY",
+            "STORY_MASS_IRREGULARITY",
             "WEIGHTIRREGULARITYCHECK",
-            "MASSIRREGULARITYCHECK",
-            "WEIGHT_IRREGULARITY_CHECK",
-            "MASS_IRREGULARITY_CHECK",
-            "WEIGHTIRREGULARITY",
-            "MASSIRREGULARITY"
+            "MASSIRREGULARITYCHECK"
         ]
     },
     {
         key:   "capacity",
         label: "Capacity Irregularity / Weak Story",
         candidates: [
+            "STORY_CAPACITY",
+            "STORY_WEAKSTORY",
+            "STORY_SHEAR",
+            "STORY_STRENGTH",
+            // Directional
+            "STORY_CAPACITY_X",              "STORY_CAPACITY_Y",
+            "STORY_WEAKSTORY_X",             "STORY_WEAKSTORY_Y",
+            "STORY_SHEAR_X",                 "STORY_SHEAR_Y",
+            "STORY_STRENGTH_X",              "STORY_STRENGTH_Y",
+            "STORY_OVERTURNING_X",           "STORY_OVERTURNING_Y",
+            // Verbose fallbacks
+            "STORY_CAPACITY_IRREGULARITY",
+            "STORY_CAPACITY_IRREGULARITY_X", "STORY_CAPACITY_IRREGULARITY_Y",
             "CAPACITYIRREGULARITYCHECK",
-            "CAPACITY_IRREGULARITY_CHECK",
-            "WEAKSTORYCHECK",
-            "WEAKSTORY",
-            "CAPACITYIRREGULARITY"
+            "WEAKSTORYCHECK"
         ]
     }
 ];
@@ -6202,19 +6331,40 @@ const IRREGULARITY_CHECKS = [
 // successful Run All call so subsequent runs skip the trial loop.
 const _irregResolved = {};
 
-function _buildIrregPayload(tableType) {
+// Mirror the working drift payload shape: TABLE_TYPE + LOAD_CASE_NAMES required,
+// per-check options inside ADDITIONAL.SET_STORY_*_PARAMS. Without LOAD_CASE_NAMES,
+// MIDAS rejects with "error creating utbl. (ex PostMode ...)" because it can't
+// build the user-table for an unspecified seismic load case.
+function _buildIrregPayload(tableType, distUnit = "MM") {
+    const lcSelect = document.getElementById("irregLoadCases");
+    const lcs = lcSelect ? Array.from(lcSelect.selectedOptions).map(o => o.value) : [];
+    const country = document.getElementById("irregCountry").value     || "NSCP2015";
+    const drift   = document.getElementById("irregDriftMethod").value || "Max.DriftofOuterExtremePoints";
+    const stiff   = document.getElementById("irregStiffMethod").value || "1/StoryDriftRatio";
+    const params  = {
+        COUNTRY_CODE:           country,
+        STORY_DRIFT_METHOD:     drift,
+        STORY_STIFFNESS_METHOD: stiff
+    };
     return {
         Argument: {
             TABLE_NAME: "SS_Table",
             TABLE_TYPE: tableType,
-            UNIT: { FORCE: "KN", DIST: "M" },
+            UNIT: { FORCE: "KN", DIST: distUnit },
+            LOAD_CASE_NAMES: lcs,
             STYLES: {
                 FORMAT: "Fixed",
                 PLACE: parseInt(document.getElementById("irregDecimals").value) || 4
             },
-            COUNTRY_CODE:           document.getElementById("irregCountry").value     || "NSCP2015",
-            STORY_DRIFT_METHOD:     document.getElementById("irregDriftMethod").value || "Max.DriftofOuterExtremePoints",
-            STORY_STIFFNESS_METHOD: document.getElementById("irregStiffMethod").value || "1/StoryDriftRatio"
+            // Different SET_STORY_*_PARAMS wrapper per check type — pass all three so
+            // the same builder works for whichever TABLE_TYPE we're trying.
+            ADDITIONAL: {
+                SET_STORY_DRIFT_PARAMS:    { ...params, RESPONSE_MOD_FACTOR_CHECK: false, SCALE_FACTOR_VALUE: 1.0, ALLOWABLE_RATIO: 0.025 },
+                SET_STORY_TORSION_PARAMS:    params,
+                SET_STORY_STIFFNESS_PARAMS:  params,
+                SET_STORY_WEIGHT_PARAMS:     params,
+                SET_STORY_CAPACITY_PARAMS:   params
+            }
         }
     };
 }
@@ -6223,9 +6373,9 @@ function _buildIrregPayload(tableType) {
 //   { ok:true,  headers, rows }                — populated table
 //   { ok:false, status:200, errMsg, empty:true }— 200 but no rows / error envelope
 //   { ok:false, status:N,   errMsg }           — HTTP failure
-async function _tryIrregFetch(tableType) {
+async function _tryIrregFetch(tableType, distUnit = "MM") {
     try {
-        const r = await midasAPI("POST", "/post/TABLE", _buildIrregPayload(tableType));
+        const r = await midasAPI("POST", "/post/TABLE", _buildIrregPayload(tableType, distUnit));
         if (isMidasError(r)) {
             return { ok: false, status: 200, errMsg: (r && r.message) || "error envelope" };
         }
@@ -6240,59 +6390,562 @@ async function _tryIrregFetch(tableType) {
 // Render one check's table. Reuses the generic renderTable() helper for
 // consistent column/row formatting and sticky headers.
 function _renderIrregularityResult(key, headers, rows, workingType) {
-    document.getElementById(`irregPanel-${key}`).style.display = "";
-    document.getElementById(`irregMeta-${key}`).textContent = `${rows.length} row(s) — TABLE_TYPE: ${workingType}`;
+    const panel = document.getElementById(`irregPanel-${key}`);
+    const meta  = document.getElementById(`irregMeta-${key}`);
+    if (!panel) return;  // e.g. "control" entry has no panel — probe-only diagnostic
+    panel.style.display = "";
+    if (meta) meta.textContent = `${rows.length} row(s) — TABLE_TYPE: ${workingType}`;
     renderTable(`irregTable-${key}`, headers, rows);
+    _ensureIrregCsvButton(panel, key);
+    // Native MIDAS shows irregular rows in red — replicate that here so users
+    // can spot flagged stories at a glance when scrolling long tables.
+    const tbody = document.querySelector(`#irregTable-${key} tbody`);
+    if (tbody) {
+        Array.from(tbody.querySelectorAll('tr')).forEach(tr => {
+            const cells = tr.querySelectorAll('td');
+            if (!cells.length) return;
+            const remark = cells[cells.length - 1].textContent.toLowerCase();
+            const flagged = remark.includes("irregular") || remark.includes("soft story") || remark.includes("weak story") || remark.includes("extreme");
+            if (flagged) {
+                cells.forEach(c => { c.style.color = "var(--accent-orange)"; });
+                cells[cells.length - 1].style.fontWeight = "600";
+            }
+        });
+    }
 }
 
 function _hideIrregularityPanel(key) {
-    document.getElementById(`irregPanel-${key}`).style.display = "none";
+    const panel = document.getElementById(`irregPanel-${key}`);
+    if (panel) panel.style.display = "none";
 }
 
-// Run every irregularity check sequentially. For each, walks the candidate
-// TABLE_TYPE list and uses the first one that returns rows.
+// Filter the irregularity tab to show "both", "x", or "y" direction data. We
+// don't refetch — just walk the rendered DOM:
+//   - drift_x / drift_y raw panels: show/hide whole panel by direction
+//   - torsional_check / stiffness_check / capacity_check: filter rows by their
+//     Direction cell. Each panel remembers whether it was visible (data-was-shown)
+//     so a filter never re-shows a panel that the run-all flow hid for lack of data.
+function setIrregularityDirection(filter) {
+    const isFilter = filter === "x" || filter === "y";
+
+    const togglePanel = (key, show) => {
+        const panel = document.getElementById(`irregPanel-${key}`);
+        if (!panel) return;
+        // Only act on panels that actually have a result body — Run All set them visible.
+        const tbody = panel.querySelector(`#irregTable-${key} tbody`);
+        const hasData = tbody && tbody.children.length > 0;
+        if (!hasData) return;
+        panel.style.display = show ? "" : "none";
+    };
+    togglePanel("drift_x", filter !== "y");
+    togglePanel("drift_y", filter !== "x");
+
+    // Filter by Direction column inside the computed-check tables.
+    ["torsional_check", "stiffness_check", "capacity_check"].forEach(key => {
+        const table = document.getElementById(`irregTable-${key}`);
+        if (!table) return;
+        const heads = Array.from(table.querySelectorAll("thead th")).map(th => th.textContent.trim().toLowerCase());
+        const dirIdx = heads.indexOf("direction");
+        if (dirIdx < 0) return;  // table without direction column → unaffected
+        Array.from(table.querySelectorAll("tbody tr")).forEach(tr => {
+            if (!tr.children[dirIdx]) return;
+            const dir = tr.children[dirIdx].textContent.trim().toLowerCase();
+            const show = !isFilter || dir === filter;
+            tr.style.display = show ? "" : "none";
+        });
+    });
+
+    // Visual state on the segmented control.
+    ["both", "x", "y"].forEach(d => {
+        const btn = document.getElementById(`irregDirBtn-${d}`);
+        if (btn) btn.className = `btn ${d === filter ? "btn-blue" : "btn-ghost"} btn-sm`;
+    });
+}
+
+// Idempotently inject a small "CSV" button into a panel's header. Called every
+// time _renderIrregularityResult runs; bails out if the button already exists.
+function _ensureIrregCsvButton(panel, key) {
+    const header = panel.querySelector(".panel-header");
+    if (!header || header.querySelector(`[data-csv-key="${key}"]`)) return;
+    const btn = document.createElement("button");
+    btn.className = "btn btn-ghost btn-sm";
+    btn.dataset.csvKey = key;
+    btn.title = "Download this table as CSV";
+    btn.style.cssText = "margin-left:6px;";
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> CSV`;
+    btn.onclick = (e) => { e.preventDefault(); downloadIrregularityCSV(key); };
+    header.appendChild(btn);
+}
+
+// Convert one irregularity result table to a CSV string by walking the
+// already-rendered DOM. Reading from the DOM (vs. caching headers/rows) means
+// the CSV always matches what the user sees, including the orange highlights'
+// underlying text — and we don't have to refactor every compute function.
+function _irregTableToCsv(tableId) {
+    const table = document.getElementById(tableId);
+    if (!table) return null;
+    const cellsToRow = sel => Array.from(table.querySelectorAll(sel)).map(tr =>
+        Array.from(tr.children).map(c => c.textContent.trim())
+    );
+    const headerRows = cellsToRow("thead tr");
+    const bodyRows   = cellsToRow("tbody tr");
+    const all = [...headerRows, ...bodyRows];
+    if (!all.length || (!all[0].length)) return null;
+    return all.map(r => r.map(_csvEscape).join(",")).join("\n");
+}
+
+function _csvEscape(v) {
+    const s = v == null ? "" : String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function downloadIrregularityCSV(key) {
+    const csv = _irregTableToCsv(`irregTable-${key}`);
+    if (!csv) { showToast("No data to download — run the check first", "error"); return; }
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `irregularity_${key}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast(`Downloaded irregularity_${key}.csv`, "success");
+}
+
+// Walk every irregularity panel and download a CSV for each one whose table
+// has rendered rows. Stagger 100ms apart so the browser doesn't dedupe the
+// downloads (same trick as downloadAllModeShots).
+function downloadAllIrregularityCSVs() {
+    const keys = ["drift_x", "drift_y", "mass_raw", "torsional_check", "stiffness_check", "mass_check", "capacity_check"];
+    const ready = keys.filter(k => {
+        const panel = document.getElementById(`irregPanel-${k}`);
+        if (!panel || panel.style.display === "none") return false;
+        const tbody = panel.querySelector(`#irregTable-${k} tbody`);
+        return tbody && tbody.children.length > 0;
+    });
+    if (!ready.length) { showToast("No tables to download — Run All Checks first", "error"); return; }
+    ready.forEach((k, i) => setTimeout(() => downloadIrregularityCSV(k), i * 120));
+    showToast(`Downloading ${ready.length} CSV file(s)`, "success");
+}
+
+// Fetch the three raw tables Gen NX exposes and derive the NSCP 2015 checks
+// client-side. Drift X/Y feed Torsional (1a/1b); Mass feeds Weight (Type 2).
 async function runAllIrregularityChecks() {
     if (!isConnected) { showToast("Connect first", "error"); return; }
     const status = document.getElementById("irregStatus");
     const probeOut = document.getElementById("irregProbeOutput");
     probeOut.innerHTML = "";
 
-    showProgress("Running Irregularity Checks", `${IRREGULARITY_CHECKS.length} checks`, "POST /post/TABLE");
-    let okCount = 0;
-    const skipped = [];
+    const lcs = Array.from(document.getElementById("irregLoadCases").selectedOptions).map(o => o.value);
+    if (!lcs.length) { showToast("Pick at least one seismic load case", "error"); return; }
 
-    for (let i = 0; i < IRREGULARITY_CHECKS.length; i++) {
-        const chk = IRREGULARITY_CHECKS[i];
-        updateProgress(Math.round((i / IRREGULARITY_CHECKS.length) * 100), chk.label);
-
-        // Try the cached working name first, then fall through to remaining candidates.
-        const order = _irregResolved[chk.key]
-            ? [_irregResolved[chk.key], ...chk.candidates.filter(c => c !== _irregResolved[chk.key])]
-            : chk.candidates;
-
-        let success = null;
-        for (const t of order) {
-            const r = await _tryIrregFetch(t);
-            if (r.ok) { success = { ...r, type: t }; break; }
-        }
-
-        if (success) {
-            _irregResolved[chk.key] = success.type;
-            _renderIrregularityResult(chk.key, success.headers, success.rows, success.type);
-            okCount++;
-        } else {
-            _hideIrregularityPanel(chk.key);
-            skipped.push(chk.label);
-        }
+    showProgress("Running Irregularity Checks", "Fetch raw + compute NSCP 2015", "POST /post/TABLE");
+    const results = {};
+    for (let i = 0; i < IRREGULARITY_RAW.length; i++) {
+        const t = IRREGULARITY_RAW[i];
+        updateProgress(Math.round((i / IRREGULARITY_RAW.length) * 80), t.label);
+        const r = await _tryIrregFetch(t.tableType, t.distUnit);
+        results[t.key] = r;
+        if (r.ok) _renderIrregularityResult(t.key, r.headers, r.rows, t.tableType);
+        else      _hideIrregularityPanel(t.key);
     }
+
+    updateProgress(85, "Torsional check (NSCP 208.4.5.1)...");
+    const torsionalRes = computeTorsionalCheck(results.drift_x, results.drift_y);
+    if (torsionalRes && torsionalRes.rows.length) {
+        _renderIrregularityResult("torsional_check", torsionalRes.headers, torsionalRes.rows, "computed");
+        document.getElementById("irregMeta-torsional_check").textContent = `${torsionalRes.rows.length} row(s) — ${torsionalRes.irregularCount} flagged`;
+    } else {
+        _hideIrregularityPanel("torsional_check");
+    }
+
+    updateProgress(90, "Stiffness check (NSCP 208.4.5.2 Type 1a / 1b)...");
+    const stiffRes = computeStiffnessCheck(results.drift_x, results.drift_y);
+    if (stiffRes && stiffRes.rows.length) {
+        _renderIrregularityResult("stiffness_check", stiffRes.headers, stiffRes.rows, "computed");
+        document.getElementById("irregMeta-stiffness_check").textContent = `${stiffRes.rows.length} row(s) — ${stiffRes.irregularCount} flagged`;
+    } else {
+        _hideIrregularityPanel("stiffness_check");
+    }
+
+    // Cache the unique story list for the capacity-check manual-input table.
+    _captureStoryListForCapacity(results.drift_x);
+
+    updateProgress(95, "Weight irregularity (NSCP 208.4.5.2 Type 2)...");
+    const massRes = computeMassIrregularityCheck(results.mass_raw, lcs);
+    if (massRes && massRes.rows.length) {
+        _renderIrregularityResult("mass_check", massRes.headers, massRes.rows, "computed");
+        document.getElementById("irregMeta-mass_check").textContent = `${massRes.rows.length} row(s) — ${massRes.irregularCount} flagged`;
+    } else {
+        _hideIrregularityPanel("mass_check");
+    }
+
     setTimeout(hideProgress, 300);
 
-    status.innerHTML = okCount === IRREGULARITY_CHECKS.length
-        ? `<span style="color:var(--accent-green);">✓ All ${okCount} checks returned data</span>`
-        : okCount === 0
-            ? `<span style="color:var(--accent-orange);">No checks returned data — click Probe to see which TABLE_TYPE MIDAS accepts.</span>`
-            : `<span style="color:var(--accent-orange);">${okCount}/${IRREGULARITY_CHECKS.length} checks returned data — missing: ${skipped.join(", ")}. Click Probe for details.</span>`;
-    showToast(`Irregularity: ${okCount}/${IRREGULARITY_CHECKS.length} checks ran`, okCount ? "success" : "error");
+    // Re-apply the current direction filter so freshly-rendered panels honor
+    // whatever X/Y/Both state the user picked before clicking Run All.
+    const activeBtn = document.querySelector('[id^="irregDirBtn-"].btn-blue');
+    const activeDir = activeBtn ? activeBtn.id.replace("irregDirBtn-", "") : "both";
+    setIrregularityDirection(activeDir);
+
+    const wins = [
+        results.drift_x?.ok && "Drift X",
+        results.drift_y?.ok && "Drift Y",
+        results.mass_raw?.ok && "Mass",
+        torsionalRes?.rows.length && "Torsional",
+        stiffRes?.rows.length && "Stiffness",
+        massRes?.rows.length && "Weight/Mass"
+    ].filter(Boolean);
+
+    status.innerHTML = wins.length
+        ? `<span style="color:var(--accent-green);">✓ ${wins.join(" · ")} </span><span style="color:var(--text-muted);">— Capacity/Weak Story requires per-story shear strength which Gen NX doesn't expose.</span>`
+        : `<span style="color:var(--accent-orange);">No raw tables returned data. Check that modal/seismic analysis has been run for the selected load cases.</span>`;
+    showToast(wins.length ? `Irregularity: ${wins.length} sections populated` : "No data — check API log", wins.length ? "success" : "error");
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// CLIENT-SIDE NSCP 2015 IRREGULARITY DERIVATIONS
+// ─────────────────────────────────────────────────────────────────────────
+
+// Lookup by header substring (case-insensitive). Returns first matching column index, or -1.
+function _findCol(headers, ...needles) {
+    for (let i = 0; i < headers.length; i++) {
+        const h = String(headers[i]).toLowerCase();
+        if (needles.every(n => h.includes(n.toLowerCase()))) return i;
+    }
+    return -1;
+}
+
+function _toNum(v) {
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? n : 0;
+}
+
+// Sort key for stories: Base = 0, 1F=1 ... Roof at the top. Mirrors storyNo() in drift module.
+function _storyOrder(story) {
+    const s = String(story).trim().toUpperCase();
+    if (s.includes("BASE"))  return 0;
+    if (s.includes("ROOF") || s.includes("RF")) return 9999;
+    const m = s.match(/(\d+)/);
+    return m ? parseInt(m[1]) : -1;
+}
+
+// NSCP 208.4.5.1 Type 1a (>1.2) / 1b (>1.4): ratio = max-drift / center-of-mass-drift.
+// Builds rows from BOTH X and Y drift tables when available. Each STORY_DRIFT response
+// already has one row per (load case × story).
+function computeTorsionalCheck(driftX, driftY) {
+    const headers = ["Load Case", "Story", "Direction", "Story Height", "Max Drift", "CoM Drift", "Ratio (Max/CoM)", "Type 1a (>1.2)", "Type 1b (>1.4)", "Remark"];
+    const rows = [];
+    let irregularCount = 0;
+
+    [["X", driftX], ["Y", driftY]].forEach(([dir, src]) => {
+        if (!src || !src.ok) return;
+        const lcIdx   = _findCol(src.headers, "load case");
+        const stIdx   = _findCol(src.headers, "story");
+        const htIdx   = _findCol(src.headers, "story height");
+        const maxIdx  = _findCol(src.headers, "maximum drift", "story drift");
+        const comIdx  = _findCol(src.headers, "center of mass", "story drift");
+        if (stIdx < 0 || maxIdx < 0 || comIdx < 0) return;
+        // Only the bare /Story Drift columns, not /Story Drift Ratio or /Modified Drift.
+        const refineIdx = (idx, label) => {
+            for (let i = idx; i < src.headers.length; i++) {
+                const h = String(src.headers[i]).toLowerCase();
+                if (h.includes(label) && h.endsWith("story drift")) return i;
+            }
+            return idx;
+        };
+        const maxDriftCol = refineIdx(maxIdx, "maximum drift");
+        const comDriftCol = refineIdx(comIdx, "center of mass");
+
+        for (const r of src.rows) {
+            const lc    = lcIdx >= 0 ? r[lcIdx]     : "—";
+            const story = r[stIdx];
+            const ht    = htIdx >= 0 ? r[htIdx]     : "—";
+            const maxD  = Math.abs(_toNum(r[maxDriftCol]));
+            const comD  = Math.abs(_toNum(r[comDriftCol]));
+            const ratio = comD > 0 ? maxD / comD : 0;
+            const t1a   = ratio > 1.2;
+            const t1b   = ratio > 1.4;
+            const remark = t1b ? "Extreme Torsional (1b)" : t1a ? "Torsional Irregular (1a)" : "Regular";
+            if (t1a) irregularCount++;
+            rows.push([lc, story, dir, ht, maxD.toFixed(5), comD.toFixed(5), ratio.toFixed(3), t1a ? "✗" : "✓", t1b ? "✗" : "✓", remark]);
+        }
+    });
+    return { headers, rows, irregularCount };
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Capacity / Weak Story — manual strength input (Gen NX doesn't expose this)
+// ─────────────────────────────────────────────────────────────────────────
+let _irregStoryList = []; // populated by Run All; ordered base-to-top with story heights
+
+function _captureStoryListForCapacity(driftRes) {
+    if (!driftRes || !driftRes.ok) return;
+    const stIdx = _findCol(driftRes.headers, "story");
+    const htIdx = _findCol(driftRes.headers, "story height");
+    if (stIdx < 0) return;
+    const seen = new Set();
+    const list = [];
+    for (const r of driftRes.rows) {
+        const story = String(r[stIdx]);
+        if (seen.has(story)) continue;
+        seen.add(story);
+        list.push({ story, height: htIdx >= 0 ? _toNum(r[htIdx]) : null });
+    }
+    _irregStoryList = list.sort((a, b) => _storyOrder(a.story) - _storyOrder(b.story));
+    populateCapacityInput();
+}
+
+function populateCapacityInput() {
+    const tbody = document.querySelector("#capacityInputTable tbody");
+    if (!tbody) return;
+    if (!_irregStoryList.length) {
+        tbody.innerHTML = `<tr><td colspan="3" style="padding:10px;color:var(--text-muted);text-align:center;">Run All Checks first to populate stories.</td></tr>`;
+        return;
+    }
+    // Walk top-to-base for input ordering — matches the native MIDAS layout.
+    tbody.innerHTML = _irregStoryList.slice().reverse().map(s => `
+        <tr>
+            <td style="padding:4px 8px;">${escapeHtml(s.story)}</td>
+            <td style="padding:2px 8px;"><input type="number" class="input capacity-strength-x" data-story="${escapeHtml(s.story)}" value="1000" min="0" step="1" style="width:100%;font-size:11px;text-align:right;" /></td>
+            <td style="padding:2px 8px;"><input type="number" class="input capacity-strength-y" data-story="${escapeHtml(s.story)}" value="1000" min="0" step="1" style="width:100%;font-size:11px;text-align:right;" /></td>
+        </tr>
+    `).join("");
+    document.getElementById("capacityInputHint").textContent = `${_irregStoryList.length} stories loaded — edit strengths and click Compute.`;
+}
+
+function runCapacityCheck() {
+    if (!_irregStoryList.length) {
+        showToast("Run All Checks first to populate stories", "error");
+        return;
+    }
+    // Read user inputs and pair with stories (base-to-top order).
+    const xInputs = Array.from(document.querySelectorAll(".capacity-strength-x"));
+    const yInputs = Array.from(document.querySelectorAll(".capacity-strength-y"));
+    const byStory = {};
+    xInputs.forEach(inp => { byStory[inp.dataset.story] = byStory[inp.dataset.story] || {}; byStory[inp.dataset.story].x = _toNum(inp.value); });
+    yInputs.forEach(inp => { byStory[inp.dataset.story] = byStory[inp.dataset.story] || {}; byStory[inp.dataset.story].y = _toNum(inp.value); });
+    const stories = _irregStoryList.map(s => ({ story: s.story, vx: byStory[s.story]?.x || 0, vy: byStory[s.story]?.y || 0 }));
+
+    const headers = ["Story", "Direction", "V_strength (kN)", "V_above (kN)", "V / V_above", "Type 5a (<0.8)", "Type 5b (<0.65)", "Remark"];
+    const rows = [];
+    let irregularCount = 0;
+
+    ["X", "Y"].forEach(dir => {
+        const key = dir === "X" ? "vx" : "vy";
+        // base-to-top
+        for (let i = 0; i < stories.length; i++) {
+            const cur   = stories[i];
+            const above = stories[i + 1] || null;
+            const v     = cur[key];
+            const va    = above ? above[key] : null;
+            const ratio = (va !== null && va > 0) ? v / va : null;
+            const t5a   = above && ratio !== null && ratio < 0.8;
+            const t5b   = above && ratio !== null && ratio < 0.65;
+            if (t5a) irregularCount++;
+            const remark = !above ? "—" : t5b ? "Extreme Weak Story (5b)" : t5a ? "Weak Story (5a)" : "Regular";
+            rows.push([
+                cur.story, dir,
+                v.toFixed(2),
+                va !== null ? va.toFixed(2) : "—",
+                ratio !== null ? ratio.toFixed(3) : "—",
+                above ? (t5a ? "✗" : "✓") : "—",
+                above ? (t5b ? "✗" : "✓") : "—",
+                remark
+            ]);
+        }
+    });
+
+    document.getElementById("irregTableWrap-capacity_check").style.display = "";
+    renderTable("irregTable-capacity_check", headers, rows);
+    document.getElementById("irregMeta-capacity_check").textContent = `${rows.length} row(s) — ${irregularCount} flagged`;
+    // Re-apply current direction filter to the new rows so X/Y selection sticks.
+    const activeBtn = document.querySelector('[id^="irregDirBtn-"].btn-blue');
+    const activeDir = activeBtn ? activeBtn.id.replace("irregDirBtn-", "") : "both";
+    setIrregularityDirection(activeDir);
+    showToast(`Capacity: ${irregularCount} weak-story flag(s)`, irregularCount ? "error" : "success");
+}
+
+// NSCP 208.4.5.2 Type 1a/1b — Soft Story / Extreme Soft Story.
+// Uses the user-selected "1/StoryDriftRatio" stiffness method: K_eff = h/Δ
+// (height ÷ story drift) — no shear data needed. Column layout mirrors the
+// native MIDAS "Result-[Stiffness Irregularity Check]" window so users can
+// cross-reference against the GUI table directly.
+function computeStiffnessCheck(driftX, driftY) {
+    const headers = [
+        "Load Case", "Story", "Direction",
+        "Level (m)", "Story Height (m)", "Story Drift (m)",
+        "Story Shear Force",            // not exposed by API — filled with "—"
+        "Story Stiffness",              // K = h/Δ
+        "0.7 Ku1",                       // 0.7 × K_above (NSCP Type 1a threshold)
+        "0.8 Ku123",                     // 0.8 × avg(K of next 3 above)
+        "Story Stiffness Ratio",         // K / K_above
+        "Story Drift Angle Ratio",       // (Δ/h)_curr / (Δ/h)_above
+        "Remark"
+    ];
+    const rows = [];
+    let irregularCount = 0;
+
+    [["X", driftX], ["Y", driftY]].forEach(([dir, src]) => {
+        if (!src || !src.ok) return;
+        const lcIdx = _findCol(src.headers, "load case");
+        const stIdx = _findCol(src.headers, "story");
+        const htIdx = _findCol(src.headers, "story height");
+        if (stIdx < 0 || htIdx < 0) return;
+
+        // Same column-refinement trick used in the torsional check — pick the
+        // bare "/Story Drift" column (not Modified Drift, not Story Drift Ratio).
+        let driftCol = -1;
+        for (let i = 0; i < src.headers.length; i++) {
+            const h = String(src.headers[i]).toLowerCase();
+            if (h.includes("maximum drift") && h.endsWith("story drift")) { driftCol = i; break; }
+        }
+        if (driftCol < 0) return;
+
+        // Group rows by load case so we can sort each group bottom-to-top.
+        const byLC = {};
+        for (const r of src.rows) {
+            const lc = lcIdx >= 0 ? r[lcIdx] : "—";
+            (byLC[lc] = byLC[lc] || []).push({
+                story:  r[stIdx],
+                drift:  Math.abs(_toNum(r[driftCol])),
+                height: _toNum(r[htIdx])
+            });
+        }
+
+        for (const lc of Object.keys(byLC)) {
+            const stories = byLC[lc].sort((a, b) => _storyOrder(a.story) - _storyOrder(b.story));
+            // Level = cumulative height up to (but not including) this story.
+            let cumLevel = 0;
+            stories.forEach(s => { s.level = cumLevel; cumLevel += s.height; });
+            stories.forEach(s => {
+                s.K   = (s.drift > 0 && s.height > 0) ? s.height / s.drift : null;
+                s.dA  = (s.height > 0) ? s.drift / s.height : null;
+            });
+
+            // Walk top-to-bottom for output ordering — matches native MIDAS layout.
+            for (let i = stories.length - 1; i >= 0; i--) {
+                const cur    = stories[i];
+                const above  = stories[i + 1] || null;
+                const above3 = stories.slice(i + 1, i + 4).filter(s => s.K !== null);
+                const KA     = above && above.K !== null ? above.K : null;
+                const KAvg3  = above3.length ? above3.reduce((s, x) => s + x.K, 0) / above3.length : null;
+                const t07    = KA    !== null ? 0.7 * KA    : null;
+                const t08    = KAvg3 !== null ? 0.8 * KAvg3 : null;
+                const stiffR = (cur.K !== null && KA !== null && KA > 0) ? cur.K / KA : null;
+                const daR    = (cur.dA !== null && above && above.dA !== null && above.dA > 0)
+                               ? cur.dA / above.dA : null;
+
+                let t1a = false, t1b = false;
+                if (above) {
+                    if (stiffR !== null && stiffR < 0.7) t1a = true;
+                    if (cur.K !== null && KAvg3 !== null && KAvg3 > 0 && cur.K < 0.8 * KAvg3) t1a = true;
+                    if (stiffR !== null && stiffR < 0.6) t1b = true;
+                    if (cur.K !== null && KAvg3 !== null && KAvg3 > 0 && cur.K < 0.7 * KAvg3) t1b = true;
+                }
+                if (t1a) irregularCount++;
+                const remark = !above ? "—" : t1b ? "Extreme Soft Story (1b)" : t1a ? "Soft Story (1a)" : "Regular";
+
+                rows.push([
+                    lc, cur.story, dir,
+                    cur.level.toFixed(2),
+                    cur.height.toFixed(2),
+                    cur.drift.toFixed(4),
+                    "—",
+                    cur.K !== null ? cur.K.toFixed(2) : "—",
+                    t07   !== null ? t07.toFixed(2)   : "—",
+                    t08   !== null ? t08.toFixed(2)   : "—",
+                    stiffR !== null ? stiffR.toFixed(3) : "—",
+                    daR    !== null ? daR.toFixed(3)    : "—",
+                    remark
+                ]);
+            }
+        }
+    });
+    return { headers, rows, irregularCount };
+}
+
+// NSCP 208.4.5.2 Type 2: irregular when any story's mass exceeds 150% of an adjacent story's mass.
+// "A roof that is lighter than the floor below need not be considered." (NSCP exception).
+// Mirrors the native MIDAS Result-[Weight Irregularity Check] columns but with NSCP's 1.5
+// threshold (the GUI defaults to 1.25/0.75 for KBC/NTC).
+function computeMassIrregularityCheck(massSrc, loadCases) {
+    if (!massSrc || !massSrc.ok) return null;
+    const stIdx = _findCol(massSrc.headers, "story");
+    const lvIdx = _findCol(massSrc.headers, "level");
+    const xIdx  = _findCol(massSrc.headers, "x-dir");
+    const yIdx  = _findCol(massSrc.headers, "y-dir");
+    if (stIdx < 0 || (xIdx < 0 && yIdx < 0)) return null;
+
+    // Convert mass → weight (kN). With FORCE=KN + DIST=M, MIDAS returns mass in tonne;
+    // weight = m * g where g = 9.80665 m/s².
+    const G = 9.80665;
+    const data = massSrc.rows
+        .filter(r => !/total/i.test(String(r[stIdx])))
+        .map(r => {
+            const mx = _toNum(r[xIdx]);
+            const my = _toNum(r[yIdx]);
+            return {
+                story: r[stIdx],
+                level: lvIdx >= 0 ? _toNum(r[lvIdx]) : null,
+                weight: Math.max(mx, my) * G   // dominant-direction mass × g
+            };
+        })
+        .sort((a, b) => _storyOrder(a.story) - _storyOrder(b.story));
+
+    // Compute story heights (level diff to story below).
+    for (let i = 0; i < data.length; i++) {
+        const below = data[i - 1];
+        data[i].height = (below && data[i].level !== null && below.level !== null)
+            ? data[i].level - below.level
+            : null;
+    }
+
+    const headers = ["Load Case", "Story", "Level (m)", "Story Height (m)", "Story Weight (kN)",
+                     "1.5M(Lower) (kN)", "1.5M(Upper) (kN)", "Weight Ratio", "Remark"];
+    const rows = [];
+    let irregularCount = 0;
+    const lcs = loadCases && loadCases.length ? loadCases : ["—"];
+
+    // NSCP doesn't actually depend on load case (mass is structural), but mirror MIDAS's
+    // per-LC layout so the table looks like the native output.
+    for (const lc of lcs) {
+        // Walk top-down so the table reads Roof → 1F like the native window.
+        for (let i = data.length - 1; i >= 0; i--) {
+            const cur   = data[i];
+            const above = data[i + 1];
+            const below = data[i - 1];
+            const isRoof = i === data.length - 1;
+            const isBase = i === 0;
+
+            const wAbove = above ? above.weight : null;
+            const wBelow = below ? below.weight : null;
+            const lower15 = wBelow !== null ? 1.5 * wBelow : null;   // upper threshold from below
+            const upper15 = wAbove !== null ? 1.5 * wAbove : null;   // upper threshold from above
+            const rLower  = wBelow !== null && wBelow > 0 ? cur.weight / wBelow : 0;
+            const rUpper  = wAbove !== null && wAbove > 0 ? cur.weight / wAbove : 0;
+            const ratio   = Math.max(rLower, rUpper);
+
+            // NSCP Type 2 + roof exception
+            const roofExempt = isRoof && wBelow !== null && cur.weight < wBelow;
+            const flagged = !roofExempt && !isBase && ratio > 1.5;
+            if (flagged) irregularCount++;
+            const remark = flagged ? "Irregular (Type 2)" : "Regular";
+
+            rows.push([
+                lc,
+                cur.story,
+                cur.level !== null ? cur.level.toFixed(2) : "—",
+                cur.height !== null ? cur.height.toFixed(2) : "—",
+                cur.weight.toFixed(3),
+                lower15 !== null ? lower15.toFixed(3) : "—",
+                upper15 !== null ? upper15.toFixed(3) : "—",
+                ratio.toFixed(3),
+                remark
+            ]);
+        }
+    }
+    return { headers, rows, irregularCount };
 }
 
 // Try every candidate per check and report each attempt. Useful when Run All
@@ -6546,6 +7199,8 @@ async function fetchLoads() {
         // Populate drift & displacement dropdowns based on current direction
         updateDriftLoadCases();
         updateDispLoadCases();
+        // Irregularity dropdown — show all earthquake cases (X + Y) since checks are per-LC.
+        populateSelect("irregLoadCases", window._eqNamesAll && window._eqNamesAll.length ? window._eqNamesAll : window._allLoadNames || []);
 
         // Populate Reaction dropdown
         const rxSelect = document.getElementById("reactionLoadCase");
