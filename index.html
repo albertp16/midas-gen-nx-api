@@ -4781,22 +4781,30 @@ function cnOnTabActivate() {
 let cnHot = null;                  // Handsontable instance
 let cnLastResults = null;          // { loadCases, floors[], byLc[lc][floorName] -> {nodes:{id:{DX,DY}}, avgDX, avgDY, ...} }
 let cnLastPlotConfig = null;       // remembers which (LC, quantity) is active for redraw
-const CN_GRID_HEADERS = ["Floor", "Node Cor. 1", "Node Cor. 2", "Node Cor. 3", "Node Cor. 4"];
+// Grid layout: row = [Floor, Elev (m), Height (m), Node1, Node2, Node3, Node4]
+// Elev/Height are read-only and auto-filled from storyDataCache by name match.
+const CN_GRID_HEADERS = ["Floor", "Elev (m)", "Height (m)", "Node Cor. 1", "Node Cor. 2", "Node Cor. 3", "Node Cor. 4"];
+const CN_EMPTY_ROW = ["", "", "", "", "", "", ""];
+const CN_NODE_COLS = [3, 4, 5, 6]; // column indexes of the 4 corner-node cells
 const CN_DEFAULT_LC_HINTS = [/EX\s*\+|^EX$|EXP/i, /EX\s*-|EXM/i, /EY\s*\+|^EY$|EYP/i, /EY\s*-|EYM/i];
 
 // ── Grid setup ────────────────────────────────────────────────
 function cnSetupGrid() {
     const container = document.getElementById("cnGrid");
     if (!container || cnHot) return;
+    const ro = { type: "numeric", numericFormat: { pattern: "0.000" }, readOnly: true, className: "htDimmed" };
     cnHot = new Handsontable(container, {
-        data: [["", "", "", "", ""]],
+        data: [CN_EMPTY_ROW.slice()],
         colHeaders: CN_GRID_HEADERS,
         rowHeaders: true,
         height: 280,
+        colWidths: [110, 80, 90, 95, 95, 95, 95],
         stretchH: "all",
         licenseKey: "non-commercial-and-evaluation",
         columns: [
             { type: "text" },
+            ro,                                                          // Elev (m) — read-only
+            ro,                                                          // Height (m) — read-only
             { type: "numeric", numericFormat: { pattern: "0" } },
             { type: "numeric", numericFormat: { pattern: "0" } },
             { type: "numeric", numericFormat: { pattern: "0" } },
@@ -4807,6 +4815,22 @@ function cnSetupGrid() {
         afterChange: (changes, source) => {
             if (source === "loadData") return;
             cnUpdateBadge();
+            // If the Floor cell changed, look up elev/height from storyDataCache
+            if (changes && storyDataCache && storyDataCache.length) {
+                const byName = {};
+                storyDataCache.forEach(s => { byName[s.name.trim().toLowerCase()] = s; });
+                changes.forEach(([row, col, , newVal]) => {
+                    if (col !== 0) return;
+                    const story = byName[(newVal || "").toString().trim().toLowerCase()];
+                    if (story) {
+                        cnHot.setDataAtCell(row, 1, story.level, "cnAutoFill");
+                        cnHot.setDataAtCell(row, 2, story.height, "cnAutoFill");
+                    } else {
+                        cnHot.setDataAtCell(row, 1, "", "cnAutoFill");
+                        cnHot.setDataAtCell(row, 2, "", "cnAutoFill");
+                    }
+                });
+            }
         }
     });
     cnUpdateBadge();
@@ -4826,13 +4850,13 @@ function cnAddRow() {
 }
 function cnRemoveRow() {
     if (!cnHot) return;
-    if (cnHot.countRows() <= 1) { cnHot.loadData([["", "", "", "", ""]]); cnUpdateBadge(); return; }
+    if (cnHot.countRows() <= 1) { cnHot.loadData([CN_EMPTY_ROW.slice()]); cnUpdateBadge(); return; }
     cnHot.alter("remove_row", cnHot.countRows() - 1);
     cnUpdateBadge();
 }
 function cnClearGrid() {
     if (!cnHot) return;
-    cnHot.loadData([["", "", "", "", ""]]);
+    cnHot.loadData([CN_EMPTY_ROW.slice()]);
     cnUpdateBadge();
     document.getElementById("cnValidationMsg").innerHTML = "";
 }
@@ -4846,11 +4870,11 @@ function cnSyncFloorsFromStory() {
     if (!cnHot) cnSetupGrid();
     // Sort top → bottom for the grid (matches MIDAS GUI ordering)
     const sorted = [...storyDataCache].sort((a, b) => b.level - a.level);
-    const rows = sorted.map(s => [s.name, "", "", "", ""]);
-    if (!rows.length) rows.push(["", "", "", "", ""]);
+    const rows = sorted.map(s => [s.name, s.level, s.height, "", "", "", ""]);
+    if (!rows.length) rows.push(CN_EMPTY_ROW.slice());
     cnHot.loadData(rows);
     cnUpdateBadge();
-    showToast(`${rows.length} floor${rows.length === 1 ? "" : "s"} loaded — fill in corner nodes`);
+    showToast(`${rows.length} floor${rows.length === 1 ? "" : "s"} loaded with elevations — fill in corner nodes`);
 }
 
 async function cnRefreshLoadCases() {
@@ -4924,7 +4948,7 @@ function cnValidateInputs(showMsg) {
     const rows = [];
     data.forEach((r, i) => {
         const floor = (r[0] || "").toString().trim();
-        const nodes = [r[1], r[2], r[3], r[4]].map(v => v === "" || v === null ? null : Number(v));
+        const nodes = CN_NODE_COLS.map(c => (r[c] === "" || r[c] === null ? null : Number(r[c])));
         if (!floor) errors.push(`Row ${i + 1}: missing floor name.`);
         // Duplicate within row
         const present = nodes.filter(n => n != null);
@@ -4934,10 +4958,11 @@ function cnValidateInputs(showMsg) {
         // Numeric / integer
         nodes.forEach((n, ci) => {
             if (n == null) return;
+            const cellCol = CN_NODE_COLS[ci];
             if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
-                errors.push(`Row ${i + 1} col ${ci + 1}: "${r[ci + 1]}" is not a positive integer node ID.`);
+                errors.push(`Row ${i + 1} corner ${ci + 1}: "${r[cellCol]}" is not a positive integer node ID.`);
             } else if (cachedNodeDict && Object.keys(cachedNodeDict).length && !cachedNodeDict[String(n)] && !cachedNodeDict[n]) {
-                errors.push(`Row ${i + 1} col ${ci + 1}: node ${n} not found in model.`);
+                errors.push(`Row ${i + 1} corner ${ci + 1}: node ${n} not found in model.`);
             }
         });
         // Cross-row dup tracking (warning only — same node can legitimately appear at multiple floors only if the model is bizarre)
