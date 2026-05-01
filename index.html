@@ -2021,8 +2021,8 @@ Roof, 15.00, 0.00, Consider
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                             Copy MGT
                         </button>
-                        <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;" title="Trailing application token on each *FIBER-MATL line. Use TIMEHISTORY for nonlinear time-history runs, PUSHOVER for static pushover.">
-                            <label style="margin:0;font-size:11px;">Application</label>
+                        <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;" title="Trailing application token on each *FIBER-MATL line. Pick the analysis type the fiber materials will be used for — TIMEHISTORY for nonlinear time-history runs, PUSHOVER for static pushover.">
+                            <label style="margin:0;font-size:11px;font-weight:600;">Nonlinear Type</label>
                             <select id="fiberApplication" class="input" style="width:130px;font-size:11px;">
                                 <option value="TIMEHISTORY" selected>TIMEHISTORY</option>
                                 <option value="PUSHOVER">PUSHOVER</option>
@@ -8960,8 +8960,14 @@ function generateFiberMGT() {
         lines.push(" " + steel.join(", "));
     });
 
-    document.getElementById("fiberMgtOutput").value = lines.join("\n");
-    showToast(`Generated ${lastFiberConcreteResults.length * 2 + lastFiberSteelRows.length} material line(s)`, "success");
+    // Defensive sweep — strip any leading "<digits>, " iMATL prefix that a
+    // textarea-with-line-numbers browser extension or a previous paste might
+    // have left in the buffer. Per Slack feedback (Cheasmin, Gen NX Fiber):
+    // MIDAS Gen NX assigns iMATL automatically and rejects the explicit ID.
+    // Capture group preserves any leading whitespace on each line.
+    const cleanText = lines.join("\n").replace(/^([ \t]*)\d+,\s*/gm, "$1");
+    document.getElementById("fiberMgtOutput").value = cleanText;
+    showToast(`Generated ${lastFiberConcreteResults.length * 2 + lastFiberSteelRows.length} material line(s) — application: ${fiberApplication}`, "success");
 }
 
 function copyFiberMGT() {
