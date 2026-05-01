@@ -538,6 +538,11 @@
         ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
     </style>
     <script src="https://cdn.plot.ly/plotly-2.35.0.min.js" charset="utf-8"></script>
+    <!-- Handsontable for the Control-Node Drift tab's editable node-input grid.
+         License key "non-commercial-and-evaluation" is the public free-use key
+         documented at https://handsontable.com/docs/javascript-data-grid/software-license/ -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/handsontable@13.1.0/dist/handsontable.full.min.css" />
+    <script src="https://cdn.jsdelivr.net/npm/handsontable@13.1.0/dist/handsontable.full.min.js"></script>
 </head>
 <body>
 
@@ -634,6 +639,10 @@
                 <li><a onclick="switchTab('drift'); setStoryResultType('drift')" data-tab="drift">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                     Drift &amp; Displacement
+                </a></li>
+                <li><a onclick="switchTab('controlnode'); cnOnTabActivate()" data-tab="controlnode">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="7" cy="7" r="1.5" fill="currentColor"/><circle cx="17" cy="7" r="1.5" fill="currentColor"/><circle cx="7" cy="17" r="1.5" fill="currentColor"/><circle cx="17" cy="17" r="1.5" fill="currentColor"/></svg>
+                    Control-Node Drift
                 </a></li>
                 <li><a onclick="switchTab('reaction')" data-tab="reaction">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22V8"/><path d="M5 12H2a10 10 0 0020 0h-3"/><circle cx="12" cy="5" r="3"/></svg>
@@ -953,6 +962,157 @@ Roof, 15.00, 0.00, Consider
                     </div>
                     <div id="dispCanvasContainer">
                         <div id="dispCanvas" style="width:100%;height:500px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ════════════ CONTROL-NODE DRIFT ════════════ -->
+        <!-- Per-corner-node displacement & drift. User enters 4 corner nodes per
+             floor in a Handsontable grid; we fetch DISPLACEMENTG (TABLE_TYPE)
+             filtered by NODE_ELEMS.KEYS for each selected load case, then
+             compute drift = disp(i) - disp(i-1) and ratio = drift / story_height.
+             Story heights come from storyDataCache (set by fetchStoryData on
+             connect); per-node displacements cannot come from STORY_DRIFT_X/Y
+             since those are per-story envelopes, so DISPLACEMENTG is the only
+             correct source for per-corner data. -->
+        <div id="tab-controlnode" class="tab-page">
+            <div class="page-header">
+                <h2>Control-Node Drift &amp; Displacement</h2>
+                <p>Manual 4-corner-node input per floor → nodal displacement &amp; drift per static earthquake load case</p>
+            </div>
+
+            <!-- Step 1: Load cases -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">1. Static Earthquake Load Cases</span>
+                    <span style="font-size:11px;color:var(--text-muted);">Pick the 4 cases to plot. Auto-filled from /db/stld; edit if names differ.</span>
+                </div>
+                <div class="form-row" style="gap:12px;flex-wrap:wrap;">
+                    <div class="form-group" style="flex:1;min-width:160px;">
+                        <label>Case 1 (e.g. EX+)</label>
+                        <select id="cnLc1" class="input"></select>
+                    </div>
+                    <div class="form-group" style="flex:1;min-width:160px;">
+                        <label>Case 2 (e.g. EX−)</label>
+                        <select id="cnLc2" class="input"></select>
+                    </div>
+                    <div class="form-group" style="flex:1;min-width:160px;">
+                        <label>Case 3 (e.g. EY+)</label>
+                        <select id="cnLc3" class="input"></select>
+                    </div>
+                    <div class="form-group" style="flex:1;min-width:160px;">
+                        <label>Case 4 (e.g. EY−)</label>
+                        <select id="cnLc4" class="input"></select>
+                    </div>
+                    <div class="form-group" style="flex:0;">
+                        <label>&nbsp;</label>
+                        <button class="btn btn-ghost" onclick="cnRefreshLoadCases()" title="Re-fetch /db/stld">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+                            Reload
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 2: Floor / corner-node grid -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">2. Corner Nodes per Floor</span>
+                    <div style="display:flex;gap:6px;align-items:center;">
+                        <span id="cnFloorBadge" style="font-size:11px;color:var(--text-muted);">0 floors</span>
+                        <button class="btn btn-ghost btn-sm" onclick="cnSyncFloorsFromStory()" title="Pull floor list from Story Data tab">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/><path d="M12 8v4l3 3"/></svg>
+                            Sync from Story Data
+                        </button>
+                        <button class="btn btn-ghost btn-sm" onclick="cnAddRow()">+ Row</button>
+                        <button class="btn btn-ghost btn-sm" onclick="cnRemoveRow()">− Row</button>
+                        <button class="btn btn-ghost btn-sm" onclick="cnClearGrid()">Clear</button>
+                        <button class="btn btn-ghost btn-sm" onclick="cnValidateInputs(true)">Validate</button>
+                    </div>
+                </div>
+                <p style="font-size:11px;color:var(--text-muted);margin:0 0 8px 0;">
+                    Floor names are matched to the Story Data tab to look up elevation &amp; height.
+                    Node values must be numeric IDs that exist in the model. Duplicates within a row are flagged.
+                </p>
+                <div id="cnGrid" style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;"></div>
+                <div id="cnValidationMsg" style="margin-top:8px;font-size:12px;"></div>
+            </div>
+
+            <!-- Step 3: Run + plot controls -->
+            <div class="panel">
+                <div class="panel-header"><span class="panel-title">3. Run &amp; Plot</span></div>
+                <div class="form-row" style="gap:8px;flex-wrap:wrap;align-items:flex-end;">
+                    <div class="form-group">
+                        <label>Quantity</label>
+                        <select id="cnQuantity" class="input" onchange="cnRedrawPlots()">
+                            <option value="UX">UX displacement (mm)</option>
+                            <option value="UY">UY displacement (mm)</option>
+                            <option value="RES">Resultant displacement √(UX²+UY²) (mm)</option>
+                            <option value="DRX">Drift UX (mm)</option>
+                            <option value="DRY">Drift UY (mm)</option>
+                            <option value="RX">Drift Ratio X (h/Δ)</option>
+                            <option value="RY">Drift Ratio Y (h/Δ)</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:normal;">
+                            <input type="checkbox" id="cnAvgOnly" onchange="cnRedrawPlots()" />
+                            Average only (hide corners)
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:normal;">
+                            <input type="checkbox" id="cnShowValues" checked onchange="cnRedrawPlots()" />
+                            Show values
+                        </label>
+                    </div>
+                    <div class="form-group" style="flex:1;"></div>
+                    <button class="btn btn-blue" onclick="cnRunAnalysis()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                        Fetch &amp; Plot
+                    </button>
+                </div>
+            </div>
+
+            <!-- Plots: 2x2 grid, one per load case -->
+            <div id="cnPlotsWrapper" style="display:none;">
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Plots — one per load case</span>
+                        <button class="btn btn-ghost btn-sm" onclick="cnDownloadAllPlots()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            Download All Images
+                        </button>
+                    </div>
+                    <div id="cnPlotGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;"></div>
+                </div>
+            </div>
+
+            <!-- Output tables -->
+            <div id="cnTablesWrapper" style="display:none;">
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Displacement Table</span>
+                        <div style="display:flex;gap:6px;">
+                            <button class="btn btn-ghost btn-sm" onclick="cnExport('disp','csv')">CSV</button>
+                            <button class="btn btn-ghost btn-sm" onclick="cnExport('disp','json')">JSON</button>
+                        </div>
+                    </div>
+                    <div style="overflow:auto;max-height:380px;">
+                        <table id="cnDispTable" class="midas-table"></table>
+                    </div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header">
+                        <span class="panel-title">Drift Table (averages per floor)</span>
+                        <div style="display:flex;gap:6px;">
+                            <button class="btn btn-ghost btn-sm" onclick="cnExport('drift','csv')">CSV</button>
+                            <button class="btn btn-ghost btn-sm" onclick="cnExport('drift','json')">JSON</button>
+                        </div>
+                    </div>
+                    <div style="overflow:auto;max-height:380px;">
+                        <table id="cnDriftTable" class="midas-table"></table>
                     </div>
                 </div>
             </div>
@@ -4583,6 +4743,666 @@ function drawDispChart(seriesArr, stories, dirLabel, canvasId) {
 
     Plotly.react(div, traces, layout, config);
     requestAnimationFrame(() => { try { Plotly.Plots.resize(div); } catch (e) {} });
+}
+
+// ══════════════════════════════════════════════════════════════
+// CONTROL-NODE DRIFT — lazy init on tab activate so Handsontable's
+// CDN script has time to load before we instantiate the grid.
+// ══════════════════════════════════════════════════════════════
+function cnOnTabActivate() {
+    if (typeof Handsontable === "undefined") {
+        // CDN not yet loaded — try again shortly
+        setTimeout(cnOnTabActivate, 200);
+        return;
+    }
+    if (!cnHot) cnSetupGrid();
+    // First-time auto-population helpers (one-shot, only if empty)
+    const lc1 = document.getElementById("cnLc1");
+    if (lc1 && lc1.options.length === 0 && isConnected) cnRefreshLoadCases();
+    if (cnHot && cnHot.countRows() === 1 && (cnHot.getDataAtRow(0) || []).every(c => !c) && storyDataCache && storyDataCache.length) {
+        cnSyncFloorsFromStory();
+    }
+}
+
+// ══════════════════════════════════════════════════════════════
+// CONTROL-NODE DRIFT
+// Per-corner-node displacement & drift. Inputs: Handsontable grid of
+// {Floor, Node1, Node2, Node3, Node4} rows. Source: DISPLACEMENTG via
+// /post/TABLE filtered by NODE_ELEMS.KEYS. Drift is always computed
+// client-side from displacement (STORY_DRIFT_X/Y is per-story envelope
+// and cannot give per-corner values). Story heights/elevations are
+// pulled from storyDataCache (set by fetchStoryData on connect).
+// ══════════════════════════════════════════════════════════════
+let cnHot = null;                  // Handsontable instance
+let cnLastResults = null;          // { loadCases, floors[], byLc[lc][floorName] -> {nodes:{id:{DX,DY}}, avgDX, avgDY, ...} }
+let cnLastPlotConfig = null;       // remembers which (LC, quantity) is active for redraw
+const CN_GRID_HEADERS = ["Floor", "Node Cor. 1", "Node Cor. 2", "Node Cor. 3", "Node Cor. 4"];
+const CN_DEFAULT_LC_HINTS = [/EX\s*\+|^EX$|EXP/i, /EX\s*-|EXM/i, /EY\s*\+|^EY$|EYP/i, /EY\s*-|EYM/i];
+
+// ── Grid setup ────────────────────────────────────────────────
+function cnSetupGrid() {
+    const container = document.getElementById("cnGrid");
+    if (!container || cnHot) return;
+    cnHot = new Handsontable(container, {
+        data: [["", "", "", "", ""]],
+        colHeaders: CN_GRID_HEADERS,
+        rowHeaders: true,
+        height: 280,
+        stretchH: "all",
+        licenseKey: "non-commercial-and-evaluation",
+        columns: [
+            { type: "text" },
+            { type: "numeric", numericFormat: { pattern: "0" } },
+            { type: "numeric", numericFormat: { pattern: "0" } },
+            { type: "numeric", numericFormat: { pattern: "0" } },
+            { type: "numeric", numericFormat: { pattern: "0" } }
+        ],
+        contextMenu: true,
+        manualColumnResize: true,
+        afterChange: (changes, source) => {
+            if (source === "loadData") return;
+            cnUpdateBadge();
+        }
+    });
+    cnUpdateBadge();
+}
+
+function cnUpdateBadge() {
+    const data = cnHot ? cnHot.getData() : [];
+    const filled = data.filter(r => (r[0] || "").toString().trim() !== "").length;
+    const badge = document.getElementById("cnFloorBadge");
+    if (badge) badge.textContent = `${filled} floor${filled === 1 ? "" : "s"}`;
+}
+
+function cnAddRow() {
+    if (!cnHot) return;
+    cnHot.alter("insert_row_below", cnHot.countRows() - 1);
+    cnUpdateBadge();
+}
+function cnRemoveRow() {
+    if (!cnHot) return;
+    if (cnHot.countRows() <= 1) { cnHot.loadData([["", "", "", "", ""]]); cnUpdateBadge(); return; }
+    cnHot.alter("remove_row", cnHot.countRows() - 1);
+    cnUpdateBadge();
+}
+function cnClearGrid() {
+    if (!cnHot) return;
+    cnHot.loadData([["", "", "", "", ""]]);
+    cnUpdateBadge();
+    document.getElementById("cnValidationMsg").innerHTML = "";
+}
+
+// ── Auto-populate floors + load cases ─────────────────────────
+function cnSyncFloorsFromStory() {
+    if (!storyDataCache || !storyDataCache.length) {
+        showToast("No story data — fetch from Story Data tab first", "error");
+        return;
+    }
+    if (!cnHot) cnSetupGrid();
+    // Sort top → bottom for the grid (matches MIDAS GUI ordering)
+    const sorted = [...storyDataCache].sort((a, b) => b.level - a.level);
+    const rows = sorted.map(s => [s.name, "", "", "", ""]);
+    if (!rows.length) rows.push(["", "", "", "", ""]);
+    cnHot.loadData(rows);
+    cnUpdateBadge();
+    showToast(`${rows.length} floor${rows.length === 1 ? "" : "s"} loaded — fill in corner nodes`);
+}
+
+async function cnRefreshLoadCases() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+    try {
+        const data = await midasAPI("GET", "/db/stld");
+        const stld = data.STLD || data;
+        const staticCases = [];
+        for (const [, v] of Object.entries(stld)) {
+            if (!v || typeof v !== "object") continue;
+            // ST = static load case; the trailing "(ST)" is appended in MIDAS table queries
+            const type = (v.TYPE || "").toString().toUpperCase();
+            const name = v.NAME || "";
+            if (!name) continue;
+            // Static EQ cases in MIDAS: TYPE may be "EQ", "USER", "ER" depending on definition.
+            // We surface all TYPEs and let the user pick — too many naming conventions to filter.
+            staticCases.push(name);
+        }
+        if (!staticCases.length) { showToast("No load cases found in /db/stld", "error"); return; }
+        // Heuristic match for the four EQ defaults
+        const candidates = staticCases.map(n => `${n}(ST)`);
+        cnPopulateLcSelect("cnLc1", candidates, CN_DEFAULT_LC_HINTS[0]);
+        cnPopulateLcSelect("cnLc2", candidates, CN_DEFAULT_LC_HINTS[1]);
+        cnPopulateLcSelect("cnLc3", candidates, CN_DEFAULT_LC_HINTS[2]);
+        cnPopulateLcSelect("cnLc4", candidates, CN_DEFAULT_LC_HINTS[3]);
+        showToast(`${staticCases.length} load case(s) loaded`);
+    } catch (err) {
+        showToast(`Failed to load load cases: ${err.message}`, "error");
+    }
+}
+
+function cnPopulateLcSelect(selectId, options, defaultHint) {
+    const sel = document.getElementById(selectId);
+    if (!sel) return;
+    const prev = sel.value;
+    sel.innerHTML = "";
+    options.forEach(opt => {
+        const o = document.createElement("option");
+        o.value = opt; o.textContent = opt;
+        sel.appendChild(o);
+    });
+    // Pick: previous value if still present, else hint match, else first
+    if (prev && options.includes(prev)) sel.value = prev;
+    else if (defaultHint) {
+        const hit = options.find(o => defaultHint.test(o));
+        if (hit) sel.value = hit;
+    }
+}
+
+// ── Validation ───────────────────────────────────────────────
+function cnValidateInputs(showMsg) {
+    const msgDiv = document.getElementById("cnValidationMsg");
+    msgDiv.innerHTML = "";
+    if (!cnHot) cnSetupGrid();
+    const data = cnHot.getData().filter(r => (r[0] || "").toString().trim() !== "");
+    const errors = [];
+    const warnings = [];
+    if (!data.length) errors.push("No floor rows entered.");
+
+    if (!storyDataCache || !storyDataCache.length) {
+        warnings.push("Story data not loaded — story heights/elevations will be missing. Open the Story Data tab and fetch first.");
+    }
+    if (!cachedNodeDict || !Object.keys(cachedNodeDict).length) {
+        warnings.push("Node dictionary not cached — cannot verify node IDs exist in the model.");
+    }
+
+    const storyByName = {};
+    (storyDataCache || []).forEach(s => { storyByName[s.name.trim().toLowerCase()] = s; });
+
+    const seenNodesGlobal = new Map(); // node -> [floor names]
+    const rows = [];
+    data.forEach((r, i) => {
+        const floor = (r[0] || "").toString().trim();
+        const nodes = [r[1], r[2], r[3], r[4]].map(v => v === "" || v === null ? null : Number(v));
+        if (!floor) errors.push(`Row ${i + 1}: missing floor name.`);
+        // Duplicate within row
+        const present = nodes.filter(n => n != null);
+        if (present.length < 4) errors.push(`Row ${i + 1} (${floor || "?"}): need 4 corner nodes, got ${present.length}.`);
+        const dupInRow = present.filter((n, idx) => present.indexOf(n) !== idx);
+        if (dupInRow.length) errors.push(`Row ${i + 1} (${floor || "?"}): duplicate node ${[...new Set(dupInRow)].join(", ")} within row.`);
+        // Numeric / integer
+        nodes.forEach((n, ci) => {
+            if (n == null) return;
+            if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
+                errors.push(`Row ${i + 1} col ${ci + 1}: "${r[ci + 1]}" is not a positive integer node ID.`);
+            } else if (cachedNodeDict && Object.keys(cachedNodeDict).length && !cachedNodeDict[String(n)] && !cachedNodeDict[n]) {
+                errors.push(`Row ${i + 1} col ${ci + 1}: node ${n} not found in model.`);
+            }
+        });
+        // Cross-row dup tracking (warning only — same node can legitimately appear at multiple floors only if the model is bizarre)
+        present.forEach(n => {
+            if (!seenNodesGlobal.has(n)) seenNodesGlobal.set(n, []);
+            seenNodesGlobal.get(n).push(floor);
+        });
+        // Story lookup
+        const story = storyByName[floor.toLowerCase()];
+        if (storyDataCache && storyDataCache.length && !story) {
+            warnings.push(`Row ${i + 1}: floor "${floor}" not found in Story Data — height/elevation will be unknown.`);
+        }
+        rows.push({ floor, nodes, story });
+    });
+
+    seenNodesGlobal.forEach((floors, n) => {
+        if (floors.length > 1) warnings.push(`Node ${n} appears on multiple floors (${floors.join(", ")}).`);
+    });
+
+    if (showMsg) {
+        const parts = [];
+        if (errors.length) parts.push(`<div style="color:var(--accent-red);">✗ ${errors.length} error(s):<ul style="margin:4px 0 0 18px;padding:0;">${errors.map(e => `<li>${e}</li>`).join("")}</ul></div>`);
+        if (warnings.length) parts.push(`<div style="color:var(--accent-orange);margin-top:6px;">⚠ ${warnings.length} warning(s):<ul style="margin:4px 0 0 18px;padding:0;">${warnings.map(w => `<li>${w}</li>`).join("")}</ul></div>`);
+        if (!errors.length && !warnings.length) parts.push(`<div style="color:var(--accent-green);">✓ ${rows.length} floor(s), inputs OK.</div>`);
+        msgDiv.innerHTML = parts.join("");
+    }
+    return { ok: !errors.length, errors, warnings, rows };
+}
+
+// ── Run analysis ─────────────────────────────────────────────
+async function cnRunAnalysis() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+    const v = cnValidateInputs(true);
+    if (!v.ok) { showToast("Fix validation errors first", "error"); return; }
+
+    const lcs = ["cnLc1", "cnLc2", "cnLc3", "cnLc4"]
+        .map(id => document.getElementById(id).value)
+        .filter(Boolean);
+    if (lcs.length < 4) { showToast("Pick 4 load cases", "error"); return; }
+    if (new Set(lcs).size < lcs.length) { showToast("Load cases must be distinct", "error"); return; }
+
+    // Sort floors bottom → top by elevation (drift = disp(i) - disp(i-1) needs ordered floors)
+    const orderedFloors = [...v.rows].sort((a, b) => {
+        const la = a.story ? a.story.level : 0;
+        const lb = b.story ? b.story.level : 0;
+        return la - lb;
+    });
+
+    // Collect distinct node IDs across all floors
+    const allNodes = new Set();
+    orderedFloors.forEach(r => r.nodes.forEach(n => { if (n) allNodes.add(n); }));
+    const nodeKeys = [...allNodes];
+
+    showProgress("Fetching Nodal Displacement", `${nodeKeys.length} node(s) × ${lcs.length} load case(s)`, "POST /post/TABLE (DISPLACEMENTG)");
+
+    const byLc = {};
+    let step = 0;
+    for (const lc of lcs) {
+        try {
+            updateProgress((step / lcs.length) * 90, `Load case "${lc}"...`);
+            const body = {
+                Argument: {
+                    TABLE_NAME: "ControlNodeDisp",
+                    TABLE_TYPE: "DISPLACEMENTG",
+                    UNIT: { FORCE: "KN", DIST: "MM" },
+                    NODE_ELEMS: { KEYS: nodeKeys },
+                    LOAD_CASE_NAMES: [lc],
+                    STYLES: { FORMAT: "Fixed", PLACE: 5 }
+                }
+            };
+            const res = await midasAPI("POST", "/post/TABLE", body);
+            byLc[lc] = cnParseDisplacementResponse(res, nodeKeys);
+            if (!byLc[lc]) {
+                showToast(`No displacement data for "${lc}" — skipped`, "error");
+            }
+        } catch (err) {
+            logEntry(`<span class="log-status-err">DISPLACEMENTG "${lc}": ${err.message}</span>`);
+            byLc[lc] = null;
+        }
+        step++;
+    }
+
+    // Build per-LC, per-floor displacement & drift records
+    const floors = orderedFloors.map(r => ({
+        name: r.floor,
+        level: r.story ? r.story.level : null,
+        height: r.story ? r.story.height : null,
+        nodes: r.nodes
+    }));
+
+    cnLastResults = { loadCases: lcs, floors, byLc, computed: cnComputeAll(floors, lcs, byLc) };
+
+    hideProgress();
+    cnRedrawPlots();
+    cnRenderTables();
+    showToast("Control-node analysis complete");
+}
+
+// Robust column lookup: MIDAS may return DX/DY/DZ or UX/UY/UZ depending on locale/version
+function cnFindColumn(headers, candidates) {
+    for (const cand of candidates) {
+        const idx = headers.findIndex(h => h && h.toString().toUpperCase().trim() === cand.toUpperCase());
+        if (idx >= 0) return idx;
+    }
+    // Loose contains match as fallback
+    for (const cand of candidates) {
+        const idx = headers.findIndex(h => h && h.toString().toUpperCase().includes(cand.toUpperCase()));
+        if (idx >= 0) return idx;
+    }
+    return -1;
+}
+
+function cnParseDisplacementResponse(res, expectedNodes) {
+    if (!res || typeof res !== "object") return null;
+    // /post/TABLE responses are wrapped under either "empty" or a TABLE_NAME key
+    const tbl = res.empty || res[Object.keys(res).find(k => k !== "empty")] || {};
+    const headers = tbl.HEAD || [];
+    const rows = tbl.DATA || [];
+    if (!headers.length || !rows.length) return null;
+
+    const idxNode = cnFindColumn(headers, ["Node", "Joint", "ID"]);
+    const idxDX = cnFindColumn(headers, ["DX", "UX"]);
+    const idxDY = cnFindColumn(headers, ["DY", "UY"]);
+    const idxDZ = cnFindColumn(headers, ["DZ", "UZ"]);
+    if (idxNode < 0 || idxDX < 0 || idxDY < 0) return null;
+
+    const byNode = {};
+    rows.forEach(r => {
+        const n = parseInt(r[idxNode], 10);
+        if (!Number.isFinite(n)) return;
+        const dx = parseFloat(r[idxDX]) || 0;
+        const dy = parseFloat(r[idxDY]) || 0;
+        const dz = idxDZ >= 0 ? (parseFloat(r[idxDZ]) || 0) : 0;
+        // Some load combinations return multiple rows per node (max/min) — keep the row with the largest |UX|+|UY|
+        if (!byNode[n] || (Math.abs(dx) + Math.abs(dy)) > (Math.abs(byNode[n].DX) + Math.abs(byNode[n].DY))) {
+            byNode[n] = { DX: dx, DY: dy, DZ: dz };
+        }
+    });
+    return byNode;
+}
+
+function cnComputeAll(floors, loadCases, byLc) {
+    // Returns { [lc]: [{floor, level, height, perNode: {n:{DX,DY,RES}}, avgDX, avgDY, avgRES, drDX, drDY, drRES, ratX, ratY}, ...] }
+    const out = {};
+    loadCases.forEach(lc => {
+        const dispMap = byLc[lc] || {};
+        const perFloor = floors.map(f => {
+            const perNode = {};
+            let sumDX = 0, sumDY = 0, sumRES = 0, n = 0;
+            f.nodes.forEach(nid => {
+                const d = nid != null ? dispMap[nid] : null;
+                if (d) {
+                    const res = Math.sqrt(d.DX * d.DX + d.DY * d.DY);
+                    perNode[nid] = { DX: d.DX, DY: d.DY, RES: res };
+                    sumDX += d.DX; sumDY += d.DY; sumRES += res; n++;
+                }
+            });
+            return {
+                floor: f.name, level: f.level, height: f.height,
+                nodes: f.nodes.slice(),
+                perNode,
+                avgDX: n ? sumDX / n : 0, avgDY: n ? sumDY / n : 0, avgRES: n ? sumRES / n : 0,
+                count: n
+            };
+        });
+
+        // Compute per-floor drift = avg(i) - avg(i-1), using base = 0 for the lowest floor.
+        // Per-corner drift uses the same node id's row at i and i-1 (if the node id changes between
+        // floors there's no defined drift, so per-corner drift is computed only when the same id
+        // is present at adjacent floors — otherwise null).
+        for (let i = 0; i < perFloor.length; i++) {
+            const cur = perFloor[i];
+            const prev = i === 0 ? null : perFloor[i - 1];
+            cur.drDX = cur.avgDX - (prev ? prev.avgDX : 0);
+            cur.drDY = cur.avgDY - (prev ? prev.avgDY : 0);
+            cur.drRES = cur.avgRES - (prev ? prev.avgRES : 0);
+            const heightMm = cur.height ? cur.height * 1000 : null; // story.height is meters
+            cur.ratX = heightMm ? cur.drDX / heightMm : null;
+            cur.ratY = heightMm ? cur.drDY / heightMm : null;
+
+            // Per-corner drift (matched by node id)
+            cur.perNodeDrift = {};
+            Object.keys(cur.perNode).forEach(nid => {
+                const c = cur.perNode[nid];
+                const p = prev && prev.perNode[nid] ? prev.perNode[nid] : (i === 0 ? { DX: 0, DY: 0, RES: 0 } : null);
+                if (p) {
+                    cur.perNodeDrift[nid] = {
+                        DX: c.DX - p.DX, DY: c.DY - p.DY, RES: c.RES - p.RES,
+                        ratX: heightMm ? (c.DX - p.DX) / heightMm : null,
+                        ratY: heightMm ? (c.DY - p.DY) / heightMm : null
+                    };
+                }
+            });
+        }
+        out[lc] = perFloor;
+    });
+    return out;
+}
+
+// ── Plots ────────────────────────────────────────────────────
+function cnRedrawPlots() {
+    if (!cnLastResults) return;
+    const grid = document.getElementById("cnPlotGrid");
+    if (!grid) return;
+    grid.innerHTML = "";
+    document.getElementById("cnPlotsWrapper").style.display = "block";
+    const quantity = document.getElementById("cnQuantity").value;
+    const avgOnly = document.getElementById("cnAvgOnly").checked;
+    const showValues = document.getElementById("cnShowValues").checked;
+    const { loadCases, computed } = cnLastResults;
+    cnLastPlotConfig = { quantity, avgOnly, showValues };
+
+    loadCases.forEach((lc, idx) => {
+        const cell = document.createElement("div");
+        cell.style.cssText = "background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);padding:10px;";
+        const divId = `cnPlot_${idx}`;
+        cell.innerHTML = `<div id="${divId}" style="width:100%;height:440px;"></div>`;
+        grid.appendChild(cell);
+        cnDrawOnePlot(divId, lc, computed[lc] || [], quantity, avgOnly, showValues);
+    });
+}
+
+function cnQuantityMeta(q) {
+    switch (q) {
+        case "UX":  return { label: "UX displacement", unit: "mm", source: "disp",  axis: "DX" };
+        case "UY":  return { label: "UY displacement", unit: "mm", source: "disp",  axis: "DY" };
+        case "RES": return { label: "Resultant displacement", unit: "mm", source: "disp", axis: "RES" };
+        case "DRX": return { label: "Drift UX", unit: "mm", source: "drift", axis: "DX" };
+        case "DRY": return { label: "Drift UY", unit: "mm", source: "drift", axis: "DY" };
+        case "RX":  return { label: "Drift Ratio X", unit: "", source: "ratio", axis: "ratX" };
+        case "RY":  return { label: "Drift Ratio Y", unit: "", source: "ratio", axis: "ratY" };
+    }
+    return { label: q, unit: "", source: "disp", axis: "DX" };
+}
+
+function cnDrawOnePlot(divId, lc, perFloor, quantity, avgOnly, showValues) {
+    const div = document.getElementById(divId);
+    if (!div || !perFloor.length) {
+        if (div) div.innerHTML = `<div style="padding:24px;color:var(--text-muted);text-align:center;">No data for "${lc}"</div>`;
+        return;
+    }
+    const PAL = (typeof plotlyPalette === "function") ? plotlyPalette() : { bg: "#fff", text: "#000", textMuted: "#666", border: "#ccc", gridMinor: "#eee" };
+    const meta = cnQuantityMeta(quantity);
+    const yCats = perFloor.map(f => f.floor); // already bottom→top from cnRunAnalysis
+    const COLORS_LOCAL = (typeof COLORS !== "undefined" && COLORS.length) ? COLORS : ["#0969da", "#1a7f37", "#9a6700", "#cf222e"];
+
+    // Up to 4 corner traces (one per column index), uniformly colored across LC plots
+    const traces = [];
+    if (!avgOnly) {
+        for (let ci = 0; ci < 4; ci++) {
+            const xs = perFloor.map(f => cnExtractValue(f, ci, meta));
+            const labels = perFloor.map((f, i) => {
+                const nid = f.nodes[ci];
+                return nid != null ? `${nid}` : "";
+            });
+            // Skip the trace entirely if all column values are null (corner not provided)
+            if (xs.every(x => x == null)) continue;
+            traces.push({
+                type: "scatter", mode: showValues ? "lines+markers+text" : "lines+markers",
+                name: `Corner ${ci + 1}`,
+                x: xs, y: yCats,
+                text: showValues ? xs.map(v => v == null ? "" : cnFormatValue(v, meta)) : undefined,
+                textposition: "middle right",
+                textfont: { family: "Consolas, 'SF Mono', monospace", size: 9, color: PAL.text },
+                line: { color: COLORS_LOCAL[ci % COLORS_LOCAL.length], width: 1.5, dash: "dot" },
+                marker: { color: COLORS_LOCAL[ci % COLORS_LOCAL.length], size: 7 },
+                hovertemplate: `<b>Corner ${ci + 1}</b> (node %{customdata})<br>%{y}: %{x}<extra></extra>`,
+                customdata: labels,
+                connectgaps: false
+            });
+        }
+    }
+    // Average trace (always shown — bold)
+    const avgXs = perFloor.map(f => cnExtractAverage(f, meta));
+    traces.push({
+        type: "scatter", mode: showValues ? "lines+markers+text" : "lines+markers",
+        name: "Average",
+        x: avgXs, y: yCats,
+        text: showValues ? avgXs.map(v => v == null ? "" : cnFormatValue(v, meta)) : undefined,
+        textposition: "middle right",
+        textfont: { family: "Consolas, 'SF Mono', monospace", size: 10, color: PAL.text, weight: 700 },
+        line: { color: "#cf222e", width: 2.5 },
+        marker: { color: "#cf222e", size: 10, symbol: "diamond", line: { color: PAL.bg, width: 1.5 } },
+        hovertemplate: `<b>Average</b><br>%{y}: %{x}<extra></extra>`
+    });
+
+    const xUnit = meta.unit ? ` (${meta.unit})` : "";
+    const layout = {
+        title: { text: `<b>${lc}</b> — ${meta.label}`, font: { size: 13, color: PAL.text }, x: 0.5, xanchor: "center" },
+        paper_bgcolor: PAL.bg, plot_bgcolor: PAL.bg,
+        xaxis: {
+            title: { text: meta.label + xUnit, font: { size: 11, color: PAL.textMuted } },
+            gridcolor: PAL.gridMinor, linecolor: PAL.border, zeroline: true, zerolinecolor: PAL.border,
+            mirror: true, showline: true, ticks: "outside", ticklen: 4
+        },
+        yaxis: {
+            title: { text: "Floor", font: { size: 11, color: PAL.textMuted } },
+            type: "category", categoryorder: "array", categoryarray: yCats,
+            gridcolor: PAL.gridMinor, linecolor: PAL.border,
+            mirror: true, showline: true, ticks: "outside", ticklen: 4, automargin: true
+        },
+        margin: { l: 80, r: 30, t: 50, b: 60 },
+        showlegend: true,
+        legend: { orientation: "h", y: -0.18, xanchor: "center", x: 0.5, font: { size: 10 } },
+        font: { family: "Segoe UI, system-ui, sans-serif", color: PAL.text }
+    };
+    const config = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["lasso2d", "select2d"] };
+    Plotly.react(div, traces, layout, config);
+    requestAnimationFrame(() => { try { Plotly.Plots.resize(div); } catch (e) {} });
+}
+
+function cnExtractValue(floorRec, cornerIdx, meta) {
+    const nid = floorRec.nodes[cornerIdx];
+    if (nid == null) return null;
+    if (meta.source === "disp") {
+        const d = floorRec.perNode[nid];
+        return d ? d[meta.axis] : null;
+    }
+    const dr = floorRec.perNodeDrift ? floorRec.perNodeDrift[nid] : null;
+    if (!dr) return null;
+    if (meta.source === "drift") return dr[meta.axis];
+    if (meta.source === "ratio") return dr[meta.axis];
+    return null;
+}
+
+function cnExtractAverage(floorRec, meta) {
+    if (meta.source === "disp")  return floorRec[meta.axis === "DX" ? "avgDX" : meta.axis === "DY" ? "avgDY" : "avgRES"];
+    if (meta.source === "drift") return floorRec[meta.axis === "DX" ? "drDX"  : meta.axis === "DY" ? "drDY"  : "drRES"];
+    if (meta.source === "ratio") return floorRec[meta.axis];
+    return null;
+}
+
+function cnFormatValue(v, meta) {
+    if (v == null) return "";
+    if (meta.source === "ratio") return v.toExponential(2);
+    return Math.abs(v) < 0.01 ? v.toExponential(1) : v.toFixed(2);
+}
+
+function cnDownloadAllPlots() {
+    if (!cnLastResults) { showToast("Run analysis first", "error"); return; }
+    cnLastResults.loadCases.forEach((lc, idx) => {
+        const div = document.getElementById(`cnPlot_${idx}`);
+        if (!div) return;
+        Plotly.toImage(div, { format: "png", height: 600, width: 900, scale: 2 })
+            .then(dataUrl => {
+                const a = document.createElement("a");
+                a.download = `controlnode_${lc.replace(/[^A-Za-z0-9]/g, "_")}.png`;
+                a.href = dataUrl; a.click();
+            });
+    });
+}
+
+// ── Output tables ────────────────────────────────────────────
+function cnRenderTables() {
+    if (!cnLastResults) return;
+    document.getElementById("cnTablesWrapper").style.display = "block";
+    cnRenderDispTable();
+    cnRenderDriftTable();
+}
+
+function cnRenderDispTable() {
+    const tbl = document.getElementById("cnDispTable");
+    const rows = cnDispTableRows();
+    let html = `<thead><tr class="midas-banner"><th colspan="7">Nodal Displacement (kN, mm)</th></tr><tr class="midas-cols">
+        <th>Load Case</th><th>Floor</th><th>Elevation (m)</th><th>Node</th><th>UX (mm)</th><th>UY (mm)</th><th>Resultant (mm)</th>
+    </tr></thead><tbody>`;
+    rows.forEach(r => {
+        html += `<tr>
+            <td class="midas-mode">${r.lc}</td>
+            <td class="midas-mode">${r.floor}</td>
+            <td>${r.level == null ? "-" : r.level.toFixed(3)}</td>
+            <td>${r.node}</td>
+            <td>${r.UX.toFixed(3)}</td>
+            <td>${r.UY.toFixed(3)}</td>
+            <td>${r.RES.toFixed(3)}</td>
+        </tr>`;
+    });
+    html += `</tbody>`;
+    tbl.innerHTML = html;
+}
+
+function cnDispTableRows() {
+    const out = [];
+    const { loadCases, computed } = cnLastResults;
+    loadCases.forEach(lc => {
+        const arr = computed[lc] || [];
+        // top → bottom in tables (matches MIDAS GUI)
+        for (let i = arr.length - 1; i >= 0; i--) {
+            const f = arr[i];
+            f.nodes.forEach(nid => {
+                const d = nid != null ? f.perNode[nid] : null;
+                if (!d) return;
+                out.push({ lc, floor: f.floor, level: f.level, node: nid, UX: d.DX, UY: d.DY, RES: d.RES });
+            });
+        }
+    });
+    return out;
+}
+
+function cnRenderDriftTable() {
+    const tbl = document.getElementById("cnDriftTable");
+    const rows = cnDriftTableRows();
+    let html = `<thead><tr class="midas-banner"><th colspan="9">Drift (averages per floor; ratio = drift / story-height)</th></tr><tr class="midas-cols">
+        <th>Load Case</th><th>Floor</th><th>Height (m)</th><th>Avg UX (mm)</th><th>Avg UY (mm)</th>
+        <th>Drift UX (mm)</th><th>Drift UY (mm)</th><th>Ratio X</th><th>Ratio Y</th>
+    </tr></thead><tbody>`;
+    rows.forEach(r => {
+        html += `<tr>
+            <td class="midas-mode">${r.lc}</td>
+            <td class="midas-mode">${r.floor}</td>
+            <td>${r.height == null ? "-" : r.height.toFixed(3)}</td>
+            <td>${r.avgUX.toFixed(3)}</td>
+            <td>${r.avgUY.toFixed(3)}</td>
+            <td>${r.drUX.toFixed(3)}</td>
+            <td>${r.drUY.toFixed(3)}</td>
+            <td>${r.ratX == null ? "-" : r.ratX.toExponential(3)}</td>
+            <td>${r.ratY == null ? "-" : r.ratY.toExponential(3)}</td>
+        </tr>`;
+    });
+    html += `</tbody>`;
+    tbl.innerHTML = html;
+}
+
+function cnDriftTableRows() {
+    const out = [];
+    const { loadCases, computed } = cnLastResults;
+    loadCases.forEach(lc => {
+        const arr = computed[lc] || [];
+        for (let i = arr.length - 1; i >= 0; i--) {
+            const f = arr[i];
+            out.push({
+                lc, floor: f.floor, height: f.height,
+                avgUX: f.avgDX, avgUY: f.avgDY,
+                drUX: f.drDX, drUY: f.drDY,
+                ratX: f.ratX, ratY: f.ratY
+            });
+        }
+    });
+    return out;
+}
+
+// ── Export ───────────────────────────────────────────────────
+function cnExport(which, fmt) {
+    if (!cnLastResults) { showToast("Run analysis first", "error"); return; }
+    const rows = which === "disp" ? cnDispTableRows() : cnDriftTableRows();
+    if (!rows.length) { showToast("No rows to export", "error"); return; }
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    const filename = `controlnode_${which}_${stamp}.${fmt}`;
+    let blob;
+    if (fmt === "json") {
+        blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" });
+    } else {
+        const headers = Object.keys(rows[0]);
+        const lines = [headers.join(",")];
+        rows.forEach(r => {
+            lines.push(headers.map(h => {
+                const v = r[h];
+                if (v == null) return "";
+                const s = typeof v === "number" ? v.toString() : String(v).replace(/"/g, '""');
+                return /[",\n]/.test(s) ? `"${s}"` : s;
+            }).join(","));
+        });
+        blob = new Blob([lines.join("\n")], { type: "text/csv" });
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    showToast(`Exported ${rows.length} row(s) → ${filename}`);
 }
 
 // ══════════════════════════════════════════════════════════════
