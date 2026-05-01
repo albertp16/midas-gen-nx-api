@@ -1894,9 +1894,34 @@ Roof, 15.00, 0.00, Consider
                     <span id="irregPlotMeta-vertical" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span>
                 </div>
                 <div style="padding:6px 14px 0;font-size:10px;color:var(--text-muted);">
-                    Plan-view footprint per story (X-Y coordinates of every vertical element). NSCP 2015 flags a story whose plan dimension exceeds 130% of an adjacent story's dimension.
+                    3D stacked footprint (top) and 2D plan view (bottom). NSCP 2015 flags a story whose plan dimension exceeds 130% of an adjacent story's dimension. Critical stories drawn solid red; regular stories use a halftone hatch.
                 </div>
-                <div id="irregPlotCanvas-vertical" style="width:100%;min-height:520px;padding:8px 14px;"></div>
+                <div id="irregPlotCanvas-vertical" style="width:100%;min-height:480px;padding:8px 14px;"></div>
+                <div id="irregPlotCanvas-vertical-plan" style="width:100%;min-height:380px;padding:8px 14px;border-top:1px dashed var(--border);"></div>
+            </div>
+
+            <!-- Type 2: Re-entrant Corners -->
+            <div class="panel" id="irregPlotPanel-reentrant" style="margin-top:12px;display:none;">
+                <div class="panel-header">
+                    <span class="panel-title">Re-entrant Corners &mdash; NSCP 208.4.5.1 (Type 2)</span>
+                    <span id="irregPlotMeta-reentrant" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span>
+                </div>
+                <div style="padding:6px 14px 0;font-size:10px;color:var(--text-muted);">
+                    Plan-view per story with the building's actual footprint outlined and the bounding-box corners highlighted. NSCP 2015 flags a story when a bbox corner has no column within <b>15%</b> of the plan dimension &mdash; that gap is a re-entrant corner.
+                </div>
+                <div id="irregPlotCanvas-reentrant" style="width:100%;min-height:520px;padding:8px 14px;"></div>
+            </div>
+
+            <!-- Type 5: Nonparallel / Orthogonal Check -->
+            <div class="panel" id="irregPlotPanel-orthogonal" style="margin-top:12px;display:none;">
+                <div class="panel-header">
+                    <span class="panel-title">Nonparallel Systems / Orthogonal Check &mdash; NSCP 208.4.5.1 (Type 5)</span>
+                    <span id="irregPlotMeta-orthogonal" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span>
+                </div>
+                <div style="padding:6px 14px 0;font-size:10px;color:var(--text-muted);">
+                    Column plan with major X / Y grid overlay. Columns that align with the detected grid (within tolerance) appear in halftone; columns off-grid (potential nonparallel system) show in red.
+                </div>
+                <div id="irregPlotCanvas-orthogonal" style="width:100%;min-height:520px;padding:8px 14px;"></div>
             </div>
 
             <!-- Type 4: In-Plane Discontinuity -->
@@ -7287,21 +7312,29 @@ async function loadIrregPlotData() {
     const xytol   = isMM ? xytolMM : xytolMM / 1000;
     const ratio   = parseFloat(document.getElementById("irregPlotRatio").value) || 1.3;
 
-    const stories = _groupColumnsByStory(columns, ztol);
-    const type3   = _checkVerticalGeometric(stories, ratio);
-    const type4   = _checkInPlaneDiscontinuity(stories, xytol);
+    const stories  = _groupColumnsByStory(columns, ztol);
+    const type3    = _checkVerticalGeometric(stories, ratio);
+    const type4    = _checkInPlaneDiscontinuity(stories, xytol);
+    const type2    = _checkReEntrantCorners(stories);
+    const type5    = _checkOrthogonality(stories, xytol);
 
-    _irregPlotCache = { columns, stories, type3, type4, ratio, xytol, isMM, unitLabel: isMM ? "mm" : "m" };
+    _irregPlotCache = { columns, stories, type3, type4, type2, type5, ratio, xytol, isMM, unitLabel: isMM ? "mm" : "m" };
     setTimeout(hideProgress, 200);
     renderIrregPlots();
 
     const flagged3 = type3.filter(s => s.flagged).length;
     const flagged4 = type4.filter(c => c.flagged).length;
+    const flagged2 = type2.filter(s => s.flagged).length;
+    const flagged5 = type5.filter(s => s.flagged).length;
+    const flag = (n) => `color:${n ? "var(--accent-orange)" : "var(--text-muted)"};`;
     status.innerHTML = `<span style="color:var(--accent-green);">✓</span> ` +
         `${columns.length} columns · ${stories.length} stories · ` +
-        `<span style="color:${flagged3 ? "var(--accent-orange)" : "var(--text-muted)"};">Type 3: ${flagged3} flagged</span> · ` +
-        `<span style="color:${flagged4 ? "var(--accent-orange)" : "var(--text-muted)"};">Type 4: ${flagged4} flagged</span>`;
-    showToast(`Loaded ${columns.length} columns; ${flagged3 + flagged4} irregularities flagged`, flagged3 + flagged4 ? "error" : "success");
+        `<span style="${flag(flagged2)}">Type 2: ${flagged2}</span> · ` +
+        `<span style="${flag(flagged3)}">Type 3: ${flagged3}</span> · ` +
+        `<span style="${flag(flagged4)}">Type 4: ${flagged4}</span> · ` +
+        `<span style="${flag(flagged5)}">Type 5: ${flagged5}</span>`;
+    const total = flagged2 + flagged3 + flagged4 + flagged5;
+    showToast(`Loaded ${columns.length} columns; ${total} irregularit${total === 1 ? "y" : "ies"} flagged`, total ? "error" : "success");
 }
 
 // Cluster columns by their top-of-column Z so that "story N" = all columns
@@ -7381,10 +7414,357 @@ function _checkInPlaneDiscontinuity(stories, xytol) {
 
 function renderIrregPlots() {
     if (!_irregPlotCache) return;
-    _renderType3Plot();
-    _renderType4Plot();
-    document.getElementById("irregPlotPanel-vertical").style.display = "";
-    document.getElementById("irregPlotPanel-inplane").style.display = "";
+    _renderType3Plot();        // 3D stacked footprint
+    _renderType3PlanView();    // 2D plan view with halftone hatch
+    _renderType2Plot();        // re-entrant corners (Type 2)
+    _renderType5Plot();        // orthogonal / nonparallel (Type 5)
+    _renderType4Plot();        // 3D + 2D X-Z elevation
+    ["vertical", "reentrant", "orthogonal", "inplane"].forEach(k => {
+        const p = document.getElementById(`irregPlotPanel-${k}`);
+        if (p) p.style.display = "";
+    });
+}
+
+// NSCP 208.4.5.1 Type 2 — Re-entrant Corners.
+// For each story: build the bbox from column positions, then for each of the 4
+// bbox corners measure how far the nearest column sits from that corner. The
+// largest such gap = re-entrant projection. Flag the story if the projection
+// exceeds 15% of the corresponding plan dimension.
+function _checkReEntrantCorners(stories) {
+    return stories.map(s => {
+        const xs = s.columns.map(c => c.x), ys = s.columns.map(c => c.y);
+        if (xs.length < 4) {
+            return { idx: s.idx, zMin: s.zMin, zMax: s.zMax, columns: s.columns,
+                     bbox: null, gap: 0, gapDir: "—", ratio: 0, flagged: false, worstCorner: null };
+        }
+        const x0 = Math.min(...xs), x1 = Math.max(...xs);
+        const y0 = Math.min(...ys), y1 = Math.max(...ys);
+        const dimX = x1 - x0, dimY = y1 - y0;
+        const corners = [
+            { name: "SW", cx: x0, cy: y0 },
+            { name: "SE", cx: x1, cy: y0 },
+            { name: "NE", cx: x1, cy: y1 },
+            { name: "NW", cx: x0, cy: y1 }
+        ];
+        let worstCorner = null, worstGapX = 0, worstGapY = 0;
+        for (const corner of corners) {
+            // Find the column closest to this bbox corner.
+            let nearest = null, minDist = Infinity;
+            for (const col of s.columns) {
+                const d = Math.hypot(col.x - corner.cx, col.y - corner.cy);
+                if (d < minDist) { minDist = d; nearest = col; }
+            }
+            if (!nearest) continue;
+            const gx = Math.abs(nearest.x - corner.cx);
+            const gy = Math.abs(nearest.y - corner.cy);
+            // Re-entrant gap = how deep the missing corner is in either direction.
+            const gap = Math.max(gx, gy);
+            if (gap > Math.max(worstGapX, worstGapY)) {
+                worstCorner = { ...corner, nearest, gx, gy };
+                worstGapX = gx; worstGapY = gy;
+            }
+        }
+        const ratioX = dimX > 0 ? worstGapX / dimX : 0;
+        const ratioY = dimY > 0 ? worstGapY / dimY : 0;
+        const ratio  = Math.max(ratioX, ratioY);
+        const gapDir = ratioX >= ratioY ? "X" : "Y";
+        return {
+            idx: s.idx, zMin: s.zMin, zMax: s.zMax, columns: s.columns,
+            bbox: { x0, x1, y0, y1, dimX, dimY },
+            gap: Math.max(worstGapX, worstGapY),
+            gapDir, ratio,
+            flagged: ratio > 0.15,
+            worstCorner
+        };
+    });
+}
+
+// NSCP 208.4.5.1 Type 5 — Nonparallel Systems.
+// We don't have wall/brace orientations in /db/elem (those are area elements),
+// so this check approximates the question by inspecting whether columns sit on
+// orthogonal grid lines. Algorithm: find the 1-D clusters of column X-coords
+// and Y-coords (gridlines); tag each column with its grid index; columns that
+// sit between gridlines (no cluster within tol) are "off-grid" candidates for
+// nonparallel resisting elements. Flag the story when off-grid count > 15%.
+function _checkOrthogonality(stories, xytol) {
+    // Cluster a sorted 1-D series into groups within tol; return cluster
+    // centers + assignment per input.
+    const cluster1d = (vals, tol) => {
+        if (!vals.length) return { centers: [], assign: [] };
+        const indexed = vals.map((v, i) => ({ v, i })).sort((a, b) => a.v - b.v);
+        const centers = [];
+        const assign = new Array(vals.length).fill(-1);
+        let cur = { sum: indexed[0].v, n: 1, members: [indexed[0].i] };
+        for (let k = 1; k < indexed.length; k++) {
+            const ent = indexed[k];
+            const center = cur.sum / cur.n;
+            if (ent.v - center < tol * 3) {  // wider grid tolerance than xytol
+                cur.sum += ent.v; cur.n++; cur.members.push(ent.i);
+            } else {
+                centers.push({ pos: cur.sum / cur.n, count: cur.n });
+                cur.members.forEach(i => assign[i] = centers.length - 1);
+                cur = { sum: ent.v, n: 1, members: [ent.i] };
+            }
+        }
+        centers.push({ pos: cur.sum / cur.n, count: cur.n });
+        cur.members.forEach(i => assign[i] = centers.length - 1);
+        return { centers, assign };
+    };
+
+    return stories.map(s => {
+        const xs = s.columns.map(c => c.x);
+        const ys = s.columns.map(c => c.y);
+        const xCluster = cluster1d(xs, xytol);
+        const yCluster = cluster1d(ys, xytol);
+        // A column is "on grid" when it belongs to a cluster of ≥2 members in
+        // BOTH X and Y — sole columns are statistically off-grid.
+        const offGrid = [];
+        for (let i = 0; i < s.columns.length; i++) {
+            const xCount = xCluster.centers[xCluster.assign[i]]?.count ?? 0;
+            const yCount = yCluster.centers[yCluster.assign[i]]?.count ?? 0;
+            if (xCount < 2 || yCount < 2) offGrid.push(s.columns[i]);
+        }
+        const ratio = s.columns.length > 0 ? offGrid.length / s.columns.length : 0;
+        return {
+            idx: s.idx, zMin: s.zMin, zMax: s.zMax, columns: s.columns,
+            xLines: xCluster.centers.map(c => c.pos),
+            yLines: yCluster.centers.map(c => c.pos),
+            offGrid,
+            ratio,
+            flagged: ratio > 0.15
+        };
+    });
+}
+
+// 2D plan view of every story stacked, but with the bounding box drawn in
+// dashed grey and the worst re-entrant corner highlighted with a red wedge
+// from the bbox corner to the nearest column. Stories without a 15% gap
+// stay halftone; flagged stories use the red wedge.
+function _renderType2Plot() {
+    if (typeof Plotly === "undefined") return;
+    const { type2, unitLabel } = _irregPlotCache;
+    const halftone = document.getElementById("irregPlotHalftone").checked;
+
+    const traces = [];
+    type2.forEach((s, i) => {
+        if (!s.bbox) return;
+        const flagged = s.flagged;
+        const isHalftone = halftone && !flagged;
+        const opacity = isHalftone ? 0.45 : 1;
+        const color = flagged ? "#f85149" : "#888";
+        const { x0, x1, y0, y1 } = s.bbox;
+
+        // Bbox outline (dashed).
+        traces.push({
+            type: "scatter", mode: "lines",
+            x: [x0, x1, x1, x0, x0], y: [y0, y0, y1, y1, y0],
+            line: { color, width: flagged ? 2.5 : 1, dash: "dash" },
+            opacity,
+            name: `Story ${i + 1} bbox (z=${s.zMax.toFixed(2)} ${unitLabel})${flagged ? " ⚠" : ""}`,
+            hovertemplate: `Story ${i + 1}<br>dim X=${s.bbox.dimX.toFixed(2)} ${unitLabel}<br>dim Y=${s.bbox.dimY.toFixed(2)} ${unitLabel}<br>gap=${s.gap.toFixed(2)} ${unitLabel} (${s.gapDir})<br>ratio=${(100 * s.ratio).toFixed(1)}%<extra></extra>`,
+            legendgroup: `t2-${i}`
+        });
+
+        // Column dots, smaller for halftone.
+        traces.push({
+            type: "scatter", mode: "markers",
+            x: s.columns.map(c => c.x), y: s.columns.map(c => c.y),
+            marker: { size: flagged ? 6 : 3, color: flagged ? "#f85149" : "#999", opacity },
+            showlegend: false, legendgroup: `t2-${i}`, hoverinfo: "skip"
+        });
+
+        // Red wedge at the worst corner — only for flagged stories.
+        if (flagged && s.worstCorner) {
+            const wc = s.worstCorner;
+            traces.push({
+                type: "scatter", mode: "lines",
+                x: [wc.cx, wc.nearest.x, wc.cx, wc.cx],
+                y: [wc.cy, wc.cy, wc.nearest.y, wc.cy],
+                fill: "toself",
+                fillcolor: "rgba(248, 81, 73, 0.28)",
+                line: { color: "#f85149", width: 2 },
+                name: `Story ${i + 1} re-entrant corner`,
+                showlegend: false, legendgroup: `t2-${i}`,
+                hovertemplate: `Re-entrant ${wc.name} corner<br>gx=${wc.gx.toFixed(2)} · gy=${wc.gy.toFixed(2)}<extra></extra>`
+            });
+        }
+    });
+
+    Plotly.newPlot("irregPlotCanvas-reentrant", traces, {
+        title: { text: "Re-entrant Corners — bbox + worst-corner wedge per story (red = > 15% gap)", font: { size: 13 } },
+        xaxis: { title: `X (${unitLabel})`, zeroline: false },
+        yaxis: { title: `Y (${unitLabel})`, scaleanchor: "x", scaleratio: 1, zeroline: false },
+        showlegend: true,
+        legend: { x: 1.02, y: 1, font: { size: 10 } },
+        margin: { t: 40, l: 60, r: 220, b: 50 },
+        paper_bgcolor: "white", plot_bgcolor: "#fafafa"
+    }, { responsive: true, displaylogo: false });
+
+    document.getElementById("irregPlotMeta-reentrant").textContent =
+        `${type2.filter(s => s.flagged).length} flagged of ${type2.length} stor${type2.length === 1 ? "y" : "ies"}`;
+}
+
+// X-Y plan of all columns from all stories with the detected major grid
+// overlaid as faint reference lines. On-grid columns drawn halftone grey;
+// off-grid columns highlighted red as potential nonparallel resisting elements.
+function _renderType5Plot() {
+    if (typeof Plotly === "undefined") return;
+    const { type5, columns, unitLabel } = _irregPlotCache;
+    const halftone = document.getElementById("irregPlotHalftone").checked;
+
+    // Aggregate the off-grid set across all stories.
+    const offGridIds = new Set();
+    type5.forEach(s => s.offGrid.forEach(c => offGridIds.add(c.id)));
+
+    // Dedupe columns by (x, y) since the same column repeats across stories.
+    const seen = new Map();
+    for (const c of columns) {
+        const key = `${c.x.toFixed(3)}|${c.y.toFixed(3)}`;
+        if (!seen.has(key)) seen.set(key, c);
+    }
+    const uniqueCols = Array.from(seen.values());
+
+    const onGrid  = uniqueCols.filter(c => !offGridIds.has(c.id));
+    const offGrid = uniqueCols.filter(c =>  offGridIds.has(c.id));
+
+    // Pull a representative grid (first story's, since usually consistent).
+    const refGrid = type5[0] || { xLines: [], yLines: [] };
+
+    const traces = [];
+    // Grid lines as faint reference.
+    const xs = uniqueCols.map(c => c.x), ys = uniqueCols.map(c => c.y);
+    const xMin = Math.min(...xs), xMax = Math.max(...xs);
+    const yMin = Math.min(...ys), yMax = Math.max(...ys);
+    const padX = (xMax - xMin) * 0.08 || 1;
+    const padY = (yMax - yMin) * 0.08 || 1;
+    const gridX = [], gridY = [];
+    refGrid.xLines.forEach(xv => { gridX.push(xv, xv, null); gridY.push(yMin - padY, yMax + padY, null); });
+    refGrid.yLines.forEach(yv => { gridX.push(xMin - padX, xMax + padX, null); gridY.push(yv, yv, null); });
+    if (gridX.length) traces.push({
+        type: "scatter", mode: "lines",
+        x: gridX, y: gridY,
+        line: { color: "rgba(120, 160, 200, 0.35)", width: 1, dash: "dot" },
+        name: `Detected grid (${refGrid.xLines.length}×${refGrid.yLines.length})`,
+        hoverinfo: "skip"
+    });
+
+    // On-grid columns (halftone-able).
+    if (onGrid.length) traces.push({
+        type: "scatter", mode: "markers",
+        x: onGrid.map(c => c.x), y: onGrid.map(c => c.y),
+        marker: { size: 7, color: halftone ? "rgba(120,120,120,0.45)" : "#7aa6d6", line: { width: 0 } },
+        name: `On-grid columns (${onGrid.length})`,
+        hovertemplate: `Col %{text}<br>x=%{x:.2f} ${unitLabel}<br>y=%{y:.2f} ${unitLabel}<extra></extra>`,
+        text: onGrid.map(c => c.id)
+    });
+
+    // Off-grid columns — solid red, larger, never halftoned.
+    if (offGrid.length) traces.push({
+        type: "scatter", mode: "markers",
+        x: offGrid.map(c => c.x), y: offGrid.map(c => c.y),
+        marker: { size: 12, color: "#f85149", symbol: "diamond", line: { width: 1.5, color: "#fff" } },
+        name: `Off-grid columns (${offGrid.length})`,
+        hovertemplate: `⚠ Col %{text} (off-grid)<br>x=%{x:.2f} ${unitLabel}<br>y=%{y:.2f} ${unitLabel}<extra></extra>`,
+        text: offGrid.map(c => c.id)
+    });
+
+    Plotly.newPlot("irregPlotCanvas-orthogonal", traces, {
+        title: { text: "Column Plan — orthogonal grid check (red diamonds = off-grid / Type 5 candidates)", font: { size: 13 } },
+        xaxis: { title: `X (${unitLabel})`, zeroline: false },
+        yaxis: { title: `Y (${unitLabel})`, scaleanchor: "x", scaleratio: 1, zeroline: false },
+        showlegend: true,
+        legend: { x: 1.02, y: 1, font: { size: 10 } },
+        margin: { t: 40, l: 60, r: 220, b: 50 },
+        paper_bgcolor: "white", plot_bgcolor: "#fafafa"
+    }, { responsive: true, displaylogo: false });
+
+    document.getElementById("irregPlotMeta-orthogonal").textContent =
+        `${offGrid.length} off-grid of ${uniqueCols.length} unique column position(s) · ${type5.filter(s => s.flagged).length} story-level flag(s)`;
+}
+
+// Convert "#rrggbb" → "rgba(r, g, b, a)". Falls back to grey if input isn't hex.
+function _hexToRgba(hex, alpha) {
+    if (!/^#[0-9a-f]{6}$/i.test(String(hex))) return `rgba(120, 120, 120, ${alpha})`;
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+// 2D plan view of the Type 3 footprint — every story rendered as a closed
+// rectangle outline at its bounding-box extents on a single X-Y axis. Halftone
+// non-critical stories use a diagonal hatch fill (Plotly fillpattern, supported
+// in Plotly.js v2.18+; older versions ignore it and just show the lower opacity).
+function _renderType3PlanView() {
+    if (typeof Plotly === "undefined") return;
+    const { type3, unitLabel } = _irregPlotCache;
+    const halftone = document.getElementById("irregPlotHalftone").checked;
+    const palette = ["#58a6ff", "#3fb950", "#f0883e", "#d2a8ff", "#79c0ff", "#d29922"];
+
+    const traces = [];
+    type3.forEach((s, i) => {
+        const flagged = s.flagged;
+        const color = flagged ? "#f85149" : palette[i % palette.length];
+        const xs = s.columns.map(c => c.x), ys = s.columns.map(c => c.y);
+        if (!xs.length) return;
+        const x0 = Math.min(...xs), x1 = Math.max(...xs);
+        const y0 = Math.min(...ys), y1 = Math.max(...ys);
+        const isHalftone = halftone && !flagged;
+
+        // Bounding-box footprint: closed rectangle, filled. Halftone non-flagged
+        // stories get a diagonal "/" hatch and dotted outline; flagged ones get
+        // a solid red fill + bold red outline.
+        traces.push({
+            type: "scatter",
+            mode: "lines",
+            x: [x0, x1, x1, x0, x0],
+            y: [y0, y0, y1, y1, y0],
+            fill: "toself",
+            fillcolor: flagged ? _hexToRgba("#f85149", 0.18) : _hexToRgba(color, isHalftone ? 0.05 : 0.12),
+            // Plotly v2.18+ understands fillpattern for scatter+fill='toself'.
+            // Older versions ignore it cleanly — we still get the alpha + dash
+            // halftone fallback.
+            fillpattern: isHalftone ? { shape: "/", size: 6, fgcolor: color, bgcolor: "rgba(0,0,0,0)" } : undefined,
+            line: {
+                color,
+                width: flagged ? 3 : 1.6,
+                dash: flagged ? "solid" : (isHalftone ? "dot" : "solid")
+            },
+            opacity: isHalftone ? 0.65 : 1,
+            name: `Story ${i + 1} (z=${s.zMax.toFixed(2)} ${unitLabel})${flagged ? " ⚠" : ""}`,
+            hovertemplate: `Story ${i + 1}<br>wx=${s.wx.toFixed(2)} ${unitLabel} · wy=${s.wy.toFixed(2)} ${unitLabel}<br>ratio vs adjacent=${s.ratioAdjacent.toFixed(2)}<extra></extra>`,
+            legendgroup: `plan-${i}`
+        });
+
+        // Column-position markers inside the footprint, smaller and lower-opacity
+        // for non-flagged stories so the hatched outline carries the visual weight.
+        traces.push({
+            type: "scatter",
+            mode: "markers",
+            x: xs, y: ys,
+            marker: {
+                size: flagged ? 7 : 4,
+                color,
+                line: { width: flagged ? 1 : 0, color: "#fff" },
+                symbol: flagged ? "circle" : "circle-open"
+            },
+            opacity: isHalftone ? 0.45 : 0.9,
+            showlegend: false,
+            legendgroup: `plan-${i}`,
+            hoverinfo: "skip"
+        });
+    });
+
+    Plotly.newPlot("irregPlotCanvas-vertical-plan", traces, {
+        title: { text: "Plan View — stacked story footprints (halftone hatch = regular, solid red = Type 3)", font: { size: 13 } },
+        xaxis: { title: `X (${unitLabel})`, zeroline: false },
+        yaxis: { title: `Y (${unitLabel})`, scaleanchor: "x", scaleratio: 1, zeroline: false },
+        showlegend: true,
+        legend: { x: 1.02, y: 1, font: { size: 10 } },
+        margin: { t: 40, l: 60, r: 200, b: 50 },
+        paper_bgcolor: "white",
+        plot_bgcolor: "#fafafa"
+    }, { responsive: true, displaylogo: false });
 }
 
 // Type 3 plot: 3D stacked footprint. Each story renders as:
@@ -7555,36 +7935,66 @@ function _renderType4Plot() {
 
 function downloadIrregPlotCSV() {
     if (!_irregPlotCache) { showToast("Click Load Model & Run first", "error"); return; }
-    const { type3, type4 } = _irregPlotCache;
+    const { type2, type3, type4, type5, unitLabel } = _irregPlotCache;
+    const u = unitLabel;
+
+    const t2rows = [
+        ["NSCP Type 2 — Re-entrant Corners (15% threshold)"],
+        ["Story Index", `z_max (${u})`, `dim X (${u})`, `dim Y (${u})`, `Worst Gap (${u})`, "Gap Direction", "Ratio (%)", "Worst Corner", "Flagged"]
+    ];
+    for (const s of type2) {
+        t2rows.push([
+            s.idx + 1, s.zMax.toFixed(2),
+            s.bbox ? s.bbox.dimX.toFixed(2) : "—",
+            s.bbox ? s.bbox.dimY.toFixed(2) : "—",
+            s.gap.toFixed(2), s.gapDir,
+            (100 * s.ratio).toFixed(1),
+            s.worstCorner ? s.worstCorner.name : "—",
+            s.flagged ? "Re-entrant (Type 2)" : "Regular"
+        ]);
+    }
 
     const t3rows = [
-        ["NSCP Type 3 — Vertical Geometric Irregularity"],
-        ["Story Index", "z_min (mm)", "z_max (mm)", "wx (mm)", "wy (mm)", "Max Ratio vs Adjacent", "Threshold", "Flagged"]
+        [""], ["NSCP Type 3 — Vertical Geometric Irregularity (130% threshold)"],
+        ["Story Index", `z_min (${u})`, `z_max (${u})`, `wx (${u})`, `wy (${u})`, "Max Ratio vs Adjacent", "Threshold", "Flagged"]
     ];
     for (const s of type3) {
         t3rows.push([
-            s.idx + 1, s.zMin.toFixed(1), s.zMax.toFixed(1),
-            s.wx.toFixed(1), s.wy.toFixed(1),
+            s.idx + 1, s.zMin.toFixed(2), s.zMax.toFixed(2),
+            s.wx.toFixed(2), s.wy.toFixed(2),
             s.ratioAdjacent.toFixed(3), _irregPlotCache.ratio.toFixed(2),
             s.flagged ? "Irregular (Type 3)" : "Regular"
         ]);
     }
     const t4rows = [
         [""], ["NSCP Type 4 — In-Plane Discontinuity"],
-        ["Column ID", "Story Index", "x (mm)", "y (mm)", "z_min (mm)", "z_max (mm)", "Section", "Flagged"]
+        ["Column ID", "Story Index", `x (${u})`, `y (${u})`, `z_min (${u})`, `z_max (${u})`, "Section", "Flagged"]
     ];
     for (const c of type4) {
         t4rows.push([
             c.id, c.storyIdx + 1,
-            c.x.toFixed(1), c.y.toFixed(1),
-            c.zMin.toFixed(1), c.zMax.toFixed(1),
+            c.x.toFixed(2), c.y.toFixed(2),
+            c.zMin.toFixed(2), c.zMax.toFixed(2),
             c.section || "—",
             c.flagged ? "Discontinuous (Type 4)" : "Continuous"
         ]);
     }
+    const t5rows = [
+        [""], ["NSCP Type 5 — Nonparallel Systems / Orthogonal Check"],
+        ["Story Index", `z_max (${u})`, "Grid X-lines", "Grid Y-lines", "Off-grid Cols", "Total Cols", "Off-grid %", "Flagged"]
+    ];
+    for (const s of type5) {
+        t5rows.push([
+            s.idx + 1, s.zMax.toFixed(2),
+            s.xLines.length, s.yLines.length,
+            s.offGrid.length, s.columns.length,
+            (100 * s.ratio).toFixed(1),
+            s.flagged ? "Off-grid (Type 5)" : "Regular"
+        ]);
+    }
 
     const escape = v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
-    const csv = [...t3rows, ...t4rows].map(r => r.map(escape).join(",")).join("\n");
+    const csv = [...t2rows, ...t3rows, ...t4rows, ...t5rows].map(r => r.map(escape).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
