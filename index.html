@@ -1097,8 +1097,15 @@ Roof, 15.00, 0.00, Consider
                                 Show values
                             </label>
                         </div>
+                        <div class="form-group">
+                            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-weight:normal;">
+                                <input type="checkbox" id="cnShowEnvelope" onchange="cnRedrawPlots()" />
+                                Show maximum (envelope of all cases)
+                            </label>
+                        </div>
                     </div>
                     <div id="cnPlotGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:16px;"></div>
+                    <div id="cnEnvelopeGrid" style="margin-top:16px;"></div>
                 </div>
             </div>
 
@@ -5256,15 +5263,18 @@ function cnComputeAll(floors, loadCases, byLc) {
 function cnRedrawPlots() {
     if (!cnLastResults) return;
     const grid = document.getElementById("cnPlotGrid");
+    const envGrid = document.getElementById("cnEnvelopeGrid");
     if (!grid) return;
     grid.innerHTML = "";
+    if (envGrid) envGrid.innerHTML = "";
     document.getElementById("cnPlotsWrapper").style.display = "block";
     const quantity = document.getElementById("cnQuantity").value;
     const avgOnly = document.getElementById("cnAvgOnly").checked;
     const showValues = document.getElementById("cnShowValues").checked;
+    const showEnv = (document.getElementById("cnShowEnvelope") || {}).checked || false;
     const ratioFmt = (document.getElementById("cnRatioFmt") || {}).value || "dec";
     const { loadCases, computed } = cnLastResults;
-    cnLastPlotConfig = { quantity, avgOnly, showValues, ratioFmt };
+    cnLastPlotConfig = { quantity, avgOnly, showValues, ratioFmt, showEnv };
 
     // Re-render the drift table too so its ratio columns honour the selected format
     if (cnLastResults) cnRenderDriftTable();
@@ -5276,6 +5286,72 @@ function cnRedrawPlots() {
         cell.innerHTML = `<div id="${divId}" style="width:100%;height:440px;"></div>`;
         grid.appendChild(cell);
         cnDrawOnePlot(divId, lc, computed[lc] || [], quantity, avgOnly, showValues, ratioFmt);
+    });
+
+    if (showEnv && envGrid) {
+        const envFloors = cnComputeEnvelope(loadCases, computed);
+        const cell = document.createElement("div");
+        cell.style.cssText = "background:var(--bg-secondary);border:2px solid var(--accent-orange);border-radius:var(--radius);padding:10px;";
+        const divId = "cnPlot_env";
+        cell.innerHTML = `<div id="${divId}" style="width:100%;height:480px;"></div>`;
+        envGrid.appendChild(cell);
+        cnDrawOnePlot(divId, "Envelope (max of all cases)", envFloors, quantity, avgOnly, showValues, ratioFmt);
+    }
+}
+
+// Build a synthetic per-floor record where each value is the max-absolute across
+// all load cases. Preserves the {perNode, perNodeDrift, avg*, dr*, rat*} shape
+// expected by cnDrawOnePlot so we don't need a special drawing path.
+function cnComputeEnvelope(loadCases, computed) {
+    const perCase = loadCases.map(lc => computed[lc] || []).filter(a => a.length);
+    if (!perCase.length) return [];
+    // Floor order is identical across cases (set by cnRunAnalysis); use the first
+    const ref = perCase[0];
+    return ref.map((refF, i) => {
+        const all = perCase.map(arr => arr[i]).filter(Boolean);
+        // Helper: pick the value with the largest absolute value across cases
+        const maxAbs = vals => {
+            const numeric = vals.filter(v => v != null && Number.isFinite(v));
+            if (!numeric.length) return null;
+            return numeric.reduce((acc, v) => Math.abs(v) > Math.abs(acc) ? v : acc);
+        };
+        const out = {
+            floor: refF.floor, level: refF.level, height: refF.height,
+            nodes: refF.nodes.slice(),
+            perNode: {},
+            perNodeDrift: {},
+            avgDX:  maxAbs(all.map(f => f.avgDX)),
+            avgDY:  maxAbs(all.map(f => f.avgDY)),
+            avgRES: maxAbs(all.map(f => f.avgRES)),
+            drDX:   maxAbs(all.map(f => f.drDX)),
+            drDY:   maxAbs(all.map(f => f.drDY)),
+            drRES:  maxAbs(all.map(f => f.drRES)),
+            ratX:   maxAbs(all.map(f => f.ratX)),
+            ratY:   maxAbs(all.map(f => f.ratY)),
+            count:  refF.count
+        };
+        // Per-corner: walk every node id present in any case for this floor
+        const allNids = new Set();
+        all.forEach(f => Object.keys(f.perNode || {}).forEach(n => allNids.add(n)));
+        allNids.forEach(nidStr => {
+            const nid = +nidStr;
+            const dxs = all.map(f => f.perNode[nid] ? f.perNode[nid].DX : null);
+            const dys = all.map(f => f.perNode[nid] ? f.perNode[nid].DY : null);
+            const ress = all.map(f => f.perNode[nid] ? f.perNode[nid].RES : null);
+            out.perNode[nid] = {
+                DX: maxAbs(dxs), DY: maxAbs(dys), RES: maxAbs(ress)
+            };
+            const drxs = all.map(f => f.perNodeDrift && f.perNodeDrift[nid] ? f.perNodeDrift[nid].DX : null);
+            const drys = all.map(f => f.perNodeDrift && f.perNodeDrift[nid] ? f.perNodeDrift[nid].DY : null);
+            const drress = all.map(f => f.perNodeDrift && f.perNodeDrift[nid] ? f.perNodeDrift[nid].RES : null);
+            const ratXs = all.map(f => f.perNodeDrift && f.perNodeDrift[nid] ? f.perNodeDrift[nid].ratX : null);
+            const ratYs = all.map(f => f.perNodeDrift && f.perNodeDrift[nid] ? f.perNodeDrift[nid].ratY : null);
+            out.perNodeDrift[nid] = {
+                DX: maxAbs(drxs), DY: maxAbs(drys), RES: maxAbs(drress),
+                ratX: maxAbs(ratXs), ratY: maxAbs(ratYs)
+            };
+        });
+        return out;
     });
 }
 
