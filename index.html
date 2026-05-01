@@ -1042,16 +1042,27 @@ Roof, 15.00, 0.00, Consider
             <!-- Step 3: Run -->
             <div class="panel">
                 <div class="panel-header"><span class="panel-title">3. Run</span></div>
-                <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                <div class="form-row" style="gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px;">
+                    <div class="form-group">
+                        <label>Scale Factor (C<sub>d</sub>/I<sub>e</sub>)</label>
+                        <input type="number" id="cnScaleFactor" class="input" value="1.0" step="0.01" min="0" style="width:110px;" />
+                    </div>
+                    <div class="form-group">
+                        <label>Allowable Ratio (Δ/h)</label>
+                        <input type="number" id="cnAllowable" class="input" value="0.020" step="0.001" min="0" style="width:110px;" />
+                    </div>
+                    <div class="form-group" style="flex:1;"></div>
                     <button class="btn btn-blue" style="padding:10px 22px;font-size:14px;font-weight:600;" onclick="cnRunAnalysis()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:16px;height:16px;"><polygon points="5 3 19 12 5 21 5 3"/></svg>
                         Fetch &amp; Plot
                     </button>
-                    <span style="font-size:12px;color:var(--text-muted);">
-                        Validates inputs, fetches <code>DISPLACEMENTG</code> for the 4 selected load cases,
-                        computes drift &amp; ratio, then renders plots and tables.
-                    </span>
                 </div>
+                <p style="margin:0;font-size:11px;color:var(--text-muted);">
+                    <b>Note:</b> <code>DISPLACEMENTG</code> returns <b>elastic</b> displacements. For code-compliant drift
+                    checks (NSCP 2015 §208 / ASCE 7), enter your project's <b>C<sub>d</sub>/I<sub>e</sub></b>
+                    (e.g. 5.5/1.0 = 5.5 for SMRF Risk Cat. II). Set to <b>1.0</b> to keep raw elastic values.
+                    Allowable Ratio is shown as a vertical limit line on the drift-ratio plots.
+                </p>
             </div>
 
             <!-- Plots: 2x2 grid, one per load case -->
@@ -5094,6 +5105,11 @@ async function cnRunAnalysis() {
     if (lcs.length < 4) { showToast("Pick 4 load cases", "error"); return; }
     if (new Set(lcs).size < lcs.length) { showToast("Load cases must be distinct", "error"); return; }
 
+    // Cd/Ie scale factor — applied to elastic DISPLACEMENTG values to obtain
+    // design (inelastic) displacements per NSCP/ASCE 7 §12.8.6.
+    const scaleFactor = parseFloat(document.getElementById("cnScaleFactor").value) || 1.0;
+    const allowable = parseFloat(document.getElementById("cnAllowable").value) || 0;
+
     // Sort floors bottom → top by elevation (drift = disp(i) - disp(i-1) needs ordered floors)
     const orderedFloors = [...v.rows].sort((a, b) => {
         const la = a.story ? a.story.level : 0;
@@ -5124,7 +5140,16 @@ async function cnRunAnalysis() {
                 }
             };
             const res = await midasAPI("POST", "/post/TABLE", body);
-            byLc[lc] = cnParseDisplacementResponse(res, nodeKeys);
+            const parsed = cnParseDisplacementResponse(res, nodeKeys);
+            // Apply Cd/Ie scaling to obtain design (inelastic) displacements
+            if (parsed && scaleFactor !== 1.0) {
+                Object.keys(parsed).forEach(nid => {
+                    parsed[nid].DX *= scaleFactor;
+                    parsed[nid].DY *= scaleFactor;
+                    parsed[nid].DZ *= scaleFactor;
+                });
+            }
+            byLc[lc] = parsed;
             if (!byLc[lc]) {
                 showToast(`No displacement data for "${lc}" — skipped`, "error");
             }
@@ -5150,12 +5175,17 @@ async function cnRunAnalysis() {
         };
     });
 
-    cnLastResults = { loadCases: lcs, floors, byLc, computed: cnComputeAll(floors, lcs, byLc) };
+    cnLastResults = {
+        loadCases: lcs, floors, byLc,
+        computed: cnComputeAll(floors, lcs, byLc),
+        scaleFactor, allowable
+    };
 
     hideProgress();
     cnRedrawPlots();
     cnRenderTables();
-    showToast("Control-node analysis complete");
+    const scaleNote = scaleFactor !== 1.0 ? ` (scaled ×${scaleFactor} for design displacement)` : " (raw elastic)";
+    showToast("Control-node analysis complete" + scaleNote);
 }
 
 // Robust column lookup: MIDAS may return DX/DY/DZ or UX/UY/UZ depending on locale/version
@@ -5436,8 +5466,34 @@ function cnDrawOnePlot(divId, lc, perFloor, quantity, avgOnly, showValues, ratio
     });
 
     const xUnit = isRatio ? (rfmt.suffix ? ` (${rfmt.suffix})` : "") : (meta.unit ? ` (${meta.unit})` : "");
+    const sf = (cnLastResults && cnLastResults.scaleFactor) || 1.0;
+    const sfBadge = sf !== 1.0 ? ` <span style="font-size:10px;color:${PAL.textMuted};">(×${sf} Cd/Ie)</span>` : "";
+    // Vertical limit line at the allowable drift ratio (only for ratio plots)
+    const allowable = (cnLastResults && cnLastResults.allowable) || 0;
+    const shapes = [];
+    const annotations = [];
+    if (isRatio && allowable > 0) {
+        const limit = allowable * rfmt.scale;
+        shapes.push({
+            type: "line", xref: "x", yref: "paper",
+            x0: limit, x1: limit, y0: 0, y1: 1,
+            line: { color: "#cf222e", width: 1.5, dash: "dash" }
+        });
+        // Mirror to negative side too — drifts can be ±
+        shapes.push({
+            type: "line", xref: "x", yref: "paper",
+            x0: -limit, x1: -limit, y0: 0, y1: 1,
+            line: { color: "#cf222e", width: 1.5, dash: "dash" }
+        });
+        annotations.push({
+            x: limit, y: 1, xref: "x", yref: "paper",
+            text: `Allowable ${(allowable * rfmt.scale).toFixed(rfmt.decimals)}${rfmt.suffix}`,
+            showarrow: false, font: { size: 10, color: "#cf222e" },
+            xanchor: "left", yanchor: "top", bgcolor: PAL.bg, borderpad: 2
+        });
+    }
     const layout = {
-        title: { text: `<b>${lc}</b> — ${meta.label}`, font: { size: 13, color: PAL.text }, x: 0.5, xanchor: "center" },
+        title: { text: `<b>${lc}</b> — ${meta.label}${sfBadge}`, font: { size: 13, color: PAL.text }, x: 0.5, xanchor: "center" },
         paper_bgcolor: PAL.bg, plot_bgcolor: PAL.bg,
         xaxis: {
             title: { text: meta.label + xUnit, font: { size: 11, color: PAL.textMuted } },
@@ -5456,7 +5512,8 @@ function cnDrawOnePlot(divId, lc, perFloor, quantity, avgOnly, showValues, ratio
         margin: { l: 80, r: 30, t: 50, b: 60 },
         showlegend: true,
         legend: { orientation: "h", y: -0.18, xanchor: "center", x: 0.5, font: { size: 10 } },
-        font: { family: "Segoe UI, system-ui, sans-serif", color: PAL.text }
+        font: { family: "Segoe UI, system-ui, sans-serif", color: PAL.text },
+        shapes, annotations
     };
     const config = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["lasso2d", "select2d"] };
     Plotly.react(div, traces, layout, config);
@@ -5519,7 +5576,11 @@ function cnRenderTables() {
 function cnRenderDispTable() {
     const tbl = document.getElementById("cnDispTable");
     const rows = cnDispTableRows();
-    let html = `<thead><tr class="midas-banner"><th colspan="7">Nodal Displacement (kN, mm)</th></tr><tr class="midas-cols">
+    const sf = (cnLastResults && cnLastResults.scaleFactor) || 1.0;
+    const banner = sf !== 1.0
+        ? `Nodal Displacement &mdash; scaled &times;${sf} (C<sub>d</sub>/I<sub>e</sub>); design (inelastic)`
+        : `Nodal Displacement &mdash; raw elastic from DISPLACEMENTG`;
+    let html = `<thead><tr class="midas-banner"><th colspan="7">${banner}</th></tr><tr class="midas-cols">
         <th>Load Case</th><th>Floor</th><th>Elevation (m)</th><th>Node</th><th>UX (mm)</th><th>UY (mm)</th><th>Resultant (mm)</th>
     </tr></thead><tbody>`;
     rows.forEach(r => {
@@ -5562,7 +5623,13 @@ function cnRenderDriftTable() {
     const rfmt = cnRatioFormatMeta(ratioFmt);
     const rHdr = rfmt.suffix ? ` (${rfmt.suffix})` : "";
     const fmtRatio = v => v == null ? "-" : (v * rfmt.scale).toFixed(rfmt.decimals) + rfmt.suffix;
-    let html = `<thead><tr class="midas-banner"><th colspan="9">Drift (averages per floor; ratio = drift / story-height)</th></tr><tr class="midas-cols">
+    const sf = (cnLastResults && cnLastResults.scaleFactor) || 1.0;
+    const allow = (cnLastResults && cnLastResults.allowable) || 0;
+    const banner = sf !== 1.0
+        ? `Drift &mdash; design (scaled &times;${sf} C<sub>d</sub>/I<sub>e</sub>); ratio = drift / story-height`
+        : `Drift &mdash; raw elastic; ratio = drift / story-height`;
+    const allowFmt = allow > 0 ? `; allowable ${(allow * rfmt.scale).toFixed(rfmt.decimals)}${rfmt.suffix}` : "";
+    let html = `<thead><tr class="midas-banner"><th colspan="9">${banner}${allowFmt}</th></tr><tr class="midas-cols">
         <th>Load Case</th><th>Floor</th><th>Height (m)</th><th>Avg UX (mm)</th><th>Avg UY (mm)</th>
         <th>Drift UX (mm)</th><th>Drift UY (mm)</th><th>Ratio X${rHdr}</th><th>Ratio Y${rHdr}</th>
     </tr></thead><tbody>`;
