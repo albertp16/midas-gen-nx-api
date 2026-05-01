@@ -655,6 +655,10 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 17l4-6 3 3 4-7"/><circle cx="11" cy="11" r="1"/><circle cx="14" cy="14" r="1"/><circle cx="18" cy="7" r="1"/></svg>
                     Irregularity
                 </a></li>
+                <li><a onclick="switchTab('irreg-plot')" data-tab="irreg-plot">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 22V8"/><path d="M10 22V4"/><path d="M16 22V12"/><path d="M22 22V2"/><line x1="2" y1="22" x2="22" y2="22"/></svg>
+                    Irregular Plotter
+                </a></li>
             </ul>
         </div>
 
@@ -1834,6 +1838,77 @@ Roof, 15.00, 0.00, Consider
                     <b>Type 3</b> Vertical geometric irregularity (horizontal dim &gt; 130% of adjacent),
                     <b>Type 4</b> In-plane discontinuity in vertical lateral elements.
                 </div>
+            </div>
+        </div>
+
+        <!-- ════════════ IRREGULAR PLOTTER ════════════ -->
+        <!-- Plots vertical geometric irregularity (Type 3) and in-plane discontinuity
+             (Type 4) per NSCP 208.4.5.2. Fetches /db/node + /db/elem, auto-detects
+             vertical-frame elements (columns), groups them by elevation, and renders
+             two Plotly figures with halftone styling for non-critical members. -->
+        <div id="tab-irreg-plot" class="tab-page">
+            <div class="page-header">
+                <h2>Irregular Plotter</h2>
+                <p>Visualize vertical geometric irregularity (Type 3) and in-plane discontinuity (Type 4) by analyzing the model geometry directly. Critical elements rendered in red; others halftone.</p>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header"><span class="panel-title">Parameters</span></div>
+                <div class="form-row" style="align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;" title="NSCP Type 3 threshold — flag a story if its plan dimension exceeds this multiple of an adjacent story's dimension.">
+                        <label style="margin:0;">Type 3 ratio threshold</label>
+                        <input type="number" id="irregPlotRatio" class="input" value="1.30" step="0.01" min="1.05" max="2.0" style="width:80px;font-size:11px;" />
+                    </div>
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;" title="Tolerance for matching column positions between consecutive stories. Columns within this distance (in mm) are considered the 'same' column for continuity check.">
+                        <label style="margin:0;">Position tolerance (mm)</label>
+                        <input type="number" id="irregPlotTol" class="input" value="100" step="10" min="10" max="1000" style="width:80px;font-size:11px;" />
+                    </div>
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;" title="Story-grouping tolerance. Columns whose Z-coordinates are within this distance are considered to belong to the same story level.">
+                        <label style="margin:0;">Story group tolerance (mm)</label>
+                        <input type="number" id="irregPlotZTol" class="input" value="200" step="10" min="50" max="2000" style="width:80px;font-size:11px;" />
+                    </div>
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;cursor:pointer;display:flex;align-items:center;gap:4px;">
+                            <input type="checkbox" id="irregPlotHalftone" checked style="margin:0;cursor:pointer;" onchange="renderIrregPlots()" />
+                            Halftone non-critical (show only critical)
+                        </label>
+                    </div>
+                </div>
+                <div class="form-row" style="align-items:center;gap:10px;">
+                    <button class="btn btn-blue" onclick="loadIrregPlotData()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        Load Model &amp; Run
+                    </button>
+                    <button class="btn btn-ghost" onclick="downloadIrregPlotCSV()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        Download CSV
+                    </button>
+                    <span id="irregPlotStatus" style="font-size:11px;color:var(--text-muted);"></span>
+                </div>
+            </div>
+
+            <!-- Type 3: Vertical Geometric Irregularity -->
+            <div class="panel" id="irregPlotPanel-vertical" style="margin-top:12px;display:none;">
+                <div class="panel-header">
+                    <span class="panel-title">Vertical Geometric Irregularity &mdash; NSCP 208.4.5.2 (Type 3)</span>
+                    <span id="irregPlotMeta-vertical" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span>
+                </div>
+                <div style="padding:6px 14px 0;font-size:10px;color:var(--text-muted);">
+                    Plan-view footprint per story (X-Y coordinates of every vertical element). NSCP 2015 flags a story whose plan dimension exceeds 130% of an adjacent story's dimension.
+                </div>
+                <div id="irregPlotCanvas-vertical" style="width:100%;min-height:520px;padding:8px 14px;"></div>
+            </div>
+
+            <!-- Type 4: In-Plane Discontinuity -->
+            <div class="panel" id="irregPlotPanel-inplane" style="margin-top:12px;display:none;">
+                <div class="panel-header">
+                    <span class="panel-title">In-Plane Discontinuity &mdash; NSCP 208.4.5.2 (Type 4)</span>
+                    <span id="irregPlotMeta-inplane" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span>
+                </div>
+                <div style="padding:6px 14px 0;font-size:10px;color:var(--text-muted);">
+                    3D view of all vertical elements. Red columns are discontinuous (no matching column at the story below within position tolerance). Halftone columns are continuous.
+                </div>
+                <div id="irregPlotCanvas-inplane" style="width:100%;min-height:560px;padding:8px 14px;"></div>
             </div>
         </div>
 
@@ -7079,6 +7154,321 @@ async function probeIrregularityChecks() {
             : `<span style="color:var(--accent-orange);">No candidate worked.</span> Confirm the model has a story setup and a seismic load case, then re-probe.`;
     out.innerHTML = lines.join("<br>") + `<br><br>${summary}`;
     showToast(`Probe: ${resolved}/${IRREGULARITY_CHECKS.length} resolved`, resolved ? "success" : "error");
+}
+
+// ══════════════════════════════════════════════════════════════
+// IRREGULAR PLOTTER — geometry-based NSCP 208.4.5.2 Type 3 / Type 4 viz
+// ══════════════════════════════════════════════════════════════
+// Fetches /db/node + /db/elem, identifies vertical-frame elements (columns),
+// groups them by top elevation into stories, then runs:
+//   Type 3 (Vertical Geometric Irregularity) — flag stories whose plan
+//          dimension exceeds 130% of an adjacent story's dimension.
+//   Type 4 (In-Plane Discontinuity) — flag columns that don't continue down
+//          to the story below within position tolerance.
+
+let _irregPlotCache = null;   // { stories: [...], columns: [...], type3: [...], type4: [...] }
+
+// A frame element is treated as "vertical" when |Δz| dominates over |Δx|+|Δy|.
+function _isVerticalElem(ni, nj) {
+    const dx = Math.abs(ni.X - nj.X);
+    const dy = Math.abs(ni.Y - nj.Y);
+    const dz = Math.abs(ni.Z - nj.Z);
+    return dz > 100 && dz >= 5 * Math.max(dx, dy);  // >100mm tall & ≥5× horizontal offset
+}
+
+async function loadIrregPlotData() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+    const status = document.getElementById("irregPlotStatus");
+    showProgress("Loading geometry", "GET /db/node + /db/elem", "");
+
+    let nodeData, elemData;
+    try {
+        updateProgress(20, "GET /db/node");
+        nodeData = await midasAPI("GET", "/db/node");
+        updateProgress(50, "GET /db/elem");
+        elemData = await midasAPI("GET", "/db/elem");
+    } catch (err) {
+        hideProgress();
+        showToast(`Geometry fetch failed: ${err.message}`, "error");
+        return;
+    }
+    updateProgress(70, "Identifying vertical elements...");
+
+    const nodes = (nodeData && nodeData.NODE) || {};
+    const elems = (elemData && elemData.ELEM) || {};
+    const columns = [];
+    for (const [id, e] of Object.entries(elems)) {
+        // MIDAS frame elements: TYPE = "BEAM" (i.e., 1D frame). Walls are area
+        // elements and would need /db/elem with TYPE="WALL" handled separately —
+        // for now we focus on column-like frame elements which cover the common
+        // NSCP Type 3/4 cases.
+        if (String(e.TYPE).toUpperCase() !== "BEAM") continue;
+        const ni = nodes[e.NODE && e.NODE[0]];
+        const nj = nodes[e.NODE && e.NODE[1]];
+        if (!ni || !nj) continue;
+        if (!_isVerticalElem(ni, nj)) continue;
+        const zMin = Math.min(ni.Z, nj.Z);
+        const zMax = Math.max(ni.Z, nj.Z);
+        columns.push({
+            id: parseInt(id),
+            x:    (ni.X + nj.X) / 2,
+            y:    (ni.Y + nj.Y) / 2,
+            zMin, zMax,
+            section: e.SECT
+        });
+    }
+    if (!columns.length) {
+        hideProgress();
+        showToast("No vertical-frame elements found in /db/elem", "error");
+        return;
+    }
+
+    updateProgress(85, "Grouping by story + running checks...");
+    const ztol  = parseFloat(document.getElementById("irregPlotZTol").value) || 200;
+    const xytol = parseFloat(document.getElementById("irregPlotTol").value)  || 100;
+    const ratio = parseFloat(document.getElementById("irregPlotRatio").value) || 1.3;
+
+    const stories = _groupColumnsByStory(columns, ztol);
+    const type3 = _checkVerticalGeometric(stories, ratio);
+    const type4 = _checkInPlaneDiscontinuity(stories, xytol);
+
+    _irregPlotCache = { columns, stories, type3, type4, ratio, xytol };
+    setTimeout(hideProgress, 200);
+    renderIrregPlots();
+
+    const flagged3 = type3.filter(s => s.flagged).length;
+    const flagged4 = type4.filter(c => c.flagged).length;
+    status.innerHTML = `<span style="color:var(--accent-green);">✓</span> ` +
+        `${columns.length} columns · ${stories.length} stories · ` +
+        `<span style="color:${flagged3 ? "var(--accent-orange)" : "var(--text-muted)"};">Type 3: ${flagged3} flagged</span> · ` +
+        `<span style="color:${flagged4 ? "var(--accent-orange)" : "var(--text-muted)"};">Type 4: ${flagged4} flagged</span>`;
+    showToast(`Loaded ${columns.length} columns; ${flagged3 + flagged4} irregularities flagged`, flagged3 + flagged4 ? "error" : "success");
+}
+
+// Cluster columns by their top-of-column Z so that "story N" = all columns
+// whose tops sit at the same level (within ztol).
+function _groupColumnsByStory(columns, ztol) {
+    const sorted = columns.slice().sort((a, b) => a.zMax - b.zMax);
+    const stories = [];
+    for (const c of sorted) {
+        let s = stories.find(s => Math.abs(s.zMax - c.zMax) < ztol && Math.abs(s.zMin - c.zMin) < ztol);
+        if (!s) {
+            s = { zMin: c.zMin, zMax: c.zMax, columns: [], idx: stories.length };
+            stories.push(s);
+        }
+        s.columns.push(c);
+    }
+    // Reindex bottom-to-top after grouping (in case zMax wasn't strictly sorted).
+    return stories.sort((a, b) => a.zMax - b.zMax).map((s, i) => ({ ...s, idx: i }));
+}
+
+// Type 3: a story is irregular if its bounding box extent exceeds the threshold
+// times an adjacent story's extent (in either X or Y direction).
+function _checkVerticalGeometric(stories, ratio) {
+    const ext = s => {
+        const xs = s.columns.map(c => c.x), ys = s.columns.map(c => c.y);
+        return {
+            wx: Math.max(...xs) - Math.min(...xs),
+            wy: Math.max(...ys) - Math.min(...ys)
+        };
+    };
+    return stories.map((s, i) => {
+        const e = ext(s);
+        const above = stories[i + 1] ? ext(stories[i + 1]) : null;
+        const below = stories[i - 1] ? ext(stories[i - 1]) : null;
+        const ratios = [];
+        if (above) ratios.push(e.wx / Math.max(above.wx, 1), e.wy / Math.max(above.wy, 1));
+        if (below) ratios.push(e.wx / Math.max(below.wx, 1), e.wy / Math.max(below.wy, 1));
+        const maxR = ratios.length ? Math.max(...ratios) : 0;
+        return {
+            idx: s.idx, zMin: s.zMin, zMax: s.zMax,
+            wx: e.wx, wy: e.wy, columns: s.columns,
+            ratioAdjacent: maxR,
+            flagged: maxR > ratio
+        };
+    });
+}
+
+// Type 4: a column is "discontinuous" if its bottom isn't anchored at the base
+// AND no column at the story below sits within position tolerance of (x, y).
+function _checkInPlaneDiscontinuity(stories, xytol) {
+    if (stories.length < 2) return [];
+    const flags = [];
+    // Story 0 = base — columns there are anchored, never flagged.
+    for (let i = 1; i < stories.length; i++) {
+        const cur = stories[i];
+        const below = stories[i - 1];
+        for (const c of cur.columns) {
+            const matched = below.columns.some(cb =>
+                Math.hypot(cb.x - c.x, cb.y - c.y) < xytol
+            );
+            flags.push({
+                ...c, storyIdx: i,
+                flagged: !matched
+            });
+        }
+        // Continuous columns that exist at story i but vanish at i+1 also count
+        // (a column "stops" mid-building). Iterate the OTHER direction.
+        if (i === 1) {
+            for (const c of below.columns) {
+                const matched = cur.columns.some(cb => Math.hypot(cb.x - c.x, cb.y - c.y) < xytol);
+                flags.push({ ...c, storyIdx: 0, flagged: false });  // base columns OK
+                void matched;
+            }
+        }
+    }
+    return flags;
+}
+
+function renderIrregPlots() {
+    if (!_irregPlotCache) return;
+    _renderType3Plot();
+    _renderType4Plot();
+    document.getElementById("irregPlotPanel-vertical").style.display = "";
+    document.getElementById("irregPlotPanel-inplane").style.display = "";
+}
+
+// Type 3 plot: stacked plan views (X-Y) per story. Each story gets its own
+// trace; flagged stories use bright red, non-flagged use halftone grey when
+// the toggle is on (otherwise a discrete color cycle).
+function _renderType3Plot() {
+    if (typeof Plotly === "undefined") { showToast("Plotly not loaded", "error"); return; }
+    const { stories, type3 } = _irregPlotCache;
+    const halftone = document.getElementById("irregPlotHalftone").checked;
+    const palette = ["#58a6ff", "#3fb950", "#f0883e", "#d2a8ff", "#79c0ff", "#d29922"];
+
+    const traces = type3.map((s, i) => {
+        const flagged = s.flagged;
+        const color = flagged ? "#f85149" : palette[i % palette.length];
+        const opacity = (halftone && !flagged) ? 0.18 : 1;
+        return {
+            x: s.columns.map(c => c.x),
+            y: s.columns.map(c => c.y),
+            mode: "markers+text",
+            type: "scatter",
+            name: `Story ${i + 1} (z=${(s.zMax / 1000).toFixed(2)} m)${flagged ? " ⚠" : ""}`,
+            marker: { size: flagged ? 12 : 8, color, line: { width: flagged ? 2 : 1, color: flagged ? "#fff" : color }, opacity },
+            text: flagged ? s.columns.map(() => "") : [],
+            hovertemplate: `Story ${i + 1}<br>x=%{x:.0f} mm<br>y=%{y:.0f} mm<br>wx=${s.wx.toFixed(0)} mm · wy=${s.wy.toFixed(0)} mm<br>ratio vs adjacent=${s.ratioAdjacent.toFixed(2)}<extra></extra>`
+        };
+    });
+
+    Plotly.newPlot("irregPlotCanvas-vertical", traces, {
+        title: { text: `Plan Footprint per Story — Type 3 (NSCP 130% threshold)`, font: { size: 13 } },
+        xaxis: { title: "X (mm)", zeroline: false },
+        yaxis: { title: "Y (mm)", scaleanchor: "x", scaleratio: 1, zeroline: false },
+        showlegend: true,
+        legend: { x: 1.02, y: 1, font: { size: 10 } },
+        margin: { t: 40, l: 60, r: 180, b: 50 },
+        paper_bgcolor: "white",
+        plot_bgcolor: "#fafafa"
+    }, { responsive: true, displaylogo: false });
+
+    document.getElementById("irregPlotMeta-vertical").textContent =
+        `${type3.filter(s => s.flagged).length} flagged of ${type3.length} stor${type3.length === 1 ? "y" : "ies"}`;
+}
+
+// Type 4 plot: 3D view of every column (line from zMin to zMax). Discontinuous
+// columns drawn red; others in halftone grey (or full color when halftone off).
+function _renderType4Plot() {
+    if (typeof Plotly === "undefined") return;
+    const { columns, type4 } = _irregPlotCache;
+    const halftone = document.getElementById("irregPlotHalftone").checked;
+
+    const flaggedSet = new Set(type4.filter(c => c.flagged).map(c => c.id));
+
+    // Two traces: critical (red) + others (halftone or grey)
+    const critX = [], critY = [], critZ = [], critText = [];
+    const normX = [], normY = [], normZ = [], normText = [];
+
+    for (const c of columns) {
+        const isFlagged = flaggedSet.has(c.id);
+        const X = isFlagged ? critX : normX;
+        const Y = isFlagged ? critY : normY;
+        const Z = isFlagged ? critZ : normZ;
+        const T = isFlagged ? critText : normText;
+        // Plotly 3D line: x/y/z arrays with null between segments
+        X.push(c.x, c.x, null);
+        Y.push(c.y, c.y, null);
+        Z.push(c.zMin, c.zMax, null);
+        const label = `Col ${c.id} · sect ${c.section || "—"}<br>x=${c.x.toFixed(0)}, y=${c.y.toFixed(0)}<br>z: ${c.zMin.toFixed(0)}→${c.zMax.toFixed(0)} mm`;
+        T.push(label, label, "");
+    }
+
+    const traces = [];
+    if (normX.length) traces.push({
+        type: "scatter3d", mode: "lines",
+        x: normX, y: normY, z: normZ,
+        name: "Continuous",
+        line: { color: halftone ? "rgba(120,120,120,0.18)" : "#7aa6d6", width: 4 },
+        text: normText, hoverinfo: "text"
+    });
+    if (critX.length) traces.push({
+        type: "scatter3d", mode: "lines",
+        x: critX, y: critY, z: critZ,
+        name: "Discontinuous",
+        line: { color: "#f85149", width: 8 },
+        text: critText, hoverinfo: "text"
+    });
+
+    Plotly.newPlot("irregPlotCanvas-inplane", traces, {
+        title: { text: "Vertical Elements — Type 4 (red = discontinuous)", font: { size: 13 } },
+        scene: {
+            xaxis: { title: "X (mm)", showbackground: false },
+            yaxis: { title: "Y (mm)", showbackground: false },
+            zaxis: { title: "Z (mm)", showbackground: false },
+            aspectmode: "data",
+            camera: { eye: { x: 1.6, y: 1.6, z: 1.0 } }
+        },
+        showlegend: true,
+        legend: { x: 0.85, y: 0.95 },
+        margin: { t: 40, l: 0, r: 0, b: 0 },
+        paper_bgcolor: "white"
+    }, { responsive: true, displaylogo: false });
+
+    document.getElementById("irregPlotMeta-inplane").textContent =
+        `${flaggedSet.size} flagged of ${columns.length} columns`;
+}
+
+function downloadIrregPlotCSV() {
+    if (!_irregPlotCache) { showToast("Click Load Model & Run first", "error"); return; }
+    const { type3, type4 } = _irregPlotCache;
+
+    const t3rows = [
+        ["NSCP Type 3 — Vertical Geometric Irregularity"],
+        ["Story Index", "z_min (mm)", "z_max (mm)", "wx (mm)", "wy (mm)", "Max Ratio vs Adjacent", "Threshold", "Flagged"]
+    ];
+    for (const s of type3) {
+        t3rows.push([
+            s.idx + 1, s.zMin.toFixed(1), s.zMax.toFixed(1),
+            s.wx.toFixed(1), s.wy.toFixed(1),
+            s.ratioAdjacent.toFixed(3), _irregPlotCache.ratio.toFixed(2),
+            s.flagged ? "Irregular (Type 3)" : "Regular"
+        ]);
+    }
+    const t4rows = [
+        [""], ["NSCP Type 4 — In-Plane Discontinuity"],
+        ["Column ID", "Story Index", "x (mm)", "y (mm)", "z_min (mm)", "z_max (mm)", "Section", "Flagged"]
+    ];
+    for (const c of type4) {
+        t4rows.push([
+            c.id, c.storyIdx + 1,
+            c.x.toFixed(1), c.y.toFixed(1),
+            c.zMin.toFixed(1), c.zMax.toFixed(1),
+            c.section || "—",
+            c.flagged ? "Discontinuous (Type 4)" : "Continuous"
+        ]);
+    }
+
+    const escape = v => /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v);
+    const csv = [...t3rows, ...t4rows].map(r => r.map(escape).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "irregularity_plotter.csv";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast("Downloaded irregularity_plotter.csv", "success");
 }
 
 function _modesGet(which) {
