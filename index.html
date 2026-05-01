@@ -1044,12 +1044,14 @@ Roof, 15.00, 0.00, Consider
                 <div class="panel-header"><span class="panel-title">3. Run</span></div>
                 <div class="form-row" style="gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:8px;">
                     <div class="form-group">
-                        <label>Scale Factor (C<sub>d</sub>/I<sub>e</sub>)</label>
-                        <input type="number" id="cnScaleFactor" class="input" value="1.0" step="0.01" min="0" style="width:110px;" />
+                        <label>R (UBC 97 §1630.9.2)</label>
+                        <input type="number" id="cnRFactor" class="input" value="8.5" step="0.1" min="0" style="width:110px;" oninput="cnUpdateScaleBadge()" />
+                        <span id="cnScaleBadge" style="display:block;margin-top:4px;font-size:11px;color:var(--text-muted);">Δ<sub>M</sub> = 0.7 × R × Δ<sub>S</sub> = <b>5.95</b> × elastic</span>
                     </div>
                     <div class="form-group">
-                        <label>Allowable Ratio (Δ/h)</label>
+                        <label>Allowable Ratio (Δ<sub>M</sub>/h)</label>
                         <input type="number" id="cnAllowable" class="input" value="0.020" step="0.001" min="0" style="width:110px;" />
+                        <span style="display:block;margin-top:4px;font-size:11px;color:var(--text-muted);">UBC 97 §1630.10: 0.025 if T&lt;0.7s, else 0.020</span>
                     </div>
                     <div class="form-group" style="flex:1;"></div>
                     <button class="btn btn-blue" style="padding:10px 22px;font-size:14px;font-weight:600;" onclick="cnRunAnalysis()">
@@ -1058,10 +1060,10 @@ Roof, 15.00, 0.00, Consider
                     </button>
                 </div>
                 <p style="margin:0;font-size:11px;color:var(--text-muted);">
-                    <b>Note:</b> <code>DISPLACEMENTG</code> returns <b>elastic</b> displacements. For code-compliant drift
-                    checks (NSCP 2015 §208 / ASCE 7), enter your project's <b>C<sub>d</sub>/I<sub>e</sub></b>
-                    (e.g. 5.5/1.0 = 5.5 for SMRF Risk Cat. II). Set to <b>1.0</b> to keep raw elastic values.
-                    Allowable Ratio is shown as a vertical limit line on the drift-ratio plots.
+                    <b>Note:</b> <code>DISPLACEMENTG</code> returns the <b>elastic</b> response Δ<sub>S</sub>. UBC 97 requires
+                    amplification by <b>0.7·R</b> to obtain the <b>maximum inelastic response displacement Δ<sub>M</sub></b>
+                    used for drift checks. Common <b>R</b> values: 8.5 (SMRF), 5.5 (IMRF), 4.5 (OMRF),
+                    7.0 (Dual System), 5.5 (Concentrically Braced Frame). Set R = 1/0.7 ≈ 1.43 to disable scaling.
                 </p>
             </div>
 
@@ -5105,9 +5107,10 @@ async function cnRunAnalysis() {
     if (lcs.length < 4) { showToast("Pick 4 load cases", "error"); return; }
     if (new Set(lcs).size < lcs.length) { showToast("Load cases must be distinct", "error"); return; }
 
-    // Cd/Ie scale factor — applied to elastic DISPLACEMENTG values to obtain
-    // design (inelastic) displacements per NSCP/ASCE 7 §12.8.6.
-    const scaleFactor = parseFloat(document.getElementById("cnScaleFactor").value) || 1.0;
+    // UBC 97 §1630.9.2: Δ_M = 0.7·R·Δ_S — amplify the elastic DISPLACEMENTG
+    // values by 0.7·R to obtain maximum inelastic response displacement.
+    const R = parseFloat(document.getElementById("cnRFactor").value) || 1.0;
+    const scaleFactor = 0.7 * R;
     const allowable = parseFloat(document.getElementById("cnAllowable").value) || 0;
 
     // Sort floors bottom → top by elevation (drift = disp(i) - disp(i-1) needs ordered floors)
@@ -5178,14 +5181,22 @@ async function cnRunAnalysis() {
     cnLastResults = {
         loadCases: lcs, floors, byLc,
         computed: cnComputeAll(floors, lcs, byLc),
-        scaleFactor, allowable
+        R, scaleFactor, allowable
     };
 
     hideProgress();
     cnRedrawPlots();
     cnRenderTables();
-    const scaleNote = scaleFactor !== 1.0 ? ` (scaled ×${scaleFactor} for design displacement)` : " (raw elastic)";
+    const scaleNote = ` (Δ_M = 0.7×${R} × Δ_S = ${scaleFactor.toFixed(2)}× elastic)`;
     showToast("Control-node analysis complete" + scaleNote);
+}
+
+// Live update for the "= 0.7R = 5.95" badge under the R input
+function cnUpdateScaleBadge() {
+    const R = parseFloat(document.getElementById("cnRFactor").value) || 0;
+    const sf = (0.7 * R).toFixed(2);
+    const badge = document.getElementById("cnScaleBadge");
+    if (badge) badge.innerHTML = `Δ<sub>M</sub> = 0.7 × R × Δ<sub>S</sub> = <b>${sf}</b> × elastic`;
 }
 
 // Robust column lookup: MIDAS may return DX/DY/DZ or UX/UY/UZ depending on locale/version
@@ -5467,7 +5478,8 @@ function cnDrawOnePlot(divId, lc, perFloor, quantity, avgOnly, showValues, ratio
 
     const xUnit = isRatio ? (rfmt.suffix ? ` (${rfmt.suffix})` : "") : (meta.unit ? ` (${meta.unit})` : "");
     const sf = (cnLastResults && cnLastResults.scaleFactor) || 1.0;
-    const sfBadge = sf !== 1.0 ? ` <span style="font-size:10px;color:${PAL.textMuted};">(×${sf} Cd/Ie)</span>` : "";
+    const Rval = (cnLastResults && cnLastResults.R) || (sf / 0.7);
+    const sfBadge = sf !== 1.0 ? ` <span style="font-size:10px;color:${PAL.textMuted};">(Δ<sub>M</sub> = 0.7×${Rval} = ×${sf.toFixed(2)})</span>` : "";
     // Vertical limit line at the allowable drift ratio (only for ratio plots)
     const allowable = (cnLastResults && cnLastResults.allowable) || 0;
     const shapes = [];
@@ -5577,9 +5589,10 @@ function cnRenderDispTable() {
     const tbl = document.getElementById("cnDispTable");
     const rows = cnDispTableRows();
     const sf = (cnLastResults && cnLastResults.scaleFactor) || 1.0;
+    const Rval = (cnLastResults && cnLastResults.R) || (sf / 0.7);
     const banner = sf !== 1.0
-        ? `Nodal Displacement &mdash; scaled &times;${sf} (C<sub>d</sub>/I<sub>e</sub>); design (inelastic)`
-        : `Nodal Displacement &mdash; raw elastic from DISPLACEMENTG`;
+        ? `Nodal Displacement Δ<sub>M</sub> = 0.7·R·Δ<sub>S</sub> &mdash; R = ${Rval}, scale = ${sf.toFixed(2)} (UBC 97 §1630.9.2)`
+        : `Nodal Displacement &mdash; raw elastic Δ<sub>S</sub> from DISPLACEMENTG`;
     let html = `<thead><tr class="midas-banner"><th colspan="7">${banner}</th></tr><tr class="midas-cols">
         <th>Load Case</th><th>Floor</th><th>Elevation (m)</th><th>Node</th><th>UX (mm)</th><th>UY (mm)</th><th>Resultant (mm)</th>
     </tr></thead><tbody>`;
@@ -5624,9 +5637,10 @@ function cnRenderDriftTable() {
     const rHdr = rfmt.suffix ? ` (${rfmt.suffix})` : "";
     const fmtRatio = v => v == null ? "-" : (v * rfmt.scale).toFixed(rfmt.decimals) + rfmt.suffix;
     const sf = (cnLastResults && cnLastResults.scaleFactor) || 1.0;
+    const Rval = (cnLastResults && cnLastResults.R) || (sf / 0.7);
     const allow = (cnLastResults && cnLastResults.allowable) || 0;
     const banner = sf !== 1.0
-        ? `Drift &mdash; design (scaled &times;${sf} C<sub>d</sub>/I<sub>e</sub>); ratio = drift / story-height`
+        ? `Drift Δ<sub>M</sub> = 0.7·R·Δ<sub>S</sub> &mdash; R = ${Rval}, scale = ${sf.toFixed(2)} (UBC 97 §1630.9.2); ratio = Δ<sub>M</sub> / story-height`
         : `Drift &mdash; raw elastic; ratio = drift / story-height`;
     const allowFmt = allow > 0 ? `; allowable ${(allow * rfmt.scale).toFixed(rfmt.decimals)}${rfmt.suffix}` : "";
     let html = `<thead><tr class="midas-banner"><th colspan="9">${banner}${allowFmt}</th></tr><tr class="midas-cols">
