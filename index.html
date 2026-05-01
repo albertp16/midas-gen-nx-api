@@ -1894,10 +1894,11 @@ Roof, 15.00, 0.00, Consider
                     <span id="irregPlotMeta-vertical" style="font-size:11px;color:var(--text-muted);margin-left:auto;"></span>
                 </div>
                 <div style="padding:6px 14px 0;font-size:10px;color:var(--text-muted);">
-                    3D stacked footprint (top) and 2D plan view (bottom). NSCP 2015 flags a story whose plan dimension exceeds 130% of an adjacent story's dimension. Critical stories drawn solid red; regular stories use a halftone hatch.
+                    3D stacked footprint (top), 2D plan view (middle), and X-Z / Y-Z elevation (bottom). NSCP 2015 flags a story whose plan dimension exceeds 130% of an adjacent story's dimension. Critical stories drawn solid red; regular stories use a halftone hatch / dotted line.
                 </div>
-                <div id="irregPlotCanvas-vertical" style="width:100%;min-height:480px;padding:8px 14px;"></div>
-                <div id="irregPlotCanvas-vertical-plan" style="width:100%;min-height:380px;padding:8px 14px;border-top:1px dashed var(--border);"></div>
+                <div id="irregPlotCanvas-vertical" style="width:100%;min-height:440px;padding:8px 14px;"></div>
+                <div id="irregPlotCanvas-vertical-plan" style="width:100%;min-height:360px;padding:8px 14px;border-top:1px dashed var(--border);"></div>
+                <div id="irregPlotCanvas-vertical-elev" style="width:100%;min-height:380px;padding:8px 14px;border-top:1px dashed var(--border);"></div>
             </div>
 
             <!-- Type 2: Re-entrant Corners -->
@@ -7414,15 +7415,85 @@ function _checkInPlaneDiscontinuity(stories, xytol) {
 
 function renderIrregPlots() {
     if (!_irregPlotCache) return;
-    _renderType3Plot();        // 3D stacked footprint
-    _renderType3PlanView();    // 2D plan view with halftone hatch
-    _renderType2Plot();        // re-entrant corners (Type 2)
-    _renderType5Plot();        // orthogonal / nonparallel (Type 5)
-    _renderType4Plot();        // 3D + 2D X-Z elevation
+    _renderType3Plot();             // 3D stacked footprint
+    _renderType3PlanView();         // 2D plan view with halftone hatch
+    _renderType3ElevationView();    // X-Z + Y-Z side-elevation
+    _renderType2Plot();             // re-entrant corners (Type 2)
+    _renderType5Plot();             // orthogonal / nonparallel (Type 5)
+    _renderType4Plot();             // 3D + 2D X-Z elevation (in-plane discontinuity)
     ["vertical", "reentrant", "orthogonal", "inplane"].forEach(k => {
         const p = document.getElementById(`irregPlotPanel-${k}`);
         if (p) p.style.display = "";
     });
+}
+
+// Side-elevation view of the Type 3 footprint. Two subplots side-by-side:
+//   Left  — looking from +Y: X (horizontal) vs Z (vertical), shows wx silhouette
+//   Right — looking from +X: Y (horizontal) vs Z (vertical), shows wy silhouette
+// Each story is drawn as a horizontal line segment at z=zMax spanning its
+// bbox extent; flagged stories are bold red, regular stories halftone dotted.
+function _renderType3ElevationView() {
+    if (typeof Plotly === "undefined") return;
+    const { type3, unitLabel } = _irregPlotCache;
+    const halftone = document.getElementById("irregPlotHalftone").checked;
+    const palette = ["#58a6ff", "#3fb950", "#f0883e", "#d2a8ff", "#79c0ff", "#d29922"];
+
+    const traces = [];
+    type3.forEach((s, i) => {
+        const flagged = s.flagged;
+        const color = flagged ? "#f85149" : palette[i % palette.length];
+        const isHalftone = halftone && !flagged;
+        const opacity = isHalftone ? 0.55 : 1;
+        const xs = s.columns.map(c => c.x);
+        const ys = s.columns.map(c => c.y);
+        if (!xs.length) return;
+        const x0 = Math.min(...xs), x1 = Math.max(...xs);
+        const y0 = Math.min(...ys), y1 = Math.max(...ys);
+        const labelTail = `Story ${i + 1} (z=${s.zMax.toFixed(2)} ${unitLabel})${flagged ? " ⚠" : ""}`;
+
+        // Left subplot: X-Z elevation
+        traces.push({
+            type: "scatter",
+            mode: "lines+markers",
+            x: [x0, x1],
+            y: [s.zMax, s.zMax],
+            line: { color, width: flagged ? 4 : 2, dash: isHalftone ? "dot" : "solid" },
+            marker: { size: flagged ? 9 : 6, color, line: { width: flagged ? 1 : 0, color: "#fff" } },
+            opacity,
+            name: labelTail,
+            hovertemplate: `${labelTail}<br>X: ${x0.toFixed(2)} → ${x1.toFixed(2)} ${unitLabel}<br>wx=${s.wx.toFixed(2)} ${unitLabel}<br>ratio=${s.ratioAdjacent.toFixed(2)}<extra></extra>`,
+            xaxis: "x", yaxis: "y",
+            legendgroup: `elev-${i}`
+        });
+        // Right subplot: Y-Z elevation (don't double-list in legend)
+        traces.push({
+            type: "scatter",
+            mode: "lines+markers",
+            x: [y0, y1],
+            y: [s.zMax, s.zMax],
+            line: { color, width: flagged ? 4 : 2, dash: isHalftone ? "dot" : "solid" },
+            marker: { size: flagged ? 9 : 6, color, line: { width: flagged ? 1 : 0, color: "#fff" } },
+            opacity,
+            showlegend: false,
+            hovertemplate: `${labelTail}<br>Y: ${y0.toFixed(2)} → ${y1.toFixed(2)} ${unitLabel}<br>wy=${s.wy.toFixed(2)} ${unitLabel}<br>ratio=${s.ratioAdjacent.toFixed(2)}<extra></extra>`,
+            xaxis: "x2", yaxis: "y2",
+            legendgroup: `elev-${i}`
+        });
+    });
+
+    Plotly.newPlot("irregPlotCanvas-vertical-elev", traces, {
+        title: { text: "Elevation — X-Z (left) and Y-Z (right) silhouettes; horizontal lines = story bbox extent", font: { size: 13 } },
+        grid:  { rows: 1, columns: 2, pattern: "independent" },
+        xaxis:  { title: `X (${unitLabel})`, domain: [0.0, 0.46], zeroline: false },
+        yaxis:  { title: `Z (${unitLabel})`, zeroline: false },
+        xaxis2: { title: `Y (${unitLabel})`, domain: [0.54, 1.0], zeroline: false, anchor: "y2" },
+        yaxis2: { title: `Z (${unitLabel})`, zeroline: false, anchor: "x2", matches: "y" },
+        showlegend: true,
+        legend: { x: 1.02, y: 1, font: { size: 10 } },
+        margin: { t: 50, l: 60, r: 200, b: 50 },
+        paper_bgcolor: "white",
+        plot_bgcolor: "#fafafa"
+    }, { responsive: true, displaylogo: false });
 }
 
 // NSCP 208.4.5.1 Type 2 — Re-entrant Corners.
