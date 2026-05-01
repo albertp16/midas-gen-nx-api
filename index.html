@@ -986,7 +986,7 @@ Roof, 15.00, 0.00, Consider
             <div class="panel">
                 <div class="panel-header">
                     <span class="panel-title">1. Static Earthquake Load Cases</span>
-                    <span style="font-size:11px;color:var(--text-muted);">Pick the 4 cases to plot. Auto-filled from /db/stld; edit if names differ.</span>
+                    <span style="font-size:11px;color:var(--text-muted);">Pick 4 from static cases (ST), load combinations (CB), or response-spectrum cases (RS). Auto-filled from /db/stld + /db/lcom-gen + /db/splc.</span>
                 </div>
                 <div class="form-row" style="gap:12px;flex-wrap:wrap;">
                     <div class="form-group" style="flex:1;min-width:160px;">
@@ -4912,49 +4912,97 @@ function cnSyncFloorsFromStory() {
     showToast(`${rows.length} floor${rows.length === 1 ? "" : "s"} loaded${hint}`);
 }
 
+// Fetches static cases (ST), load combinations (CB), and response-spectrum
+// cases (RS) from MIDAS, then populates the four LC dropdowns with optgroups.
+// Combinations are normally what engineers want for code-compliant drift checks
+// (e.g. "1.0DL+1.0LL+1.0EX(CB)"); plain ST cases are kept available for raw
+// per-case checks.
 async function cnRefreshLoadCases() {
     if (!isConnected) { showToast("Connect first", "error"); return; }
+    const groups = []; // [{label, items:[name(suffix), ...]}, ...]
+
+    // Static load cases — required
     try {
         const data = await midasAPI("GET", "/db/stld");
         const stld = data.STLD || data;
         const staticCases = [];
         for (const [, v] of Object.entries(stld)) {
             if (!v || typeof v !== "object") continue;
-            // ST = static load case; the trailing "(ST)" is appended in MIDAS table queries
-            const type = (v.TYPE || "").toString().toUpperCase();
             const name = v.NAME || "";
             if (!name) continue;
-            // Static EQ cases in MIDAS: TYPE may be "EQ", "USER", "ER" depending on definition.
-            // We surface all TYPEs and let the user pick — too many naming conventions to filter.
-            staticCases.push(name);
+            staticCases.push(`${name}(ST)`);
         }
-        if (!staticCases.length) { showToast("No load cases found in /db/stld", "error"); return; }
-        // Heuristic match for the four EQ defaults
-        const candidates = staticCases.map(n => `${n}(ST)`);
-        cnPopulateLcSelect("cnLc1", candidates, CN_DEFAULT_LC_HINTS[0]);
-        cnPopulateLcSelect("cnLc2", candidates, CN_DEFAULT_LC_HINTS[1]);
-        cnPopulateLcSelect("cnLc3", candidates, CN_DEFAULT_LC_HINTS[2]);
-        cnPopulateLcSelect("cnLc4", candidates, CN_DEFAULT_LC_HINTS[3]);
-        showToast(`${staticCases.length} load case(s) loaded`);
+        if (staticCases.length) groups.push({ label: "Static Load Cases (ST)", items: staticCases });
     } catch (err) {
-        showToast(`Failed to load load cases: ${err.message}`, "error");
+        logEntry(`<span class="log-status-err">Static load case fetch: ${err.message}</span>`);
     }
+
+    // Load combinations — optional, but typical for drift checks
+    try {
+        const data = await midasAPI("GET", "/db/lcom-gen");
+        const lcom = data["LCOM-GEN"] || data.LCOM || data;
+        const combos = [];
+        for (const [, v] of Object.entries(lcom)) {
+            if (!v || typeof v !== "object") continue;
+            const name = v.NAME || v.name || "";
+            // Only surface active combos (bACTIVE=true if present); fall back to
+            // including everything if the flag is absent so we don't filter too aggressively.
+            const active = v.bACTIVE !== undefined ? !!v.bACTIVE : (v.ACTIVE !== undefined ? !!v.ACTIVE : true);
+            if (!name || !active) continue;
+            combos.push(`${name}(CB)`);
+        }
+        if (combos.length) groups.push({ label: "Load Combinations (CB)", items: combos });
+    } catch (err) {
+        logEntry(`<span class="log-info">No load combinations: ${err.message}</span>`);
+    }
+
+    // Response-spectrum cases — optional
+    try {
+        const data = await midasAPI("GET", "/db/splc");
+        const splc = data.SPLC || data;
+        const rsCases = [];
+        for (const [, v] of Object.entries(splc)) {
+            if (!v || typeof v !== "object") continue;
+            const name = v.NAME || v.sNAME || v.name || "";
+            if (name) rsCases.push(`${name}(RS)`);
+        }
+        if (rsCases.length) groups.push({ label: "Response Spectrum (RS)", items: rsCases });
+    } catch (err) {
+        logEntry(`<span class="log-info">No RS cases: ${err.message}</span>`);
+    }
+
+    if (!groups.length) { showToast("No load cases or combinations found", "error"); return; }
+
+    cnPopulateLcSelect("cnLc1", groups, CN_DEFAULT_LC_HINTS[0]);
+    cnPopulateLcSelect("cnLc2", groups, CN_DEFAULT_LC_HINTS[1]);
+    cnPopulateLcSelect("cnLc3", groups, CN_DEFAULT_LC_HINTS[2]);
+    cnPopulateLcSelect("cnLc4", groups, CN_DEFAULT_LC_HINTS[3]);
+    const total = groups.reduce((n, g) => n + g.items.length, 0);
+    const summary = groups.map(g => `${g.items.length} ${g.label.split(" ").pop()}`).join(", ");
+    showToast(`${total} entries loaded — ${summary}`);
 }
 
-function cnPopulateLcSelect(selectId, options, defaultHint) {
+function cnPopulateLcSelect(selectId, groups, defaultHint) {
     const sel = document.getElementById(selectId);
     if (!sel) return;
     const prev = sel.value;
     sel.innerHTML = "";
-    options.forEach(opt => {
-        const o = document.createElement("option");
-        o.value = opt; o.textContent = opt;
-        sel.appendChild(o);
+    const allOptions = [];
+    groups.forEach(g => {
+        const og = document.createElement("optgroup");
+        og.label = g.label;
+        g.items.forEach(opt => {
+            const o = document.createElement("option");
+            o.value = opt; o.textContent = opt;
+            og.appendChild(o);
+            allOptions.push(opt);
+        });
+        sel.appendChild(og);
     });
-    // Pick: previous value if still present, else hint match, else first
-    if (prev && options.includes(prev)) sel.value = prev;
+    // Pick: previous value if still present, else hint match (search across all groups), else first
+    if (prev && allOptions.includes(prev)) sel.value = prev;
     else if (defaultHint) {
-        const hit = options.find(o => defaultHint.test(o));
+        const hit = allOptions.find(o => defaultHint.test(o));
         if (hit) sel.value = hit;
     }
 }
