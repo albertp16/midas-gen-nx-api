@@ -1073,8 +1073,16 @@ Roof, 15.00, 0.00, Consider
                                 <option value="RES">Resultant displacement √(UX²+UY²) (mm)</option>
                                 <option value="DRX">Drift UX (mm)</option>
                                 <option value="DRY">Drift UY (mm)</option>
-                                <option value="RX">Drift Ratio X (h/Δ)</option>
-                                <option value="RY">Drift Ratio Y (h/Δ)</option>
+                                <option value="RX">Drift Ratio X (Δ/h)</option>
+                                <option value="RY">Drift Ratio Y (Δ/h)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Ratio format</label>
+                            <select id="cnRatioFmt" class="input" onchange="cnRedrawPlots()">
+                                <option value="dec">Decimal (0.00025)</option>
+                                <option value="pct">Percent (0.025%)</option>
+                                <option value="pml">Per-mille (0.25‰)</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -5206,8 +5214,12 @@ function cnRedrawPlots() {
     const quantity = document.getElementById("cnQuantity").value;
     const avgOnly = document.getElementById("cnAvgOnly").checked;
     const showValues = document.getElementById("cnShowValues").checked;
+    const ratioFmt = (document.getElementById("cnRatioFmt") || {}).value || "dec";
     const { loadCases, computed } = cnLastResults;
-    cnLastPlotConfig = { quantity, avgOnly, showValues };
+    cnLastPlotConfig = { quantity, avgOnly, showValues, ratioFmt };
+
+    // Re-render the drift table too so its ratio columns honour the selected format
+    if (cnLastResults) cnRenderDriftTable();
 
     loadCases.forEach((lc, idx) => {
         const cell = document.createElement("div");
@@ -5215,7 +5227,7 @@ function cnRedrawPlots() {
         const divId = `cnPlot_${idx}`;
         cell.innerHTML = `<div id="${divId}" style="width:100%;height:440px;"></div>`;
         grid.appendChild(cell);
-        cnDrawOnePlot(divId, lc, computed[lc] || [], quantity, avgOnly, showValues);
+        cnDrawOnePlot(divId, lc, computed[lc] || [], quantity, avgOnly, showValues, ratioFmt);
     });
 }
 
@@ -5232,7 +5244,20 @@ function cnQuantityMeta(q) {
     return { label: q, unit: "", source: "disp", axis: "DX" };
 }
 
-function cnDrawOnePlot(divId, lc, perFloor, quantity, avgOnly, showValues) {
+// Drift-ratio display formatting. Pure decimals like 0.00025 render as "250µ"
+// in Plotly's SI auto-prefix, which is unfriendly for engineers used to seeing
+// drift ratios as plain decimals or %. This returns scale + tick format that
+// the plot/table layer applies.
+function cnRatioFormatMeta(fmt) {
+    switch (fmt) {
+        case "pct": return { scale: 100,  suffix: "%", tickformat: ".4f", decimals: 4, label: "%" };
+        case "pml": return { scale: 1000, suffix: "‰", tickformat: ".3f", decimals: 3, label: "‰" };
+        case "dec":
+        default:    return { scale: 1,    suffix: "",  tickformat: ".5f", decimals: 5, label: "decimal" };
+    }
+}
+
+function cnDrawOnePlot(divId, lc, perFloor, quantity, avgOnly, showValues, ratioFmt) {
     const div = document.getElementById(divId);
     if (!div || !perFloor.length) {
         if (div) div.innerHTML = `<div style="padding:24px;color:var(--text-muted);text-align:center;">No data for "${lc}"</div>`;
@@ -5240,6 +5265,8 @@ function cnDrawOnePlot(divId, lc, perFloor, quantity, avgOnly, showValues) {
     }
     const PAL = (typeof plotlyPalette === "function") ? plotlyPalette() : { bg: "#fff", text: "#000", textMuted: "#666", border: "#ccc", gridMinor: "#eee" };
     const meta = cnQuantityMeta(quantity);
+    const isRatio = meta.source === "ratio";
+    const rfmt = cnRatioFormatMeta(ratioFmt || "dec");
     const yCats = perFloor.map(f => f.floor); // already bottom→top from cnRunAnalysis
     const COLORS_LOCAL = (typeof COLORS !== "undefined" && COLORS.length) ? COLORS : ["#0969da", "#1a7f37", "#9a6700", "#cf222e"];
 
@@ -5247,50 +5274,54 @@ function cnDrawOnePlot(divId, lc, perFloor, quantity, avgOnly, showValues) {
     const traces = [];
     if (!avgOnly) {
         for (let ci = 0; ci < 4; ci++) {
-            const xs = perFloor.map(f => cnExtractValue(f, ci, meta));
-            const labels = perFloor.map((f, i) => {
+            const raw = perFloor.map(f => cnExtractValue(f, ci, meta));
+            const xs = isRatio ? raw.map(v => v == null ? null : v * rfmt.scale) : raw;
+            const labels = perFloor.map(f => {
                 const nid = f.nodes[ci];
                 return nid != null ? `${nid}` : "";
             });
-            // Skip the trace entirely if all column values are null (corner not provided)
             if (xs.every(x => x == null)) continue;
             traces.push({
                 type: "scatter", mode: showValues ? "lines+markers+text" : "lines+markers",
                 name: `Corner ${ci + 1}`,
                 x: xs, y: yCats,
-                text: showValues ? xs.map(v => v == null ? "" : cnFormatValue(v, meta)) : undefined,
+                text: showValues ? raw.map(v => v == null ? "" : cnFormatValue(v, meta, rfmt)) : undefined,
                 textposition: "middle right",
                 textfont: { family: "Consolas, 'SF Mono', monospace", size: 9, color: PAL.text },
                 line: { color: COLORS_LOCAL[ci % COLORS_LOCAL.length], width: 1.5, dash: "dot" },
                 marker: { color: COLORS_LOCAL[ci % COLORS_LOCAL.length], size: 7 },
-                hovertemplate: `<b>Corner ${ci + 1}</b> (node %{customdata})<br>%{y}: %{x}<extra></extra>`,
+                hovertemplate: `<b>Corner ${ci + 1}</b> (node %{customdata})<br>%{y}: %{x}${rfmt.suffix}<extra></extra>`,
                 customdata: labels,
                 connectgaps: false
             });
         }
     }
     // Average trace (always shown — bold)
-    const avgXs = perFloor.map(f => cnExtractAverage(f, meta));
+    const avgRaw = perFloor.map(f => cnExtractAverage(f, meta));
+    const avgXs = isRatio ? avgRaw.map(v => v == null ? null : v * rfmt.scale) : avgRaw;
     traces.push({
         type: "scatter", mode: showValues ? "lines+markers+text" : "lines+markers",
         name: "Average",
         x: avgXs, y: yCats,
-        text: showValues ? avgXs.map(v => v == null ? "" : cnFormatValue(v, meta)) : undefined,
+        text: showValues ? avgRaw.map(v => v == null ? "" : cnFormatValue(v, meta, rfmt)) : undefined,
         textposition: "middle right",
         textfont: { family: "Consolas, 'SF Mono', monospace", size: 10, color: PAL.text, weight: 700 },
         line: { color: "#cf222e", width: 2.5 },
         marker: { color: "#cf222e", size: 10, symbol: "diamond", line: { color: PAL.bg, width: 1.5 } },
-        hovertemplate: `<b>Average</b><br>%{y}: %{x}<extra></extra>`
+        hovertemplate: `<b>Average</b><br>%{y}: %{x}${rfmt.suffix}<extra></extra>`
     });
 
-    const xUnit = meta.unit ? ` (${meta.unit})` : "";
+    const xUnit = isRatio ? (rfmt.suffix ? ` (${rfmt.suffix})` : "") : (meta.unit ? ` (${meta.unit})` : "");
     const layout = {
         title: { text: `<b>${lc}</b> — ${meta.label}`, font: { size: 13, color: PAL.text }, x: 0.5, xanchor: "center" },
         paper_bgcolor: PAL.bg, plot_bgcolor: PAL.bg,
         xaxis: {
             title: { text: meta.label + xUnit, font: { size: 11, color: PAL.textMuted } },
             gridcolor: PAL.gridMinor, linecolor: PAL.border, zeroline: true, zerolinecolor: PAL.border,
-            mirror: true, showline: true, ticks: "outside", ticklen: 4
+            mirror: true, showline: true, ticks: "outside", ticklen: 4,
+            tickformat: isRatio ? rfmt.tickformat : undefined,
+            ticksuffix: isRatio && rfmt.suffix ? rfmt.suffix : undefined,
+            exponentformat: "none"
         },
         yaxis: {
             title: { text: "Floor", font: { size: 11, color: PAL.textMuted } },
@@ -5329,9 +5360,13 @@ function cnExtractAverage(floorRec, meta) {
     return null;
 }
 
-function cnFormatValue(v, meta) {
+// rfmt is the ratio-format meta; ignored for non-ratio quantities.
+function cnFormatValue(v, meta, rfmt) {
     if (v == null) return "";
-    if (meta.source === "ratio") return v.toExponential(2);
+    if (meta.source === "ratio") {
+        const r = rfmt || cnRatioFormatMeta("dec");
+        return (v * r.scale).toFixed(r.decimals) + r.suffix;
+    }
     return Math.abs(v) < 0.01 ? v.toExponential(1) : v.toFixed(2);
 }
 
@@ -5399,9 +5434,13 @@ function cnDispTableRows() {
 function cnRenderDriftTable() {
     const tbl = document.getElementById("cnDriftTable");
     const rows = cnDriftTableRows();
+    const ratioFmt = (document.getElementById("cnRatioFmt") || {}).value || "dec";
+    const rfmt = cnRatioFormatMeta(ratioFmt);
+    const rHdr = rfmt.suffix ? ` (${rfmt.suffix})` : "";
+    const fmtRatio = v => v == null ? "-" : (v * rfmt.scale).toFixed(rfmt.decimals) + rfmt.suffix;
     let html = `<thead><tr class="midas-banner"><th colspan="9">Drift (averages per floor; ratio = drift / story-height)</th></tr><tr class="midas-cols">
         <th>Load Case</th><th>Floor</th><th>Height (m)</th><th>Avg UX (mm)</th><th>Avg UY (mm)</th>
-        <th>Drift UX (mm)</th><th>Drift UY (mm)</th><th>Ratio X</th><th>Ratio Y</th>
+        <th>Drift UX (mm)</th><th>Drift UY (mm)</th><th>Ratio X${rHdr}</th><th>Ratio Y${rHdr}</th>
     </tr></thead><tbody>`;
     rows.forEach(r => {
         html += `<tr>
@@ -5412,8 +5451,8 @@ function cnRenderDriftTable() {
             <td>${r.avgUY.toFixed(3)}</td>
             <td>${r.drUX.toFixed(3)}</td>
             <td>${r.drUY.toFixed(3)}</td>
-            <td>${r.ratX == null ? "-" : r.ratX.toExponential(3)}</td>
-            <td>${r.ratY == null ? "-" : r.ratY.toExponential(3)}</td>
+            <td>${fmtRatio(r.ratX)}</td>
+            <td>${fmtRatio(r.ratY)}</td>
         </tr>`;
     });
     html += `</tbody>`;
