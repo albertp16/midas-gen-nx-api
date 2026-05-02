@@ -1134,15 +1134,38 @@ Roof, 15.00, 0.00, Consider
                 </div>
                 <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px 0;">
                     Per §3 inputs + §2 BEAMFORCE demands. Capacity = κ · M<sub>n</sub>(f<sub>ce</sub>, f<sub>ye</sub>) for flexure; κ · (V<sub>c</sub> + V<sub>s</sub>) for shear.
-                    DCR = demand / expected capacity. <b>Gate clause (§7.3.1.1):</b> DCR &lt; min(3.0, m). Rows in red exceed 3.0.
+                    Columns also get a 4-point P-M envelope (Pure-Comp / Balanced / Pure-Flexure / Pure-Tension) and a radial DCR.
+                    <b>Gate clause (§7.3.1.1):</b> DCR &lt; min(3.0, m). Status: <span class="asce-ok">PASS</span> · <span class="asce-warn">EXCEED m</span> · <span class="asce-err">FAIL gate</span>.
                 </p>
 
+                <!-- LC filter for the demand parsing -->
+                <div class="form-row" style="gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;">
+                    <div class="form-group" style="flex:1;min-width:240px;">
+                        <label>Filter demand by Load Case <span style="font-size:10px;color:var(--text-muted)">(Ctrl/Shift+click to multi-select; empty = all)</span></label>
+                        <select id="asceLcFilter" class="input" multiple style="min-height:80px;"></select>
+                        <span style="font-size:11px;color:var(--text-muted);">Populated after Fetch All Demands. Pick the LDP combo (Q<sub>UD</sub> = Q<sub>G</sub> ± Q<sub>E</sub>) for code-correct DCR.</span>
+                    </div>
+                </div>
+
                 <div style="margin-bottom:14px;">
-                    <b style="font-size:12px;">Column Capacities &amp; DCR</b>
+                    <b style="font-size:12px;">Column Capacities &amp; DCR (with P-M envelope)</b>
                     <div style="overflow:auto;max-height:340px;margin-top:6px;">
                         <table id="asceColCapTable" class="midas-table" style="font-size:11px;"></table>
                     </div>
                 </div>
+
+                <!-- P-M diagram: per-column envelope plot -->
+                <div style="margin-bottom:14px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                        <b style="font-size:12px;">P-M Interaction Diagram</b>
+                        <div style="display:flex;gap:6px;align-items:center;">
+                            <label style="font-size:11px;color:var(--text-muted);">Column:</label>
+                            <select id="ascePmSelect" class="input" style="width:200px;font-size:11px;" onchange="asceRenderPmDiagram()"></select>
+                        </div>
+                    </div>
+                    <div id="ascePmPlot" style="width:100%;height:380px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);"></div>
+                </div>
+
                 <div>
                     <b style="font-size:12px;">Beam Capacities &amp; DCR</b>
                     <div style="overflow:auto;max-height:340px;margin-top:6px;">
@@ -5015,8 +5038,11 @@ let asceLastDemands = {}; // { 1: {status, data, note}, 2: {...}, ... }
 let asceLastSettings = {};
 
 const ASCE_MATERIAL_HEADERS = ["ID", "Name", "f'c (MPa)", "fy (MPa)", "fyt (MPa)", "Source"];
-const ASCE_COLUMN_HEADERS = ["Element", "Section", "b (mm)", "h (mm)", "Cover (mm)", "Long. As (mm²)", "Bars (n-Ø)", "Tie Av (mm²)", "Tie spacing s (mm)", "fyt (MPa)", "Clear height (mm)", "Material", "Source"];
-const ASCE_BEAM_HEADERS = ["Element", "Section", "b (mm)", "h (mm)", "Cover (mm)", "Top As (mm²)", "Bot As (mm²)", "Stirrup Av (mm²)", "Stirrup s (mm)", "fyt (MPa)", "Material", "Source"];
+const ASCE_COLUMN_HEADERS = ["Element", "Section", "b (mm)", "h (mm)", "Cover (mm)", "Long. As (mm²)", "Bars (n-Ø)", "Tie Av (mm²)", "Tie spacing s (mm)", "fyt (MPa)", "Clear height (mm)", "Material", "m-factor", "Source"];
+const ASCE_BEAM_HEADERS = ["Element", "Section", "b (mm)", "h (mm)", "Cover (mm)", "Top As (mm²)", "Bot As (mm²)", "Stirrup Av (mm²)", "Stirrup s (mm)", "fyt (MPa)", "Material", "m-factor", "Source"];
+// Column indices (kept in sync with the *_HEADERS arrays above)
+const ASCE_COL_M_IDX = 12, ASCE_COL_SRC_IDX = 13;
+const ASCE_BEAM_M_IDX = 11, ASCE_BEAM_SRC_IDX = 12;
 
 function asceOnTabActivate() {
     if (typeof Handsontable === "undefined") {
@@ -5237,6 +5263,7 @@ async function asceExtractDemands() {
     }
 
     log("Done.");
+    asceRefreshLcFilter();
     const okCount = Object.values(asceLastDemands).filter(d => d.status === "ok").length;
     const phCount = Object.values(asceLastDemands).filter(d => d.status === "placeholder").length;
     showToast(`Demands: ${okCount} OK, ${phCount} placeholder, ${8 - okCount - phCount} missing`);
@@ -5301,6 +5328,7 @@ function asceSetupColumnsGrid() {
             { type: "numeric", numericFormat: { pattern: "0" } },                 // fyt
             { type: "numeric", numericFormat: { pattern: "0" } },                 // Clear height
             { type: "text" },                                                      // Material
+            { type: "numeric", numericFormat: { pattern: "0.0" } },               // m-factor
             { type: "text", readOnly: true, className: "htDimmed" }                // Source
         ]
     });
@@ -5329,6 +5357,7 @@ function asceSetupBeamsGrid() {
             { type: "numeric", numericFormat: { pattern: "0" } },
             { type: "numeric", numericFormat: { pattern: "0" } },
             { type: "text" },
+            { type: "numeric", numericFormat: { pattern: "0.0" } },               // m-factor
             { type: "text", readOnly: true, className: "htDimmed" }
         ]
     });
@@ -5388,11 +5417,13 @@ async function asceAutofillCapacity() {
             const b = vsize[1] ? Math.round(vsize[1] * 1000) : "";
             // Heuristic: square/wide sections that are reasonably sized → put in BOTH so engineer picks
             // For automated pre-fill, default everything to columns; engineer prunes.
+            // Column row: + m-factor (default 3.0) + Source
             colRows.push([
-                "", name, b, h, 40, "", "PLACEHOLDER", "", "", 415, "", "", "/db/sect"
+                "", name, b, h, 40, "", "PLACEHOLDER", "", "", 415, "", "", 3.0, "/db/sect"
             ]);
+            // Beam row: + m-factor (default 3.0) + Source
             beamRows.push([
-                "", name, b, h, 40, "", "", "", "", 415, "", "/db/sect"
+                "", name, b, h, 40, "", "", "", "", 415, "", 3.0, "/db/sect"
             ]);
         }
         if (!colRows.length) colRows.push(Array(ASCE_COLUMN_HEADERS.length).fill(""));
@@ -5419,13 +5450,13 @@ function asceAddCapacityPlaceholders() {
         ["1", "C28", 28, "", "", "PLACEHOLDER (APEC default)"],
         ["2", "Grade 60", "", 415, 415, "PLACEHOLDER (APEC default)"]
     ]);
-    // Columns: one typical row
+    // Columns: one typical row (m-factor 3.0 default per ASCE 41 Table 10-7 IO/LS)
     asceColumnsHot.loadData([
-        ["", "C-500x500", 500, 500, 40, 4800, "8-Ø25", 79, 100, 415, 3000, "C28+G60", "PLACEHOLDER (APEC default)"]
+        ["", "C-500x500", 500, 500, 40, 4800, "8-Ø25", 79, 100, 415, 3000, "C28+G60", 3.0, "PLACEHOLDER (APEC default)"]
     ]);
     // Beams: one typical row
     asceBeamsHot.loadData([
-        ["", "B-300x600", 300, 600, 40, 1500, 1500, 79, 150, 415, "C28+G60", "PLACEHOLDER (APEC default)"]
+        ["", "B-300x600", 300, 600, 40, 1500, 1500, 79, 150, 415, "C28+G60", 3.0, "PLACEHOLDER (APEC default)"]
     ]);
     showToast("Placeholder rows inserted — replace with actual values before running pipeline");
 }
@@ -5475,6 +5506,95 @@ function ascePnMax(fc, fy, Ag, Ast) {
     return 0.80 * Pn / 1000; // N → kN
 }
 
+// 4-point P-M interaction envelope for a tied rectangular RC column with
+// symmetric reinforcement (As_top = As_bot = Ast/2). Returns ordered points
+// {P, M, label} sorted by descending P. P in kN, M in kN·m.
+function ascePMEnvelope(b, h, cover, Ast, fc, fy) {
+    if (!(b > 0 && h > 0 && fc > 0 && fy > 0)) return [];
+    const halfBar = 12;
+    const d = h - cover - halfBar;
+    const dp = cover + halfBar;
+    if (d <= dp) return [];
+    const Ag = b * h;
+    const As = Ast / 2;
+    const Es = 200000;
+    const ecu = 0.003;
+    const beta1 = fc <= 28 ? 0.85 : Math.max(0.65, 0.85 - 0.05 * (fc - 28) / 7);
+
+    // 1) Pure compression (tied column factor 0.80)
+    const Po = 0.85 * fc * (Ag - Ast) + fy * Ast; // N
+    const PnMax = 0.80 * Po / 1000;
+
+    // 2) Balanced point: ecu and εy reached simultaneously
+    const cb = (ecu / (ecu + fy / Es)) * d;
+    const ab = beta1 * cb;
+    const Cc_b = 0.85 * fc * ab * b;
+    const fps_b = Math.min(fy, Math.max(0, ecu * Es * (cb - dp) / cb));
+    const Cs_b = As * (fps_b - 0.85 * fc);
+    const Ts_b = As * fy;
+    const Pb = (Cc_b + Cs_b - Ts_b) / 1000;
+    const Mb = (Cc_b * (h / 2 - ab / 2) + Cs_b * (h / 2 - dp) + Ts_b * (d - h / 2)) / 1e6;
+
+    // 3) Pure flexure (P=0): bisect on c to find ΣF = 0
+    let cLo = dp + 1, cHi = d - 1;
+    let cF = (cLo + cHi) / 2;
+    for (let i = 0; i < 40; i++) {
+        cF = (cLo + cHi) / 2;
+        const a = beta1 * cF;
+        const Cc = 0.85 * fc * a * b;
+        const fps = Math.min(fy, Math.max(0, ecu * Es * (cF - dp) / cF));
+        const fst = Math.min(fy, ecu * Es * (d - cF) / cF);
+        const Cs = As * (fps - 0.85 * fc);
+        const Ts = As * fst;
+        const F = Cc + Cs - Ts;
+        if (Math.abs(F) < 50) break;
+        if (F > 0) cHi = cF; else cLo = cF;
+    }
+    const aF = beta1 * cF;
+    const Cc_F = 0.85 * fc * aF * b;
+    const fps_F = Math.min(fy, Math.max(0, ecu * Es * (cF - dp) / cF));
+    const fst_F = Math.min(fy, ecu * Es * (d - cF) / cF);
+    const Cs_F = As * (fps_F - 0.85 * fc);
+    const Ts_F = As * fst_F;
+    const M0 = (Cc_F * (h / 2 - aF / 2) + Cs_F * (h / 2 - dp) + Ts_F * (d - h / 2)) / 1e6;
+
+    // 4) Pure tension (all rebar, concrete cracked)
+    const PnMin = -fy * Ast / 1000;
+
+    return [
+        { P: PnMax, M: 0,  label: "Po (Pure Comp.)" },
+        { P: Pb,    M: Mb, label: "Balanced" },
+        { P: 0,     M: M0, label: "Pure Flexure" },
+        { P: PnMin, M: 0,  label: "Pure Tension" }
+    ];
+}
+
+// Radial DCR against a P-M envelope. Demand vector (Mu, Pu) from origin extended
+// to envelope intersection. DCR = |demand| / |intersection|. Returns null if
+// the ray does not cross any segment (degenerate envelope).
+function ascePMDcrRadial(Mu, Pu, env) {
+    if (!env || env.length < 4) return null;
+    const Mabs = Math.abs(Mu);
+    const demandMag = Math.sqrt(Mabs * Mabs + Pu * Pu);
+    if (demandMag === 0) return 0;
+    let tBest = null;
+    for (let i = 0; i < env.length - 1; i++) {
+        const A = env[i], B = env[i + 1];
+        const dM = B.M - A.M, dP = B.P - A.P;
+        const det = Mabs * dP - Pu * dM; // dir × seg
+        if (Math.abs(det) < 1e-9) continue;
+        // Solve: t·dir = A + s·(B - A)
+        const t = (A.M * dP - A.P * dM) / det;
+        const s = (Mabs * A.P - Pu * A.M) / det;
+        if (t > 0 && s >= 0 && s <= 1 && (tBest == null || t > tBest)) tBest = t;
+    }
+    if (tBest == null) return null;
+    // demand at parametric t=1 maps to actual demand point (Mu_abs, Pu).
+    // intersection at parametric tBest maps to (tBest·Mu_abs, tBest·Pu) on envelope.
+    // Hence DCR = 1 / tBest.
+    return 1 / tBest;
+}
+
 // Effective depth d ≈ h − cover − bar_dia/2 (assume 12 mm half-radius if unknown)
 function asceEffDepth(h, cover, barDiaHalf) {
     const halfBar = barDiaHalf || 12;
@@ -5514,6 +5634,7 @@ function asceResolveMaterial(rowMatName, matMap, fyt_row) {
 
 // Parse the BEAMFORCE response captured in §2 into per-element max-abs demand.
 // Headers vary by MIDAS locale: try common variants. Returns map elem → {Mu, Vu, Pu}.
+// If asceLcFilter is non-empty, only rows whose Load Case appears in the set are counted.
 function asceParseBeamforceDemands() {
     const d = asceLastDemands && asceLastDemands[2];
     if (!d || d.status !== "ok" || !d.head || !d.head.length) return null;
@@ -5521,7 +5642,6 @@ function asceParseBeamforceDemands() {
     const dataRows = d.data || (d.raw && d.raw.DATA) || null;
     if (!dataRows) return null;
 
-    // Find columns by name (case-insensitive contains)
     const findIdx = (...candidates) => {
         for (const cand of candidates) {
             const i = headers.findIndex(h => h && h.toString().toUpperCase().includes(cand.toUpperCase()));
@@ -5530,6 +5650,7 @@ function asceParseBeamforceDemands() {
         return -1;
     };
     const iElem = findIdx("Element", "Elem", "ID");
+    const iLC   = findIdx("Load", "Case");
     const iAx = findIdx("Axial", "Fx", "P");
     const iVy = findIdx("Shear-y", "Shear y", "Sheary", "Vy", "V2");
     const iVz = findIdx("Shear-z", "Shear z", "Vz", "V3");
@@ -5537,11 +5658,20 @@ function asceParseBeamforceDemands() {
     const iMz = findIdx("Moment-z", "Moment z", "Mz", "M3");
     if (iElem < 0) return null;
 
+    // LC filter (multi-select). Empty → include all.
+    const sel = document.getElementById("asceLcFilter");
+    const allowedLcs = sel ? new Set(Array.from(sel.selectedOptions).map(o => o.value)) : new Set();
+    const useFilter = allowedLcs.size > 0;
+
     const out = {};
+    const seenLcs = new Set();
     dataRows.forEach(row => {
         const e = row[iElem];
         if (e === null || e === undefined || e === "") return;
         const key = String(e).trim();
+        const lc = iLC >= 0 ? String(row[iLC] || "").trim() : "";
+        if (lc) seenLcs.add(lc);
+        if (useFilter && lc && !allowedLcs.has(lc)) return;
         const P = iAx >= 0 ? Math.abs(parseFloat(row[iAx]) || 0) : 0;
         const Vy = iVy >= 0 ? Math.abs(parseFloat(row[iVy]) || 0) : 0;
         const Vz = iVz >= 0 ? Math.abs(parseFloat(row[iVz]) || 0) : 0;
@@ -5554,7 +5684,23 @@ function asceParseBeamforceDemands() {
         if (V > out[key].Vu) out[key].Vu = V;
         if (P > out[key].Pu) out[key].Pu = P;
     });
+    out.__seenLcs = [...seenLcs].sort();
     return out;
+}
+
+// Populate the LC filter dropdown from the BEAMFORCE response. Called after fetch.
+function asceRefreshLcFilter() {
+    const demands = asceParseBeamforceDemands();
+    const sel = document.getElementById("asceLcFilter");
+    if (!sel || !demands || !demands.__seenLcs) return;
+    const prev = new Set(Array.from(sel.selectedOptions).map(o => o.value));
+    sel.innerHTML = "";
+    demands.__seenLcs.forEach(lc => {
+        const o = document.createElement("option");
+        o.value = lc; o.textContent = lc;
+        if (prev.has(lc)) o.selected = true;
+        sel.appendChild(o);
+    });
 }
 
 // Main entry point: walk the column + beam grids, compute capacities,
@@ -5583,7 +5729,8 @@ function asceComputeCapacitiesAndDcr() {
         const fyt_row = parseFloat(r[9]) || 0;
         const clearH = parseFloat(r[10]) || 0;
         const matName = r[11];
-        const isPlaceholder = /PLACEHOLDER/i.test(r[12] || "");
+        const mFactor = parseFloat(r[ASCE_COL_M_IDX]) || 3.0;
+        const isPlaceholder = /PLACEHOLDER/i.test(r[ASCE_COL_SRC_IDX] || "");
         const { fc, fy, fyt } = asceResolveMaterial(matName, matMap, fyt_row);
         const fce = fc * fceFactor;
         const fye = fy * fyeFactor;
@@ -5591,36 +5738,52 @@ function asceComputeCapacitiesAndDcr() {
         const Ag = b * h;
         const Ast = longAs;
         const d = asceEffDepth(h, cover);
-        // Conservative pure-flexure Mn at P=0; full P-M diagram is downstream.
-        // Symmetric column: assume half of long. As resists tension on each face.
-        const AsTension = Ast / 2;
-        const Mn0 = kappa * asceMn(AsTension, fye, fce, b, d);
-        // Pn,max with expected strengths
-        const PnMax = kappa * ascePnMax(fce, fye, Ag, Ast);
+
+        // 4-point P-M envelope (with κ baked into all P/M points)
+        const envRaw = ascePMEnvelope(b, h, cover, Ast, fce, fye);
+        const envScaled = envRaw.map(p => ({ P: p.P * kappa, M: p.M * kappa, label: p.label }));
+        const Mn0 = envScaled.length ? envScaled.find(p => p.label === "Pure Flexure").M : kappa * asceMn(Ast / 2, fye, fce, b, d);
+        const PnMax = envScaled.length ? envScaled[0].P : kappa * ascePnMax(fce, fye, Ag, Ast);
+        const Mb = envScaled.length ? envScaled[1].M : 0;
+        const Pb = envScaled.length ? envScaled[1].P : 0;
+
         // Demand lookup
         const dem = demands && elem && demands[elem] ? demands[elem] : null;
         const Pu = dem ? dem.Pu : 0;
-        // Vn with axial (use demand Pu if available; positive = compression)
-        const Vn = kappa * asceVn(fce, b, d, Pu * 1000 /*kN→N*/, Ag, tieAv, fyte, tieS);
         const Mu = dem ? dem.Mu : null;
         const Vu = dem ? dem.Vu : null;
+
+        // Vn with axial bonus
+        const Vn = kappa * asceVn(fce, b, d, Pu * 1000, Ag, tieAv, fyte, tieS);
+
+        // Radial P-M DCR (preferred over the simple M-only DCR)
+        const dcrPM = (dem != null && envScaled.length) ? ascePMDcrRadial(Mu, Pu, envScaled) : null;
         const dcrM = (Mu != null && Mn0 > 0) ? Mu / Mn0 : null;
         const dcrV = (Vu != null && Vn > 0) ? Vu / Vn : null;
-        // Slenderness / shear span flag (a/d) — informational only
-        const aOverD = (clearH && d) ? (clearH / 2) / d : null; // half clear height ≈ shear span
+
+        // Gate-clause checks (§7.3.1.1: DCR < min(3.0, m))
+        const limit = Math.min(3.0, mFactor);
+        const dcrCheck = dcr => dcr == null ? null : (dcr <= limit ? "PASS" : (dcr <= 3.0 ? "EXCEED m" : "FAIL gate"));
+
+        const aOverD = (clearH && d) ? (clearH / 2) / d : null;
         colCaps.push({
             elem, sect, b, h, d: d.toFixed(0),
             fc, fy, fce: fce.toFixed(1), fye: fye.toFixed(1),
-            kappa, isPlaceholder,
+            kappa, mFactor, isPlaceholder,
+            envelope: envScaled,
             Mn: Mn0.toFixed(1), Vn: Vn.toFixed(1), PnMax: PnMax.toFixed(0),
+            Mb: Mb.toFixed(1), Pb: Pb.toFixed(0),
             Mu: Mu == null ? "—" : Mu.toFixed(1),
             Vu: Vu == null ? "—" : Vu.toFixed(1),
             Pu: dem ? Pu.toFixed(0) : "—",
             dcrM: dcrM == null ? "—" : dcrM.toFixed(2),
             dcrV: dcrV == null ? "—" : dcrV.toFixed(2),
+            dcrPM: dcrPM == null ? "—" : dcrPM.toFixed(2),
+            checkM: dcrCheck(dcrM) || "—",
+            checkV: dcrCheck(dcrV) || "—",
+            checkPM: dcrCheck(dcrPM) || "—",
             ductilityFlag: aOverD != null && aOverD < 2 ? "Brittle (a/d<2)" : (aOverD != null ? "Ductile (a/d≥2)" : "—"),
-            // Numeric DCRs for color coding
-            _dcrMNum: dcrM, _dcrVNum: dcrV
+            _dcrMNum: dcrM, _dcrVNum: dcrV, _dcrPMNum: dcrPM
         });
     });
 
@@ -5639,14 +5802,15 @@ function asceComputeCapacitiesAndDcr() {
         const stirrupS = parseFloat(r[8]) || 0;
         const fyt_row = parseFloat(r[9]) || 0;
         const matName = r[10];
-        const isPlaceholder = /PLACEHOLDER/i.test(r[11] || "");
+        const mFactor = parseFloat(r[ASCE_BEAM_M_IDX]) || 3.0;
+        const isPlaceholder = /PLACEHOLDER/i.test(r[ASCE_BEAM_SRC_IDX] || "");
         const { fc, fy, fyt } = asceResolveMaterial(matName, matMap, fyt_row);
         const fce = fc * fceFactor;
         const fye = fy * fyeFactor;
         const fyte = fyt * fyeFactor;
         const d = asceEffDepth(h, cover);
-        const MnPos = kappa * asceMn(botAs, fye, fce, b, d); // sagging
-        const MnNeg = kappa * asceMn(topAs, fye, fce, b, d); // hogging
+        const MnPos = kappa * asceMn(botAs, fye, fce, b, d);
+        const MnNeg = kappa * asceMn(topAs, fye, fce, b, d);
         const Vn = kappa * asceVn(fce, b, d, 0, b * h, stirrupAv, fyte, stirrupS);
         const dem = demands && elem && demands[elem] ? demands[elem] : null;
         const Mu = dem ? dem.Mu : null;
@@ -5654,15 +5818,19 @@ function asceComputeCapacitiesAndDcr() {
         const Mn_critical = Math.min(MnPos, MnNeg) || Math.max(MnPos, MnNeg);
         const dcrM = (Mu != null && Mn_critical > 0) ? Mu / Mn_critical : null;
         const dcrV = (Vu != null && Vn > 0) ? Vu / Vn : null;
+        const limit = Math.min(3.0, mFactor);
+        const dcrCheck = dcr => dcr == null ? null : (dcr <= limit ? "PASS" : (dcr <= 3.0 ? "EXCEED m" : "FAIL gate"));
         beamCaps.push({
             elem, sect, b, h, d: d.toFixed(0),
             fc, fy, fce: fce.toFixed(1), fye: fye.toFixed(1),
-            kappa, isPlaceholder,
+            kappa, mFactor, isPlaceholder,
             MnPos: MnPos.toFixed(1), MnNeg: MnNeg.toFixed(1), Vn: Vn.toFixed(1),
             Mu: Mu == null ? "—" : Mu.toFixed(1),
             Vu: Vu == null ? "—" : Vu.toFixed(1),
             dcrM: dcrM == null ? "—" : dcrM.toFixed(2),
             dcrV: dcrV == null ? "—" : dcrV.toFixed(2),
+            checkM: dcrCheck(dcrM) || "—",
+            checkV: dcrCheck(dcrV) || "—",
             _dcrMNum: dcrM, _dcrVNum: dcrV
         });
     });
@@ -5684,55 +5852,192 @@ function asceDcrCellClass(dcrNum) {
 
 function asceRenderColumnCapTable(rows) {
     const tbl = document.getElementById("asceColCapTable");
+    const checkBadge = s => {
+        if (s === "PASS") return `<span class="asce-ok">PASS</span>`;
+        if (s === "EXCEED m") return `<span class="asce-warn">EXCEED m</span>`;
+        if (s === "FAIL gate") return `<span class="asce-err">FAIL gate</span>`;
+        return "—";
+    };
     let html = `<thead>
-        <tr class="midas-banner"><th colspan="14">Column Capacities (kN, kN·m) — κ=${(asceLastCaps.kappa).toFixed(2)}, f<sub>ce</sub>/f'<sub>c</sub>=${asceLastCaps.fceFactor}, f<sub>ye</sub>/f<sub>y</sub>=${asceLastCaps.fyeFactor}</th></tr>
+        <tr class="midas-banner"><th colspan="17">Column Capacities (kN, kN·m) — κ=${(asceLastCaps.kappa).toFixed(2)}, f<sub>ce</sub>/f'<sub>c</sub>=${asceLastCaps.fceFactor}, f<sub>ye</sub>/f<sub>y</sub>=${asceLastCaps.fyeFactor}</th></tr>
         <tr class="midas-cols">
-            <th>Element</th><th>Section</th><th>b</th><th>h</th><th>d</th>
-            <th>f'<sub>ce</sub></th><th>f<sub>ye</sub></th>
-            <th>M<sub>n</sub> (P=0)</th><th>V<sub>n</sub></th><th>P<sub>n,max</sub></th>
-            <th>M<sub>u</sub></th><th>V<sub>u</sub></th><th>DCR<sub>M</sub></th><th>DCR<sub>V</sub></th>
+            <th>Element</th><th>Section</th>
+            <th>m</th>
+            <th>P<sub>n,max</sub></th><th>(P<sub>b</sub>, M<sub>b</sub>)</th><th>M<sub>n</sub>(P=0)</th><th>V<sub>n</sub></th>
+            <th>M<sub>u</sub></th><th>V<sub>u</sub></th><th>P<sub>u</sub></th>
+            <th>DCR<sub>M</sub></th><th>DCR<sub>V</sub></th><th>DCR<sub>P-M</sub></th>
+            <th>Check M</th><th>Check V</th><th>Check P-M</th><th>Ductility</th>
         </tr></thead><tbody>`;
     rows.forEach(r => {
         const phMark = r.isPlaceholder ? ` <span class="asce-placeholder">PH</span>` : "";
         html += `<tr>
             <td class="midas-mode">${r.elem || "—"}${phMark}</td>
             <td>${r.sect || "—"}</td>
-            <td>${r.b}</td><td>${r.h}</td><td>${r.d}</td>
-            <td>${r.fce}</td><td>${r.fye}</td>
-            <td>${r.Mn}</td><td>${r.Vn}</td><td>${r.PnMax}</td>
-            <td>${r.Mu}</td><td>${r.Vu}</td>
+            <td>${(r.mFactor || 0).toFixed(1)}</td>
+            <td>${r.PnMax}</td>
+            <td>(${r.Pb}, ${r.Mb})</td>
+            <td>${r.Mn}</td>
+            <td>${r.Vn}</td>
+            <td>${r.Mu}</td><td>${r.Vu}</td><td>${r.Pu}</td>
             <td class="${asceDcrCellClass(r._dcrMNum)}">${r.dcrM}</td>
             <td class="${asceDcrCellClass(r._dcrVNum)}">${r.dcrV}</td>
+            <td class="${asceDcrCellClass(r._dcrPMNum)}">${r.dcrPM}</td>
+            <td>${checkBadge(r.checkM)}</td>
+            <td>${checkBadge(r.checkV)}</td>
+            <td>${checkBadge(r.checkPM)}</td>
+            <td style="font-size:10.5px;">${r.ductilityFlag}</td>
         </tr>`;
     });
-    if (!rows.length) html += `<tr><td colspan="14" style="text-align:center;color:var(--text-muted);">No column rows — fill in §3 grid first.</td></tr>`;
+    if (!rows.length) html += `<tr><td colspan="17" style="text-align:center;color:var(--text-muted);">No column rows — fill in §3 grid first.</td></tr>`;
     html += `</tbody>`;
     tbl.innerHTML = html;
+
+    // Update P-M selector
+    const sel = document.getElementById("ascePmSelect");
+    if (sel) {
+        sel.innerHTML = "";
+        rows.forEach((r, i) => {
+            if (!r.envelope || !r.envelope.length) return;
+            const o = document.createElement("option");
+            o.value = i;
+            o.textContent = `${r.elem || "?"} — ${r.sect || "?"} (${r.b}×${r.h})`;
+            sel.appendChild(o);
+        });
+        if (sel.options.length) {
+            sel.selectedIndex = 0;
+            asceRenderPmDiagram();
+        } else {
+            const div = document.getElementById("ascePmPlot");
+            if (div) div.innerHTML = `<div style="padding:24px;color:var(--text-muted);text-align:center;">No P-M envelope (need b, h, As, fc, fy in §3)</div>`;
+        }
+    }
+}
+
+// Render the 4-point P-M envelope (mirrored across M=0) for the selected column
+// with the demand point overlaid. Uses Plotly.
+function asceRenderPmDiagram() {
+    const sel = document.getElementById("ascePmSelect");
+    const div = document.getElementById("ascePmPlot");
+    if (!sel || !div || !sel.value) return;
+    const idx = parseInt(sel.value, 10);
+    const r = (asceLastCaps.columns || [])[idx];
+    if (!r || !r.envelope || !r.envelope.length) return;
+
+    const PAL = (typeof plotlyPalette === "function") ? plotlyPalette() : { bg: "#fff", text: "#000", textMuted: "#666", border: "#ccc", gridMinor: "#eee" };
+    const env = r.envelope;
+    // Build closed polygon: positive-M side ∪ mirrored negative-M side
+    const poly = [
+        ...env,
+        ...env.slice().reverse().map(p => ({ P: p.P, M: -p.M })),
+        env[0]
+    ];
+
+    const traces = [{
+        type: "scatter", mode: "lines+markers",
+        name: "Envelope",
+        x: poly.map(p => p.M), y: poly.map(p => p.P),
+        line: { color: "#0969da", width: 2 },
+        marker: { color: "#0969da", size: 6 },
+        hovertemplate: "<b>Envelope</b><br>M = %{x:.1f} kN·m<br>P = %{y:.0f} kN<extra></extra>"
+    }];
+
+    // Annotate the four canonical points
+    const annotations = env.map(p => ({
+        x: p.M, y: p.P, xref: "x", yref: "y",
+        text: p.label, showarrow: false,
+        font: { size: 10, color: PAL.textMuted },
+        bgcolor: PAL.bg, borderpad: 2, xanchor: "left", yanchor: "bottom",
+        xshift: 6, yshift: 4
+    }));
+
+    // Demand point (only meaningful if Mu/Pu were resolved; r.Mu is "—" if not)
+    const muNum = parseFloat(r.Mu);
+    const puNum = parseFloat(r.Pu);
+    if (!isNaN(muNum) && !isNaN(puNum)) {
+        traces.push({
+            type: "scatter", mode: "markers+text",
+            name: "Demand (M_u, P_u)",
+            x: [muNum], y: [puNum],
+            text: [`DCR = ${r.dcrPM}`],
+            textposition: "top right",
+            marker: { color: "#cf222e", size: 12, symbol: "x", line: { width: 2, color: "#cf222e" }},
+            hovertemplate: `<b>Demand</b><br>M<sub>u</sub> = %{x:.1f} kN·m<br>P<sub>u</sub> = %{y:.0f} kN<br>DCR = ${r.dcrPM}<extra></extra>`
+        });
+        // Radial line from origin through demand
+        traces.push({
+            type: "scatter", mode: "lines",
+            name: "Radial",
+            x: [0, muNum], y: [0, puNum],
+            line: { color: "#cf222e", width: 1, dash: "dot" },
+            showlegend: false,
+            hoverinfo: "skip"
+        });
+    }
+
+    const xMax = Math.max(...env.map(p => Math.abs(p.M)), 1);
+    const yMax = Math.max(...env.map(p => p.P), 1);
+    const yMin = Math.min(...env.map(p => p.P), 0);
+
+    const layout = {
+        title: { text: `<b>${r.elem || "?"}</b> — ${r.sect || "?"} (${r.b}×${r.h}, κ=${asceLastCaps.kappa.toFixed(2)})`, font: { size: 13, color: PAL.text }, x: 0.5, xanchor: "center" },
+        paper_bgcolor: PAL.bg, plot_bgcolor: PAL.bg,
+        xaxis: {
+            title: { text: "M (kN·m)", font: { size: 11, color: PAL.textMuted } },
+            range: [-xMax * 1.15, xMax * 1.15],
+            zeroline: true, zerolinecolor: PAL.border,
+            gridcolor: PAL.gridMinor, linecolor: PAL.border,
+            mirror: true, showline: true, ticks: "outside", ticklen: 4
+        },
+        yaxis: {
+            title: { text: "P (kN)", font: { size: 11, color: PAL.textMuted } },
+            range: [yMin * 1.15, yMax * 1.15],
+            zeroline: true, zerolinecolor: PAL.border,
+            gridcolor: PAL.gridMinor, linecolor: PAL.border,
+            mirror: true, showline: true, ticks: "outside", ticklen: 4
+        },
+        margin: { l: 80, r: 30, t: 50, b: 60 },
+        showlegend: true,
+        legend: { orientation: "h", y: -0.18, xanchor: "center", x: 0.5, font: { size: 10 } },
+        font: { family: "Segoe UI, system-ui, sans-serif", color: PAL.text },
+        annotations
+    };
+    const config = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["lasso2d", "select2d"] };
+    Plotly.react(div, traces, layout, config);
+    requestAnimationFrame(() => { try { Plotly.Plots.resize(div); } catch (e) {} });
 }
 
 function asceRenderBeamCapTable(rows) {
     const tbl = document.getElementById("asceBeamCapTable");
+    const checkBadge = s => {
+        if (s === "PASS") return `<span class="asce-ok">PASS</span>`;
+        if (s === "EXCEED m") return `<span class="asce-warn">EXCEED m</span>`;
+        if (s === "FAIL gate") return `<span class="asce-err">FAIL gate</span>`;
+        return "—";
+    };
     let html = `<thead>
-        <tr class="midas-banner"><th colspan="13">Beam Capacities (kN, kN·m) — κ=${(asceLastCaps.kappa).toFixed(2)}, f<sub>ce</sub>/f'<sub>c</sub>=${asceLastCaps.fceFactor}, f<sub>ye</sub>/f<sub>y</sub>=${asceLastCaps.fyeFactor}</th></tr>
+        <tr class="midas-banner"><th colspan="14">Beam Capacities (kN, kN·m) — κ=${(asceLastCaps.kappa).toFixed(2)}, f<sub>ce</sub>/f'<sub>c</sub>=${asceLastCaps.fceFactor}, f<sub>ye</sub>/f<sub>y</sub>=${asceLastCaps.fyeFactor}</th></tr>
         <tr class="midas-cols">
-            <th>Element</th><th>Section</th><th>b</th><th>h</th><th>d</th>
-            <th>f'<sub>ce</sub></th><th>f<sub>ye</sub></th>
+            <th>Element</th><th>Section</th><th>m</th>
             <th>M<sub>n</sub><sup>+</sup></th><th>M<sub>n</sub><sup>−</sup></th><th>V<sub>n</sub></th>
-            <th>M<sub>u</sub></th><th>V<sub>u</sub></th><th>DCR<sub>M</sub></th>
+            <th>M<sub>u</sub></th><th>V<sub>u</sub></th>
+            <th>DCR<sub>M</sub></th><th>DCR<sub>V</sub></th>
+            <th>Check M</th><th>Check V</th>
         </tr></thead><tbody>`;
     rows.forEach(r => {
         const phMark = r.isPlaceholder ? ` <span class="asce-placeholder">PH</span>` : "";
         html += `<tr>
             <td class="midas-mode">${r.elem || "—"}${phMark}</td>
             <td>${r.sect || "—"}</td>
-            <td>${r.b}</td><td>${r.h}</td><td>${r.d}</td>
-            <td>${r.fce}</td><td>${r.fye}</td>
+            <td>${(r.mFactor || 0).toFixed(1)}</td>
             <td>${r.MnPos}</td><td>${r.MnNeg}</td><td>${r.Vn}</td>
             <td>${r.Mu}</td><td>${r.Vu}</td>
             <td class="${asceDcrCellClass(r._dcrMNum)}">${r.dcrM}</td>
+            <td class="${asceDcrCellClass(r._dcrVNum)}">${r.dcrV}</td>
+            <td>${checkBadge(r.checkM)}</td>
+            <td>${checkBadge(r.checkV)}</td>
         </tr>`;
     });
-    if (!rows.length) html += `<tr><td colspan="13" style="text-align:center;color:var(--text-muted);">No beam rows — fill in §3 grid first.</td></tr>`;
+    if (!rows.length) html += `<tr><td colspan="12" style="text-align:center;color:var(--text-muted);">No beam rows — fill in §3 grid first.</td></tr>`;
     html += `</tbody>`;
     tbl.innerHTML = html;
 }
@@ -5756,14 +6061,14 @@ function asceExportCapacities(fmt) {
     } else {
         const lines = [];
         lines.push("# Columns");
-        const colHdr = ["elem","sect","b","h","d","fce","fye","Mn","Vn","PnMax","Mu","Vu","Pu","dcrM","dcrV","ductilityFlag","isPlaceholder"];
+        const colHdr = ["elem","sect","mFactor","b","h","d","fce","fye","PnMax","Pb","Mb","Mn","Vn","Mu","Vu","Pu","dcrM","dcrV","dcrPM","checkM","checkV","checkPM","ductilityFlag","isPlaceholder"];
         lines.push(colHdr.join(","));
         asceLastCaps.columns.forEach(r => lines.push(colHdr.map(h => {
             const v = r[h]; return v == null ? "" : String(v).replace(/,/g, ";");
         }).join(",")));
         lines.push("");
         lines.push("# Beams");
-        const beamHdr = ["elem","sect","b","h","d","fce","fye","MnPos","MnNeg","Vn","Mu","Vu","dcrM","dcrV","isPlaceholder"];
+        const beamHdr = ["elem","sect","mFactor","b","h","d","fce","fye","MnPos","MnNeg","Vn","Mu","Vu","dcrM","dcrV","checkM","checkV","isPlaceholder"];
         lines.push(beamHdr.join(","));
         asceLastCaps.beams.forEach(r => lines.push(beamHdr.map(h => {
             const v = r[h]; return v == null ? "" : String(v).replace(/,/g, ";");
@@ -5808,8 +6113,8 @@ function asceBuildQaQc() {
     const colN = asceColumnsHot ? asceColumnsHot.getData().filter(r => r[1]).length : 0;
     const bmN  = asceBeamsHot ? asceBeamsHot.getData().filter(r => r[1]).length : 0;
     const phMat = asceMaterialsHot ? asceMaterialsHot.getData().some(r => /PLACEHOLDER/i.test(r[5] || "")) : false;
-    const phCol = asceColumnsHot ? asceColumnsHot.getData().some(r => /PLACEHOLDER/i.test(r[12] || "")) : false;
-    const phBm  = asceBeamsHot ? asceBeamsHot.getData().some(r => /PLACEHOLDER/i.test(r[11] || "")) : false;
+    const phCol = asceColumnsHot ? asceColumnsHot.getData().some(r => /PLACEHOLDER/i.test(r[ASCE_COL_SRC_IDX] || "")) : false;
+    const phBm  = asceBeamsHot ? asceBeamsHot.getData().some(r => /PLACEHOLDER/i.test(r[ASCE_BEAM_SRC_IDX] || "")) : false;
     rows.push({ section: "3. Capacity", id: "#13", item: "Materials (f'c, fy)", status: matN ? (phMat ? "Placeholder" : "OK") : "Missing", note: `${matN} row(s)` });
     rows.push({ section: "3. Capacity", id: "#9-11,14", item: "Columns (b, h, As, ties, height)", status: colN ? (phCol ? "Placeholder" : "OK") : "Missing", note: `${colN} row(s)` });
     rows.push({ section: "3. Capacity", id: "#12", item: "Beams (As, stirrups)", status: bmN ? (phBm ? "Placeholder" : "OK") : "Missing", note: `${bmN} row(s)` });
