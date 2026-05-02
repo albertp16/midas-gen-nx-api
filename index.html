@@ -640,6 +640,10 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                     Drift &amp; Displacement
                 </a></li>
+                <li><a onclick="switchTab('asce41'); asceOnTabActivate()" data-tab="asce41">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+                    ASCE 41 LDP
+                </a></li>
                 <li><a onclick="switchTab('controlnode'); cnOnTabActivate()" data-tab="controlnode">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="7" cy="7" r="1.5" fill="currentColor"/><circle cx="17" cy="7" r="1.5" fill="currentColor"/><circle cx="7" cy="17" r="1.5" fill="currentColor"/><circle cx="17" cy="17" r="1.5" fill="currentColor"/></svg>
                     Control-Node Drift
@@ -966,6 +970,187 @@ Roof, 15.00, 0.00, Consider
                 </div>
             </div>
         </div>
+
+        <!-- ════════════ ASCE 41-17 LDP ════════════ -->
+        <!-- Reference: APEC Engineering Consultancy spec doc
+             "Midas Gen Data Extraction for ASCE 41-17 LDP".
+             Three-section pipeline: Settings verification → Demand extraction
+             → Capacity inputs → QA/QC summary. Where MIDAS doesn't expose
+             a getter (CM/CR per story, story shear modal-combined), the cell
+             is marked PLACEHOLDER with an assumed value and flagged in QA/QC. -->
+        <div id="tab-asce41" class="tab-page">
+            <div class="page-header">
+                <h2>ASCE 41-17 LDP — Data Extraction</h2>
+                <p>Linear Dynamic Procedure (§7.4.2) component DCR pipeline. Verify settings → extract demands → input capacities → QA/QC.</p>
+            </div>
+
+            <div class="panel" style="border-left:3px solid var(--accent-orange);">
+                <div style="font-size:12px;color:var(--text-secondary);">
+                    <b>Workflow:</b> (1) confirm RSA + load combos match ASCE 41 — if §A or §D are wrong, every demand is invalid.
+                    (2) Extract analysis results. (3) Fill in capacity inputs (auto-populated from <code>/db/sect</code> &amp; <code>/db/matl</code> where possible).
+                    (4) Review QA/QC summary before running the Python pipeline.
+                </div>
+            </div>
+
+            <!-- ─── 1. Settings Verification ─────────────────────── -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">1. Settings Verification (verify before extraction)</span>
+                    <button class="btn btn-blue btn-sm" onclick="asceVerifySettings()">Verify All</button>
+                </div>
+                <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px 0;">
+                    These items are <b>configuration</b>, not extracted data. If any are wrong, re-run RSA before extracting demands.
+                </p>
+                <table class="midas-table" id="asceSettingsTable" style="font-size:11.5px;">
+                    <thead>
+                        <tr class="midas-banner"><th colspan="4">Load Case &amp; Combination Settings — required values per ASCE 41-17</th></tr>
+                        <tr class="midas-cols"><th style="width:40px;">#</th><th>Setting</th><th>Required Value</th><th style="width:140px;">Status</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td class="midas-mode">A</td><td>RSA spectrum function</td><td>BSE-1E or BSE-2E target spectrum (NOT NSCP)</td><td id="asceSetA"><span class="asce-pending">— not checked —</span></td></tr>
+                        <tr><td class="midas-mode">B</td><td>Directional combination</td><td>100% RSX + 30% RSY <i>and</i> 30% RSX + 100% RSY (§7.2.5)</td><td id="asceSetB"><span class="asce-pending">— not checked —</span></td></tr>
+                        <tr><td class="midas-mode">C</td><td>Accidental torsion ±5%</td><td>Required if torsional irregularity (§7.3.1.1.4)</td><td id="asceSetC"><span class="asce-pending">— not checked —</span></td></tr>
+                        <tr><td class="midas-mode">D</td><td>Gravity load combination</td><td>Q<sub>G</sub> = 1.1·(D + 0.25·L) per §7.2.2 (NOT 1.2D + 1.6L)</td><td id="asceSetD"><span class="asce-pending">— not checked —</span></td></tr>
+                        <tr><td class="midas-mode">E</td><td>Total combo for LDP demands</td><td>Q<sub>UD</sub> = Q<sub>G</sub> ± Q<sub>E</sub> (combine post-export)</td><td id="asceSetE"><span class="asce-pending">— not checked —</span></td></tr>
+                    </tbody>
+                </table>
+                <div id="asceSettingsNotes" style="margin-top:8px;font-size:11.5px;color:var(--text-muted);"></div>
+            </div>
+
+            <!-- ─── 2. Demand-Side Extraction ──────────────────────── -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">2. Demand-Side Data (analysis results)</span>
+                    <div style="display:flex;gap:6px;">
+                        <button class="btn btn-blue btn-sm" onclick="asceExtractDemands()">Fetch All Demands</button>
+                        <button class="btn btn-ghost btn-sm" onclick="asceExportDemandsJson()">Export JSON</button>
+                    </div>
+                </div>
+                <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px 0;">
+                    Per the spec doc, items #1–#8. Pulled from <code>/post/TABLE</code>. Items not exposed in the REST API
+                    are stored as <span class="asce-placeholder">PLACEHOLDER</span> with an assumed value — flagged for review in §4.
+                </p>
+                <table class="midas-table" id="asceDemandsTable" style="font-size:11.5px;">
+                    <thead>
+                        <tr class="midas-banner"><th colspan="5">Demand-Side Items #1–#8 (ASCE 41-17 §7.4.2)</th></tr>
+                        <tr class="midas-cols"><th style="width:40px;">#</th><th>Data Item</th><th>Source</th><th>ASCE Clause</th><th style="width:130px;">Status</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr><td class="midas-mode">1</td><td>Story shear (modal-combined)</td><td>STORY_SHEAR_RS</td><td>§7.3.1.1.3</td><td id="asceDem1"><span class="asce-pending">—</span></td></tr>
+                        <tr><td class="midas-mode">2</td><td>Per-column V<sub>2</sub>, V<sub>3</sub>, M<sub>2</sub>, M<sub>3</sub>, P</td><td>BEAMFORCE</td><td>§7.3.1.1.3 / .4</td><td id="asceDem2"><span class="asce-pending">—</span></td></tr>
+                        <tr><td class="midas-mode">3</td><td>Per-beam V, M (face of supports)</td><td>BEAMFORCE (filter)</td><td>§7.5</td><td id="asceDem3"><span class="asce-pending">—</span></td></tr>
+                        <tr><td class="midas-mode">4</td><td>Wall element forces (M, V, P)</td><td>WALLFORCE</td><td>§10.7</td><td id="asceDem4"><span class="asce-pending">—</span></td></tr>
+                        <tr><td class="midas-mode">5</td><td>Centre of mass per story</td><td>STORY_MASS</td><td>§7.3.1.1.4</td><td id="asceDem5"><span class="asce-pending">—</span></td></tr>
+                        <tr><td class="midas-mode">6</td><td>Centre of rigidity per story</td><td>derived (computed)</td><td>§7.3.1.1.4</td><td id="asceDem6"><span class="asce-pending">—</span></td></tr>
+                        <tr><td class="midas-mode">7</td><td>Story drifts Δ</td><td>STORY_DRIFT_X/Y</td><td>§7.3.1.1.1 / .2</td><td id="asceDem7"><span class="asce-pending">—</span></td></tr>
+                        <tr><td class="midas-mode">8</td><td>Modal periods &amp; mass participation (≥ 90%)</td><td>VIBRATION_MODE</td><td>§7.4.2.1.2</td><td id="asceDem8"><span class="asce-pending">—</span></td></tr>
+                    </tbody>
+                </table>
+                <div id="asceDemandsLog" style="margin-top:8px;font-size:11px;color:var(--text-muted);font-family:Consolas,monospace;max-height:120px;overflow:auto;"></div>
+            </div>
+
+            <!-- ─── 3. Capacity-Side Inputs ──────────────────────── -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">3. Capacity-Side Inputs (model definition)</span>
+                    <div style="display:flex;gap:6px;">
+                        <button class="btn btn-ghost btn-sm" onclick="asceAutofillCapacity()" title="Pre-fill rows from /db/sect and /db/matl">Pre-fill from MIDAS</button>
+                        <button class="btn btn-ghost btn-sm" onclick="asceAddCapacityPlaceholders()" title="Insert one assumed-value row of each type">Insert Placeholders</button>
+                    </div>
+                </div>
+                <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px 0;">
+                    Items #9–#15. Manual override grids (Handsontable). Empty cells will be back-filled with assumed values from
+                    Table 10-1 (expected strengths) and §10.4.2.3 defaults — flagged in §4 for engineer review.
+                </p>
+
+                <!-- Knowledge factor κ + global params -->
+                <div class="form-row" style="gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
+                    <div class="form-group">
+                        <label>Knowledge Factor κ</label>
+                        <select id="asceKappa" class="input" style="width:200px;">
+                            <option value="1.0">1.00 — Comprehensive Knowledge</option>
+                            <option value="0.75">0.75 — Minimum / Usual Knowledge</option>
+                        </select>
+                        <span style="font-size:11px;color:var(--text-muted);">ASCE 41 §6.2.4 — multiplier on V<sub>n</sub>, M<sub>n</sub></span>
+                    </div>
+                    <div class="form-group">
+                        <label>Expected Strength Factor f'<sub>ce</sub>/f'<sub>c</sub></label>
+                        <input type="number" id="asceFcExpected" class="input" value="1.5" step="0.05" min="1.0" style="width:120px;" />
+                        <span style="font-size:11px;color:var(--text-muted);">Table 10-1: 1.5 default</span>
+                    </div>
+                    <div class="form-group">
+                        <label>Expected Strength Factor f<sub>ye</sub>/f<sub>y</sub></label>
+                        <input type="number" id="asceFyExpected" class="input" value="1.25" step="0.05" min="1.0" style="width:120px;" />
+                        <span style="font-size:11px;color:var(--text-muted);">Table 10-1: 1.25 default</span>
+                    </div>
+                </div>
+
+                <!-- Materials (#13) -->
+                <div style="margin-bottom:18px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                        <b style="font-size:12px;">#13 Materials — nominal strengths (f'<sub>c</sub>, f<sub>y</sub>)</b>
+                        <div style="display:flex;gap:4px;">
+                            <button class="btn btn-ghost btn-sm" onclick="asceMaterialsAddRow()">+ Row</button>
+                            <button class="btn btn-ghost btn-sm" onclick="asceMaterialsClear()">Clear</button>
+                        </div>
+                    </div>
+                    <div id="asceMaterialsGrid" style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;"></div>
+                </div>
+
+                <!-- Columns (#9, #10, #11) -->
+                <div style="margin-bottom:18px;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                        <b style="font-size:12px;">#9-#11 Columns — section, longitudinal &amp; transverse reinforcement, clear height (#14)</b>
+                        <div style="display:flex;gap:4px;">
+                            <button class="btn btn-ghost btn-sm" onclick="asceColumnsAddRow()">+ Row</button>
+                            <button class="btn btn-ghost btn-sm" onclick="asceColumnsClear()">Clear</button>
+                        </div>
+                    </div>
+                    <div id="asceColumnsGrid" style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;"></div>
+                </div>
+
+                <!-- Beams (#12) -->
+                <div>
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                        <b style="font-size:12px;">#12 Beams — top/bottom A<sub>s</sub>, stirrups</b>
+                        <div style="display:flex;gap:4px;">
+                            <button class="btn btn-ghost btn-sm" onclick="asceBeamsAddRow()">+ Row</button>
+                            <button class="btn btn-ghost btn-sm" onclick="asceBeamsClear()">Clear</button>
+                        </div>
+                    </div>
+                    <div id="asceBeamsGrid" style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;"></div>
+                </div>
+            </div>
+
+            <!-- ─── 4. QA/QC Summary ──────────────────────── -->
+            <div class="panel">
+                <div class="panel-header">
+                    <span class="panel-title">4. QA/QC Summary — Review Flags</span>
+                    <div style="display:flex;gap:6px;">
+                        <button class="btn btn-blue btn-sm" onclick="asceBuildQaQc()">Refresh QA/QC</button>
+                        <button class="btn btn-ghost btn-sm" onclick="asceExportQaQc('csv')">Export CSV</button>
+                        <button class="btn btn-ghost btn-sm" onclick="asceExportQaQc('json')">Export JSON</button>
+                    </div>
+                </div>
+                <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+                    <div class="stat-card" style="flex:1;min-width:120px;"><div class="stat-label">OK</div><div class="stat-value" id="asceQaOk" style="color:var(--accent-green);">—</div></div>
+                    <div class="stat-card" style="flex:1;min-width:120px;"><div class="stat-label">Placeholder</div><div class="stat-value" id="asceQaPh" style="color:var(--accent-orange);">—</div></div>
+                    <div class="stat-card" style="flex:1;min-width:120px;"><div class="stat-label">Missing</div><div class="stat-value" id="asceQaMiss" style="color:var(--accent-red);">—</div></div>
+                    <div class="stat-card" style="flex:1;min-width:120px;"><div class="stat-label">Total</div><div class="stat-value" id="asceQaTotal">—</div></div>
+                </div>
+                <div style="overflow:auto;max-height:420px;">
+                    <table id="asceQaTable" class="midas-table" style="font-size:11.5px;"></table>
+                </div>
+            </div>
+        </div>
+
+        <style>
+            .asce-ok        { color: var(--accent-green); font-weight:600; }
+            .asce-warn      { color: var(--accent-orange); font-weight:600; }
+            .asce-err       { color: var(--accent-red); font-weight:600; }
+            .asce-pending   { color: var(--text-muted); font-style: italic; }
+            .asce-placeholder { color: var(--accent-orange); font-weight:600; background:rgba(154,103,0,0.08); padding:1px 6px; border-radius:3px; font-size:10.5px; }
+        </style>
 
         <!-- ════════════ CONTROL-NODE DRIFT ════════════ -->
         <!-- Per-corner-node displacement & drift. User enters 4 corner nodes per
@@ -4786,6 +4971,522 @@ function drawDispChart(seriesArr, stories, dirLabel, canvasId) {
 
     Plotly.react(div, traces, layout, config);
     requestAnimationFrame(() => { try { Plotly.Plots.resize(div); } catch (e) {} });
+}
+
+// ══════════════════════════════════════════════════════════════
+// ASCE 41-17 LDP DATA EXTRACTION
+// Implements the pipeline described in the APEC reference doc
+// "Midas Gen Data Extraction for ASCE 41-17 LDP". Three stages:
+// (1) settings verification, (2) demand extraction, (3) capacity
+// inputs via Handsontable, then a QA/QC summary that flags every
+// placeholder/missing value for engineer review.
+// ══════════════════════════════════════════════════════════════
+let asceMaterialsHot = null, asceColumnsHot = null, asceBeamsHot = null;
+let asceLastDemands = {}; // { 1: {status, data, note}, 2: {...}, ... }
+let asceLastSettings = {};
+
+const ASCE_MATERIAL_HEADERS = ["ID", "Name", "f'c (MPa)", "fy (MPa)", "fyt (MPa)", "Source"];
+const ASCE_COLUMN_HEADERS = ["Element", "Section", "b (mm)", "h (mm)", "Cover (mm)", "Long. As (mm²)", "Bars (n-Ø)", "Tie Av (mm²)", "Tie spacing s (mm)", "fyt (MPa)", "Clear height (mm)", "Material", "Source"];
+const ASCE_BEAM_HEADERS = ["Element", "Section", "b (mm)", "h (mm)", "Cover (mm)", "Top As (mm²)", "Bot As (mm²)", "Stirrup Av (mm²)", "Stirrup s (mm)", "fyt (MPa)", "Material", "Source"];
+
+function asceOnTabActivate() {
+    if (typeof Handsontable === "undefined") {
+        setTimeout(asceOnTabActivate, 200);
+        return;
+    }
+    if (!asceMaterialsHot) asceSetupMaterialsGrid();
+    if (!asceColumnsHot) asceSetupColumnsGrid();
+    if (!asceBeamsHot) asceSetupBeamsGrid();
+}
+
+// ─── Section 1: Settings verification ────────────────────────
+async function asceVerifySettings() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+    const setStatus = (id, kind, msg) => {
+        const cls = kind === "ok" ? "asce-ok" : kind === "warn" ? "asce-warn" : kind === "err" ? "asce-err" : "asce-pending";
+        document.getElementById(id).innerHTML = `<span class="${cls}">${msg}</span>`;
+    };
+    asceLastSettings = { A: null, B: null, C: null, D: null, E: null };
+
+    // A) RSA spectrum function — must be BSE-1E or BSE-2E. Fetch /db/splc and look for the name.
+    try {
+        const data = await midasAPI("GET", "/db/splc");
+        const splc = data.SPLC || data;
+        const names = Object.values(splc || {}).map(v => (v && v.NAME) || "").filter(Boolean);
+        const hasBSE = names.some(n => /BSE\s*[-]?\s*[12]\s*E/i.test(n));
+        if (!names.length) { setStatus("asceSetA", "err", "✗ No RS load cases found"); asceLastSettings.A = { ok: false, note: "no RS cases" }; }
+        else if (hasBSE) { setStatus("asceSetA", "ok", "✓ BSE-1E/2E found"); asceLastSettings.A = { ok: true, note: names.filter(n => /BSE/i.test(n)).join(", ") }; }
+        else { setStatus("asceSetA", "warn", `⚠ No BSE-* in ${names.length} RS case(s) — review`); asceLastSettings.A = { ok: false, note: `RS cases present but no BSE-1E/2E: ${names.join(", ")}` }; }
+    } catch (e) {
+        setStatus("asceSetA", "err", "✗ /db/splc fetch failed");
+        asceLastSettings.A = { ok: false, note: e.message };
+    }
+
+    // B & D & E) Load combinations — heuristic name matching
+    try {
+        const data = await midasAPI("GET", "/db/lcom-gen");
+        const lcom = data["LCOM-GEN"] || data.LCOM || data;
+        const combos = Object.values(lcom || {}).map(v => (v && (v.NAME || v.name)) || "").filter(Boolean);
+        // B: 100/30 directional
+        const has10030 = combos.some(n => /100\s*\+\s*30|30\s*\+\s*100|100.*30|30.*100/i.test(n));
+        if (combos.length === 0) {
+            setStatus("asceSetB", "err", "✗ No combos defined");
+            asceLastSettings.B = { ok: false, note: "no combinations" };
+        } else if (has10030) {
+            setStatus("asceSetB", "ok", "✓ 100/30 combo present");
+            asceLastSettings.B = { ok: true, note: "100/30 directional combo found by name" };
+        } else {
+            setStatus("asceSetB", "warn", "⚠ No 100/30 combo by name");
+            asceLastSettings.B = { ok: false, note: `${combos.length} combo(s), none match 100/30 pattern — review names` };
+        }
+        // D: gravity 1.1·(D + 0.25L)  — match names containing "1.1" + "D" + "0.25" + "L" loosely
+        const hasGrav = combos.some(n => /1\.1.*0\.25|ASCE\s*41|QG/i.test(n));
+        if (hasGrav) {
+            setStatus("asceSetD", "ok", "✓ ASCE-41 gravity combo by name");
+            asceLastSettings.D = { ok: true, note: "Gravity combo with 1.1/0.25 pattern found" };
+        } else {
+            setStatus("asceSetD", "warn", "⚠ Verify Q_G = 1.1·(D + 0.25L) — name not matched");
+            asceLastSettings.D = { ok: false, note: "PLACEHOLDER: assumed Q_G = 1.1·(D + 0.25L); confirm in MIDAS" };
+        }
+        // E: total LDP combo Q_UD = Q_G ± Q_E
+        const hasUD = combos.some(n => /Q?UD|LDP|Q_G\s*[+\-±]\s*Q_E/i.test(n));
+        if (hasUD) {
+            setStatus("asceSetE", "ok", "✓ LDP total combo by name");
+            asceLastSettings.E = { ok: true, note: "LDP combo found" };
+        } else {
+            setStatus("asceSetE", "warn", "⚠ Build Q_UD = Q_G ± Q_E post-export");
+            asceLastSettings.E = { ok: false, note: "PLACEHOLDER: combine Q_G and Q_E in pipeline" };
+        }
+    } catch (e) {
+        setStatus("asceSetB", "err", "✗ combo fetch failed");
+        setStatus("asceSetD", "err", "✗ combo fetch failed");
+        setStatus("asceSetE", "err", "✗ combo fetch failed");
+        asceLastSettings.B = asceLastSettings.D = asceLastSettings.E = { ok: false, note: e.message };
+    }
+
+    // C) Accidental torsion — REST API doesn't expose RS load case eccentricity directly.
+    // Mark as PLACEHOLDER for manual review.
+    setStatus("asceSetC", "warn", "⚠ Verify in MIDAS UI (not in REST API)");
+    asceLastSettings.C = { ok: false, note: "PLACEHOLDER: REST API does not expose RS eccentricity. Confirm ±5% in Load > RS Load Cases > Eccentricity." };
+
+    // Summary note
+    const oks = Object.values(asceLastSettings).filter(s => s && s.ok).length;
+    const total = 5;
+    document.getElementById("asceSettingsNotes").innerHTML = oks === total
+        ? `<span class="asce-ok">All ${total} settings verified.</span>`
+        : `<span class="asce-warn">${oks}/${total} verified — items flagged ⚠ require manual review (see §4 QA/QC).</span>`;
+    showToast(`Settings: ${oks}/${total} verified`);
+}
+
+// ─── Section 2: Demand-side extraction ───────────────────────
+async function asceExtractDemands() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+    asceLastDemands = {};
+    const log = msg => {
+        const div = document.getElementById("asceDemandsLog");
+        const t = new Date().toLocaleTimeString();
+        div.innerHTML += `[${t}] ${msg}<br>`;
+        div.scrollTop = div.scrollHeight;
+    };
+    const setStatus = (id, kind, msg) => {
+        const cls = kind === "ok" ? "asce-ok" : kind === "ph" ? "asce-placeholder" : kind === "err" ? "asce-err" : "asce-pending";
+        document.getElementById(id).innerHTML = `<span class="${cls}">${msg}</span>`;
+    };
+
+    log("Starting demand extraction (8 items)...");
+
+    // Helper: try a /post/TABLE call
+    const tryTable = async (tableType, lcNames) => {
+        try {
+            const body = { Argument: { TABLE_TYPE: tableType, UNIT: { FORCE: "KN", DIST: "MM" }, LOAD_CASE_NAMES: lcNames || [], STYLES: { FORMAT: "Fixed", PLACE: 4 } }};
+            const res = await midasAPI("POST", "/post/TABLE", body);
+            const tbl = res.empty || res[Object.keys(res).find(k => k !== "empty")] || {};
+            return { ok: !!(tbl.HEAD && tbl.DATA && tbl.DATA.length), head: tbl.HEAD || [], data: tbl.DATA || [], raw: tbl };
+        } catch (e) {
+            return { ok: false, error: e.message };
+        }
+    };
+
+    // 1) Story shear — try STORY_SHEAR (RS-combined). Falls back to placeholder if not exposed.
+    {
+        const r = await tryTable("STORY_SHEAR", []);
+        if (r.ok) {
+            asceLastDemands[1] = { status: "ok", count: r.data.length, head: r.head };
+            setStatus("asceDem1", "ok", `✓ ${r.data.length} rows`);
+            log(`#1 Story Shear: ${r.data.length} rows`);
+        } else {
+            asceLastDemands[1] = { status: "placeholder", note: "STORY_SHEAR not in REST API — fall back to STORY_DRIFT_X/Y for K_eff or use desktop NX API GetStoryShearForRS()" };
+            setStatus("asceDem1", "ph", "⚠ PLACEHOLDER");
+            log(`#1 Story Shear: placeholder (REST API gap)`);
+        }
+    }
+
+    // 2 & 3) Beam force (columns + beams)
+    {
+        const r = await tryTable("BEAMFORCE", []);
+        if (r.ok) {
+            asceLastDemands[2] = { status: "ok", count: r.data.length, head: r.head, note: "Filter by element TYPE for columns vs beams in pipeline" };
+            asceLastDemands[3] = { status: "ok", count: r.data.length, head: r.head, note: "Same source as #2; filter beams element-side" };
+            setStatus("asceDem2", "ok", `✓ ${r.data.length} rows`);
+            setStatus("asceDem3", "ok", `✓ ${r.data.length} rows`);
+            log(`#2/#3 BeamForce: ${r.data.length} rows (filter columns/beams downstream)`);
+        } else {
+            asceLastDemands[2] = asceLastDemands[3] = { status: "missing", note: r.error || "BEAMFORCE returned empty" };
+            setStatus("asceDem2", "err", "✗ failed");
+            setStatus("asceDem3", "err", "✗ failed");
+            log(`#2/#3 BeamForce: ${r.error || "empty"}`);
+        }
+    }
+
+    // 4) Wall member force — best-effort
+    {
+        const r = await tryTable("WALLFORCE", []);
+        if (r.ok) {
+            asceLastDemands[4] = { status: "ok", count: r.data.length, head: r.head };
+            setStatus("asceDem4", "ok", `✓ ${r.data.length} rows`);
+            log(`#4 Wall Force: ${r.data.length} rows`);
+        } else {
+            // Try alternative table name
+            const r2 = await tryTable("WALLMEMBERFORCE", []);
+            if (r2.ok) {
+                asceLastDemands[4] = { status: "ok", count: r2.data.length, head: r2.head };
+                setStatus("asceDem4", "ok", `✓ ${r2.data.length} rows`);
+                log(`#4 Wall Force (WALLMEMBERFORCE): ${r2.data.length} rows`);
+            } else {
+                asceLastDemands[4] = { status: "placeholder", note: "WALLFORCE / WALLMEMBERFORCE not exposed — extract via MIDAS UI > Excel for now" };
+                setStatus("asceDem4", "ph", "⚠ PLACEHOLDER");
+                log(`#4 Wall Force: placeholder`);
+            }
+        }
+    }
+
+    // 5) Story mass / centre of mass — STORY_MASS gives mass + CM in standard MIDAS
+    {
+        const r = await tryTable("STORY_MASS", []);
+        if (r.ok) {
+            asceLastDemands[5] = { status: "ok", count: r.data.length, head: r.head };
+            setStatus("asceDem5", "ok", `✓ ${r.data.length} rows`);
+            log(`#5 Centre of Mass: ${r.data.length} rows`);
+        } else {
+            asceLastDemands[5] = { status: "placeholder", note: "STORY_MASS not exposed — use storyDataCache + tributary mass; engineer review" };
+            setStatus("asceDem5", "ph", "⚠ PLACEHOLDER");
+            log(`#5 CM: placeholder`);
+        }
+    }
+
+    // 6) Centre of rigidity — NOT exposed in REST API; flag PLACEHOLDER
+    asceLastDemands[6] = { status: "placeholder", note: "PLACEHOLDER: CR not exposed in REST API. Compute from per-column lateral stiffness K_i = 12·E·I / h³ and weight by location, OR extract from MIDAS UI." };
+    setStatus("asceDem6", "ph", "⚠ PLACEHOLDER (compute)");
+    log(`#6 CR: placeholder (derive from column stiffness)`);
+
+    // 7) Story drift — known to work
+    {
+        const r = await tryTable("STORY_DRIFT_X", []);
+        if (r.ok) {
+            asceLastDemands[7] = { status: "ok", count: r.data.length, head: r.head };
+            setStatus("asceDem7", "ok", `✓ ${r.data.length} rows`);
+            log(`#7 Story Drift X: ${r.data.length} rows (also fetch Y)`);
+        } else {
+            asceLastDemands[7] = { status: "missing", note: r.error || "STORY_DRIFT_X failed" };
+            setStatus("asceDem7", "err", "✗ failed");
+            log(`#7 Story Drift: ${r.error || "empty"}`);
+        }
+    }
+
+    // 8) Modal participation — try VIBRATION_MODE
+    {
+        const r = await tryTable("VIBRATION_MODE", []);
+        if (r.ok) {
+            asceLastDemands[8] = { status: "ok", count: r.data.length, head: r.head };
+            setStatus("asceDem8", "ok", `✓ ${r.data.length} modes`);
+            log(`#8 Modes: ${r.data.length}`);
+        } else {
+            asceLastDemands[8] = { status: "placeholder", note: "VIBRATION_MODE not in REST. Use existing Modes tab in this app to verify ≥ 90% mass per direction." };
+            setStatus("asceDem8", "ph", "⚠ PLACEHOLDER (use Modes tab)");
+            log(`#8 Modes: placeholder`);
+        }
+    }
+
+    log("Done.");
+    const okCount = Object.values(asceLastDemands).filter(d => d.status === "ok").length;
+    const phCount = Object.values(asceLastDemands).filter(d => d.status === "placeholder").length;
+    showToast(`Demands: ${okCount} OK, ${phCount} placeholder, ${8 - okCount - phCount} missing`);
+}
+
+function asceExportDemandsJson() {
+    if (!Object.keys(asceLastDemands).length) { showToast("Run Fetch All Demands first", "error"); return; }
+    const blob = new Blob([JSON.stringify({ settings: asceLastSettings, demands: asceLastDemands }, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `asce41_demands_${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.json`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    showToast("Exported");
+}
+
+// ─── Section 3: Capacity grids (Handsontable) ────────────────
+function asceSetupMaterialsGrid() {
+    const container = document.getElementById("asceMaterialsGrid");
+    if (!container || asceMaterialsHot) return;
+    asceMaterialsHot = new Handsontable(container, {
+        data: [["", "", "", "", "", ""]],
+        colHeaders: ASCE_MATERIAL_HEADERS,
+        rowHeaders: true,
+        height: 180,
+        stretchH: "all",
+        licenseKey: "non-commercial-and-evaluation",
+        contextMenu: true,
+        manualColumnResize: true,
+        columns: [
+            { type: "text" },
+            { type: "text" },
+            { type: "numeric", numericFormat: { pattern: "0.00" } },
+            { type: "numeric", numericFormat: { pattern: "0.00" } },
+            { type: "numeric", numericFormat: { pattern: "0.00" } },
+            { type: "text", readOnly: true, className: "htDimmed" }
+        ]
+    });
+}
+
+function asceSetupColumnsGrid() {
+    const container = document.getElementById("asceColumnsGrid");
+    if (!container || asceColumnsHot) return;
+    asceColumnsHot = new Handsontable(container, {
+        data: [Array(ASCE_COLUMN_HEADERS.length).fill("")],
+        colHeaders: ASCE_COLUMN_HEADERS,
+        rowHeaders: true,
+        height: 240,
+        stretchH: "all",
+        licenseKey: "non-commercial-and-evaluation",
+        contextMenu: true,
+        manualColumnResize: true,
+        columns: [
+            { type: "text" }, { type: "text" },                                   // Element, Section
+            { type: "numeric", numericFormat: { pattern: "0" } },                 // b
+            { type: "numeric", numericFormat: { pattern: "0" } },                 // h
+            { type: "numeric", numericFormat: { pattern: "0" } },                 // cover
+            { type: "numeric", numericFormat: { pattern: "0" } },                 // Long As
+            { type: "text" },                                                      // Bars (n-Ø)
+            { type: "numeric", numericFormat: { pattern: "0.00" } },              // Tie Av
+            { type: "numeric", numericFormat: { pattern: "0" } },                 // Tie spacing
+            { type: "numeric", numericFormat: { pattern: "0" } },                 // fyt
+            { type: "numeric", numericFormat: { pattern: "0" } },                 // Clear height
+            { type: "text" },                                                      // Material
+            { type: "text", readOnly: true, className: "htDimmed" }                // Source
+        ]
+    });
+}
+
+function asceSetupBeamsGrid() {
+    const container = document.getElementById("asceBeamsGrid");
+    if (!container || asceBeamsHot) return;
+    asceBeamsHot = new Handsontable(container, {
+        data: [Array(ASCE_BEAM_HEADERS.length).fill("")],
+        colHeaders: ASCE_BEAM_HEADERS,
+        rowHeaders: true,
+        height: 220,
+        stretchH: "all",
+        licenseKey: "non-commercial-and-evaluation",
+        contextMenu: true,
+        manualColumnResize: true,
+        columns: [
+            { type: "text" }, { type: "text" },
+            { type: "numeric", numericFormat: { pattern: "0" } },
+            { type: "numeric", numericFormat: { pattern: "0" } },
+            { type: "numeric", numericFormat: { pattern: "0" } },
+            { type: "numeric", numericFormat: { pattern: "0" } },
+            { type: "numeric", numericFormat: { pattern: "0" } },
+            { type: "numeric", numericFormat: { pattern: "0.00" } },
+            { type: "numeric", numericFormat: { pattern: "0" } },
+            { type: "numeric", numericFormat: { pattern: "0" } },
+            { type: "text" },
+            { type: "text", readOnly: true, className: "htDimmed" }
+        ]
+    });
+}
+
+function asceMaterialsAddRow() { if (asceMaterialsHot) asceMaterialsHot.alter("insert_row_below", asceMaterialsHot.countRows() - 1); }
+function asceMaterialsClear()  { if (asceMaterialsHot) asceMaterialsHot.loadData([Array(ASCE_MATERIAL_HEADERS.length).fill("")]); }
+function asceColumnsAddRow()   { if (asceColumnsHot)   asceColumnsHot.alter("insert_row_below", asceColumnsHot.countRows() - 1); }
+function asceColumnsClear()    { if (asceColumnsHot)   asceColumnsHot.loadData([Array(ASCE_COLUMN_HEADERS.length).fill("")]); }
+function asceBeamsAddRow()     { if (asceBeamsHot)     asceBeamsHot.alter("insert_row_below", asceBeamsHot.countRows() - 1); }
+function asceBeamsClear()      { if (asceBeamsHot)     asceBeamsHot.loadData([Array(ASCE_BEAM_HEADERS.length).fill("")]); }
+
+// Pre-fill from MIDAS /db/sect + /db/matl (best-effort; sections are split into
+// columns vs beams by SHAPE = SB / Box / Pipe heuristic — engineer reviews).
+async function asceAutofillCapacity() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+    if (!asceMaterialsHot) asceSetupMaterialsGrid();
+    if (!asceColumnsHot)   asceSetupColumnsGrid();
+    if (!asceBeamsHot)     asceSetupBeamsGrid();
+
+    showProgress("ASCE 41 — Capacity Pre-fill", "Reading sections & materials...", "GET /db/sect + /db/matl");
+    try {
+        const [sectData, matlData] = await Promise.all([
+            midasAPI("GET", "/db/sect"),
+            midasAPI("GET", "/db/matl")
+        ]);
+        updateProgress(60, "Parsing...");
+
+        // Materials
+        const matlObj = matlData.MATL || matlData;
+        const matRows = [];
+        for (const [id, v] of Object.entries(matlObj)) {
+            if (!v || typeof v !== "object") continue;
+            // Try common MIDAS material fields
+            const name = v.NAME || v.sNAME || `Mat-${id}`;
+            // Concrete: TYPE includes CONC; rebar: TYPE includes STEEL; depends on locale
+            const fc = parseFloat(v.STRENGTH || v.dSTRENGTH || v.fc || 0);
+            // fy is in rebar materials, often separate from concrete
+            const fy = parseFloat(v.dFY || v.FY || v.fy || 0);
+            matRows.push([id, name, fc || "", fy || "", "", "/db/matl"]);
+        }
+        if (!matRows.length) matRows.push([Array(ASCE_MATERIAL_HEADERS.length).fill("")]);
+        asceMaterialsHot.loadData(matRows);
+
+        // Sections
+        const sectObj = sectData.SECT || sectData;
+        const colRows = [];
+        const beamRows = [];
+        for (const [id, v] of Object.entries(sectObj)) {
+            if (!v || typeof v !== "object") continue;
+            const name = v.NAME || v.sNAME || `Sect-${id}`;
+            const sb = v.SECT_BEFORE || {};
+            const si = sb.SECT_I || {};
+            const vsize = si.vSIZE || [];
+            // vsize[0] = H, vsize[1] = B (in meters per CLAUDE.md note)
+            const h = vsize[0] ? Math.round(vsize[0] * 1000) : "";
+            const b = vsize[1] ? Math.round(vsize[1] * 1000) : "";
+            // Heuristic: square/wide sections that are reasonably sized → put in BOTH so engineer picks
+            // For automated pre-fill, default everything to columns; engineer prunes.
+            colRows.push([
+                "", name, b, h, 40, "", "PLACEHOLDER", "", "", 415, "", "", "/db/sect"
+            ]);
+            beamRows.push([
+                "", name, b, h, 40, "", "", "", "", 415, "", "/db/sect"
+            ]);
+        }
+        if (!colRows.length) colRows.push(Array(ASCE_COLUMN_HEADERS.length).fill(""));
+        if (!beamRows.length) beamRows.push(Array(ASCE_BEAM_HEADERS.length).fill(""));
+        asceColumnsHot.loadData(colRows);
+        asceBeamsHot.loadData(beamRows);
+
+        updateProgress(100, "Done");
+        hideProgress();
+        showToast(`Pre-filled ${matRows.length} material(s), ${colRows.length} column row(s), ${beamRows.length} beam row(s) — review reinforcement & bar layout`);
+    } catch (e) {
+        hideProgress();
+        showToast(`Pre-fill failed: ${e.message}`, "error");
+    }
+}
+
+// One-click insert of typical APEC-default placeholders for each grid
+function asceAddCapacityPlaceholders() {
+    if (!asceMaterialsHot) asceSetupMaterialsGrid();
+    if (!asceColumnsHot)   asceSetupColumnsGrid();
+    if (!asceBeamsHot)     asceSetupBeamsGrid();
+    // Materials: typical APEC mid-rise concrete + rebar
+    asceMaterialsHot.loadData([
+        ["1", "C28", 28, "", "", "PLACEHOLDER (APEC default)"],
+        ["2", "Grade 60", "", 415, 415, "PLACEHOLDER (APEC default)"]
+    ]);
+    // Columns: one typical row
+    asceColumnsHot.loadData([
+        ["", "C-500x500", 500, 500, 40, 4800, "8-Ø25", 79, 100, 415, 3000, "C28+G60", "PLACEHOLDER (APEC default)"]
+    ]);
+    // Beams: one typical row
+    asceBeamsHot.loadData([
+        ["", "B-300x600", 300, 600, 40, 1500, 1500, 79, 150, 415, "C28+G60", "PLACEHOLDER (APEC default)"]
+    ]);
+    showToast("Placeholder rows inserted — replace with actual values before running pipeline");
+}
+
+// ─── Section 4: QA/QC summary ────────────────────────────────
+function asceBuildQaQc() {
+    const rows = [];
+    // Settings
+    [["A", "RSA spectrum function"], ["B", "Directional combination"], ["C", "Accidental torsion ±5%"], ["D", "Gravity load combo"], ["E", "LDP total combo"]].forEach(([k, label]) => {
+        const s = asceLastSettings[k];
+        rows.push({
+            section: "1. Settings",
+            id: k,
+            item: label,
+            status: s ? (s.ok ? "OK" : "Placeholder") : "Missing",
+            note: s ? s.note : "Not yet verified"
+        });
+    });
+    // Demands
+    [[1, "Story shear"], [2, "Per-column forces"], [3, "Per-beam forces"], [4, "Wall element forces"], [5, "Centre of mass"], [6, "Centre of rigidity"], [7, "Story drifts"], [8, "Modal mass participation"]].forEach(([k, label]) => {
+        const d = asceLastDemands[k];
+        rows.push({
+            section: "2. Demands",
+            id: `#${k}`,
+            item: label,
+            status: d ? (d.status === "ok" ? "OK" : d.status === "placeholder" ? "Placeholder" : "Missing") : "Missing",
+            note: d ? (d.note || `${d.count || 0} rows fetched`) : "Not yet extracted"
+        });
+    });
+    // Capacity
+    const matN = asceMaterialsHot ? asceMaterialsHot.getData().filter(r => r[1]).length : 0;
+    const colN = asceColumnsHot ? asceColumnsHot.getData().filter(r => r[1]).length : 0;
+    const bmN  = asceBeamsHot ? asceBeamsHot.getData().filter(r => r[1]).length : 0;
+    const phMat = asceMaterialsHot ? asceMaterialsHot.getData().some(r => /PLACEHOLDER/i.test(r[5] || "")) : false;
+    const phCol = asceColumnsHot ? asceColumnsHot.getData().some(r => /PLACEHOLDER/i.test(r[12] || "")) : false;
+    const phBm  = asceBeamsHot ? asceBeamsHot.getData().some(r => /PLACEHOLDER/i.test(r[11] || "")) : false;
+    rows.push({ section: "3. Capacity", id: "#13", item: "Materials (f'c, fy)", status: matN ? (phMat ? "Placeholder" : "OK") : "Missing", note: `${matN} row(s)` });
+    rows.push({ section: "3. Capacity", id: "#9-11,14", item: "Columns (b, h, As, ties, height)", status: colN ? (phCol ? "Placeholder" : "OK") : "Missing", note: `${colN} row(s)` });
+    rows.push({ section: "3. Capacity", id: "#12", item: "Beams (As, stirrups)", status: bmN ? (phBm ? "Placeholder" : "OK") : "Missing", note: `${bmN} row(s)` });
+    rows.push({ section: "3. Capacity", id: "#15", item: "Knowledge factor κ", status: document.getElementById("asceKappa").value ? "OK" : "Missing", note: `κ = ${document.getElementById("asceKappa").value}` });
+
+    // Counts
+    const okCount = rows.filter(r => r.status === "OK").length;
+    const phCount = rows.filter(r => r.status === "Placeholder").length;
+    const missCount = rows.filter(r => r.status === "Missing").length;
+    document.getElementById("asceQaOk").textContent = okCount;
+    document.getElementById("asceQaPh").textContent = phCount;
+    document.getElementById("asceQaMiss").textContent = missCount;
+    document.getElementById("asceQaTotal").textContent = rows.length;
+
+    // Render
+    const statusBadge = s => {
+        if (s === "OK") return `<span class="asce-ok">✓ OK</span>`;
+        if (s === "Placeholder") return `<span class="asce-placeholder">⚠ Placeholder — review</span>`;
+        return `<span class="asce-err">✗ Missing</span>`;
+    };
+    let html = `<thead><tr class="midas-banner"><th colspan="5">QA/QC Review (${okCount} OK, ${phCount} placeholder, ${missCount} missing of ${rows.length})</th></tr>`;
+    html += `<tr class="midas-cols"><th>Section</th><th style="width:80px;">ID</th><th>Item</th><th style="width:170px;">Status</th><th>Note</th></tr></thead><tbody>`;
+    rows.forEach(r => {
+        html += `<tr><td class="midas-mode">${r.section}</td><td class="midas-mode">${r.id}</td><td>${r.item}</td><td>${statusBadge(r.status)}</td><td style="text-align:left;">${r.note}</td></tr>`;
+    });
+    html += `</tbody>`;
+    document.getElementById("asceQaTable").innerHTML = html;
+    return rows;
+}
+
+function asceExportQaQc(fmt) {
+    const rows = asceBuildQaQc();
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+    let blob;
+    if (fmt === "json") {
+        blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" });
+    } else {
+        const headers = ["section", "id", "item", "status", "note"];
+        const lines = [headers.join(",")];
+        rows.forEach(r => {
+            lines.push(headers.map(h => {
+                const v = r[h] || "";
+                const s = String(v).replace(/"/g, '""');
+                return /[",\n]/.test(s) ? `"${s}"` : s;
+            }).join(","));
+        });
+        blob = new Blob([lines.join("\n")], { type: "text/csv" });
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `asce41_qa_${stamp}.${fmt}`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    showToast(`Exported QA/QC → ${a.download}`);
 }
 
 // ══════════════════════════════════════════════════════════════
