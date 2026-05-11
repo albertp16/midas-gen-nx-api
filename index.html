@@ -640,10 +640,6 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
                     Drift &amp; Displacement
                 </a></li>
-                <li><a onclick="switchTab('asce41'); asceOnTabActivate()" data-tab="asce41">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-                    ASCE 41 LDP
-                </a></li>
                 <li><a onclick="switchTab('controlnode'); cnOnTabActivate()" data-tab="controlnode">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="7" cy="7" r="1.5" fill="currentColor"/><circle cx="17" cy="7" r="1.5" fill="currentColor"/><circle cx="7" cy="17" r="1.5" fill="currentColor"/><circle cx="17" cy="17" r="1.5" fill="currentColor"/></svg>
                     Control-Node Drift
@@ -652,13 +648,9 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22V8"/><path d="M5 12H2a10 10 0 0020 0h-3"/><circle cx="12" cy="5" r="3"/></svg>
                     Reaction
                 </a></li>
-                <li><a onclick="switchTab('beam')" data-tab="beam">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="10" width="20" height="4" rx="1"/><line x1="6" y1="6" x2="6" y2="10"/><line x1="18" y1="6" x2="18" y2="10"/></svg>
-                    Beam Results
-                </a></li>
-                <li><a onclick="switchTab('column')" data-tab="column">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="20" rx="1"/><line x1="6" y1="22" x2="18" y2="22"/><line x1="6" y1="2" x2="18" y2="2"/></svg>
-                    Column Results
+                <li><a onclick="switchTab('storydisp')" data-tab="storydisp">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-7"/></svg>
+                    Story Displacement
                 </a></li>
                 <li><a onclick="switchTab('modes')" data-tab="modes">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12h2"/><path d="M20 12h2"/><path d="M5 5l1.5 14L9 5l1.5 14L13 5l1.5 14L17 5l1.5 14"/></svg>
@@ -971,239 +963,6 @@ Roof, 15.00, 0.00, Consider
             </div>
         </div>
 
-        <!-- ════════════ ASCE 41-17 LDP ════════════ -->
-        <!-- Reference: APEC Engineering Consultancy spec doc
-             "Midas Gen Data Extraction for ASCE 41-17 LDP".
-             Three-section pipeline: Settings verification → Demand extraction
-             → Capacity inputs → QA/QC summary. Where MIDAS doesn't expose
-             a getter (CM/CR per story, story shear modal-combined), the cell
-             is marked PLACEHOLDER with an assumed value and flagged in QA/QC. -->
-        <div id="tab-asce41" class="tab-page">
-            <div class="page-header">
-                <h2>ASCE 41-17 LDP — Data Extraction</h2>
-                <p>Linear Dynamic Procedure (§7.4.2) component DCR pipeline. Verify settings → extract demands → input capacities → QA/QC.</p>
-            </div>
-
-            <div class="panel" style="border-left:3px solid var(--accent-orange);">
-                <div style="font-size:12px;color:var(--text-secondary);">
-                    <b>Workflow:</b> (1) confirm RSA + load combos match ASCE 41 — if §A or §D are wrong, every demand is invalid.
-                    (2) Extract analysis results. (3) Fill in capacity inputs (auto-populated from <code>/db/sect</code> &amp; <code>/db/matl</code> where possible).
-                    (4) Review QA/QC summary before running the Python pipeline.
-                </div>
-            </div>
-
-            <!-- ─── 1. Settings Verification ─────────────────────── -->
-            <div class="panel">
-                <div class="panel-header">
-                    <span class="panel-title">1. Settings Verification (verify before extraction)</span>
-                    <button class="btn btn-blue btn-sm" onclick="asceVerifySettings()">Verify All</button>
-                </div>
-                <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px 0;">
-                    These items are <b>configuration</b>, not extracted data. If any are wrong, re-run RSA before extracting demands.
-                </p>
-                <table class="midas-table" id="asceSettingsTable" style="font-size:11.5px;">
-                    <thead>
-                        <tr class="midas-banner"><th colspan="4">Load Case &amp; Combination Settings — required values per ASCE 41-17</th></tr>
-                        <tr class="midas-cols"><th style="width:40px;">#</th><th>Setting</th><th>Required Value</th><th style="width:140px;">Status</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr><td class="midas-mode">A</td><td>RSA spectrum function</td><td>BSE-1E or BSE-2E target spectrum (NOT NSCP)</td><td id="asceSetA"><span class="asce-pending">— not checked —</span></td></tr>
-                        <tr><td class="midas-mode">B</td><td>Directional combination</td><td>100% RSX + 30% RSY <i>and</i> 30% RSX + 100% RSY (§7.2.5)</td><td id="asceSetB"><span class="asce-pending">— not checked —</span></td></tr>
-                        <tr><td class="midas-mode">C</td><td>Accidental torsion ±5%</td><td>Required if torsional irregularity (§7.3.1.1.4)</td><td id="asceSetC"><span class="asce-pending">— not checked —</span></td></tr>
-                        <tr><td class="midas-mode">D</td><td>Gravity load combination</td><td>Q<sub>G</sub> = 1.1·(D + 0.25·L) per §7.2.2 (NOT 1.2D + 1.6L)</td><td id="asceSetD"><span class="asce-pending">— not checked —</span></td></tr>
-                        <tr><td class="midas-mode">E</td><td>Total combo for LDP demands</td><td>Q<sub>UD</sub> = Q<sub>G</sub> ± Q<sub>E</sub> (combine post-export)</td><td id="asceSetE"><span class="asce-pending">— not checked —</span></td></tr>
-                    </tbody>
-                </table>
-                <div id="asceSettingsNotes" style="margin-top:8px;font-size:11.5px;color:var(--text-muted);"></div>
-            </div>
-
-            <!-- ─── 2. Demand-Side Extraction ──────────────────────── -->
-            <div class="panel">
-                <div class="panel-header">
-                    <span class="panel-title">2. Demand-Side Data (analysis results)</span>
-                    <div style="display:flex;gap:6px;">
-                        <button class="btn btn-blue btn-sm" onclick="asceExtractDemands()">Fetch All Demands</button>
-                        <button class="btn btn-ghost btn-sm" onclick="asceExportDemandsJson()">Export JSON</button>
-                    </div>
-                </div>
-                <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px 0;">
-                    Per the spec doc, items #1–#8. Pulled from <code>/post/TABLE</code>. Items not exposed in the REST API
-                    are stored as <span class="asce-placeholder">PLACEHOLDER</span> with an assumed value — flagged for review in §4.
-                </p>
-                <table class="midas-table" id="asceDemandsTable" style="font-size:11.5px;">
-                    <thead>
-                        <tr class="midas-banner"><th colspan="5">Demand-Side Items #1–#8 (ASCE 41-17 §7.4.2)</th></tr>
-                        <tr class="midas-cols"><th style="width:40px;">#</th><th>Data Item</th><th>Source</th><th>ASCE Clause</th><th style="width:130px;">Status</th></tr>
-                    </thead>
-                    <tbody>
-                        <tr><td class="midas-mode">1</td><td>Story shear (modal-combined)</td><td>STORY_SHEAR_RS</td><td>§7.3.1.1.3</td><td id="asceDem1"><span class="asce-pending">—</span></td></tr>
-                        <tr><td class="midas-mode">2</td><td>Per-column V<sub>2</sub>, V<sub>3</sub>, M<sub>2</sub>, M<sub>3</sub>, P</td><td>BEAMFORCE</td><td>§7.3.1.1.3 / .4</td><td id="asceDem2"><span class="asce-pending">—</span></td></tr>
-                        <tr><td class="midas-mode">3</td><td>Per-beam V, M (face of supports)</td><td>BEAMFORCE (filter)</td><td>§7.5</td><td id="asceDem3"><span class="asce-pending">—</span></td></tr>
-                        <tr><td class="midas-mode">4</td><td>Wall element forces (M, V, P)</td><td>WALLFORCE</td><td>§10.7</td><td id="asceDem4"><span class="asce-pending">—</span></td></tr>
-                        <tr><td class="midas-mode">5</td><td>Centre of mass per story</td><td>STORY_MASS</td><td>§7.3.1.1.4</td><td id="asceDem5"><span class="asce-pending">—</span></td></tr>
-                        <tr><td class="midas-mode">6</td><td>Centre of rigidity per story</td><td>derived (computed)</td><td>§7.3.1.1.4</td><td id="asceDem6"><span class="asce-pending">—</span></td></tr>
-                        <tr><td class="midas-mode">7</td><td>Story drifts Δ</td><td>STORY_DRIFT_X/Y</td><td>§7.3.1.1.1 / .2</td><td id="asceDem7"><span class="asce-pending">—</span></td></tr>
-                        <tr><td class="midas-mode">8</td><td>Modal periods &amp; mass participation (≥ 90%)</td><td>VIBRATION_MODE</td><td>§7.4.2.1.2</td><td id="asceDem8"><span class="asce-pending">—</span></td></tr>
-                    </tbody>
-                </table>
-                <div id="asceDemandsLog" style="margin-top:8px;font-size:11px;color:var(--text-muted);font-family:Consolas,monospace;max-height:120px;overflow:auto;"></div>
-            </div>
-
-            <!-- ─── 3. Capacity-Side Inputs ──────────────────────── -->
-            <div class="panel">
-                <div class="panel-header">
-                    <span class="panel-title">3. Capacity-Side Inputs (model definition)</span>
-                    <div style="display:flex;gap:6px;">
-                        <button class="btn btn-ghost btn-sm" onclick="asceAutofillCapacity()" title="Pre-fill rows from /db/sect and /db/matl">Pre-fill from MIDAS</button>
-                        <button class="btn btn-ghost btn-sm" onclick="asceAddCapacityPlaceholders()" title="Insert one assumed-value row of each type">Insert Placeholders</button>
-                    </div>
-                </div>
-                <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px 0;">
-                    Items #9–#15. Manual override grids (Handsontable). Empty cells will be back-filled with assumed values from
-                    Table 10-1 (expected strengths) and §10.4.2.3 defaults — flagged in §4 for engineer review.
-                </p>
-
-                <!-- Knowledge factor κ + global params -->
-                <div class="form-row" style="gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:14px;">
-                    <div class="form-group">
-                        <label>Knowledge Factor κ</label>
-                        <select id="asceKappa" class="input" style="width:200px;">
-                            <option value="1.0">1.00 — Comprehensive Knowledge</option>
-                            <option value="0.75">0.75 — Minimum / Usual Knowledge</option>
-                        </select>
-                        <span style="font-size:11px;color:var(--text-muted);">ASCE 41 §6.2.4 — multiplier on V<sub>n</sub>, M<sub>n</sub></span>
-                    </div>
-                    <div class="form-group">
-                        <label>Expected Strength Factor f'<sub>ce</sub>/f'<sub>c</sub></label>
-                        <input type="number" id="asceFcExpected" class="input" value="1.5" step="0.05" min="1.0" style="width:120px;" />
-                        <span style="font-size:11px;color:var(--text-muted);">Table 10-1: 1.5 default</span>
-                    </div>
-                    <div class="form-group">
-                        <label>Expected Strength Factor f<sub>ye</sub>/f<sub>y</sub></label>
-                        <input type="number" id="asceFyExpected" class="input" value="1.25" step="0.05" min="1.0" style="width:120px;" />
-                        <span style="font-size:11px;color:var(--text-muted);">Table 10-1: 1.25 default</span>
-                    </div>
-                </div>
-
-                <!-- Materials (#13) -->
-                <div style="margin-bottom:18px;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                        <b style="font-size:12px;">#13 Materials — nominal strengths (f'<sub>c</sub>, f<sub>y</sub>)</b>
-                        <div style="display:flex;gap:4px;">
-                            <button class="btn btn-ghost btn-sm" onclick="asceMaterialsAddRow()">+ Row</button>
-                            <button class="btn btn-ghost btn-sm" onclick="asceMaterialsClear()">Clear</button>
-                        </div>
-                    </div>
-                    <div id="asceMaterialsGrid" style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;"></div>
-                </div>
-
-                <!-- Columns (#9, #10, #11) -->
-                <div style="margin-bottom:18px;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                        <b style="font-size:12px;">#9-#11 Columns — section, longitudinal &amp; transverse reinforcement, clear height (#14)</b>
-                        <div style="display:flex;gap:4px;">
-                            <button class="btn btn-ghost btn-sm" onclick="asceColumnsAddRow()">+ Row</button>
-                            <button class="btn btn-ghost btn-sm" onclick="asceColumnsClear()">Clear</button>
-                        </div>
-                    </div>
-                    <div id="asceColumnsGrid" style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;"></div>
-                </div>
-
-                <!-- Beams (#12) -->
-                <div>
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                        <b style="font-size:12px;">#12 Beams — top/bottom A<sub>s</sub>, stirrups</b>
-                        <div style="display:flex;gap:4px;">
-                            <button class="btn btn-ghost btn-sm" onclick="asceBeamsAddRow()">+ Row</button>
-                            <button class="btn btn-ghost btn-sm" onclick="asceBeamsClear()">Clear</button>
-                        </div>
-                    </div>
-                    <div id="asceBeamsGrid" style="border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;"></div>
-                </div>
-            </div>
-
-            <!-- ─── 5. Capacities & DCR (computed) ──────────────────── -->
-            <div class="panel">
-                <div class="panel-header">
-                    <span class="panel-title">5. Capacities &amp; DCR (ACI 318 §22.3 / §22.5 + ASCE 41 expected strengths)</span>
-                    <div style="display:flex;gap:6px;">
-                        <button class="btn btn-blue btn-sm" onclick="asceComputeCapacitiesAndDcr()">Compute Capacities &amp; DCR</button>
-                        <button class="btn btn-ghost btn-sm" onclick="asceExportCapacities('csv')">Export CSV</button>
-                        <button class="btn btn-ghost btn-sm" onclick="asceExportCapacities('json')">Export JSON</button>
-                    </div>
-                </div>
-                <p style="font-size:11px;color:var(--text-muted);margin:0 0 10px 0;">
-                    Per §3 inputs + §2 BEAMFORCE demands. Capacity = κ · M<sub>n</sub>(f<sub>ce</sub>, f<sub>ye</sub>) for flexure; κ · (V<sub>c</sub> + V<sub>s</sub>) for shear.
-                    Columns also get a 4-point P-M envelope (Pure-Comp / Balanced / Pure-Flexure / Pure-Tension) and a radial DCR.
-                    <b>Gate clause (§7.3.1.1):</b> DCR &lt; min(3.0, m). Status: <span class="asce-ok">PASS</span> · <span class="asce-warn">EXCEED m</span> · <span class="asce-err">FAIL gate</span>.
-                </p>
-
-                <!-- LC filter for the demand parsing -->
-                <div class="form-row" style="gap:14px;flex-wrap:wrap;align-items:flex-end;margin-bottom:12px;">
-                    <div class="form-group" style="flex:1;min-width:240px;">
-                        <label>Filter demand by Load Case <span style="font-size:10px;color:var(--text-muted)">(Ctrl/Shift+click to multi-select; empty = all)</span></label>
-                        <select id="asceLcFilter" class="input" multiple style="min-height:80px;"></select>
-                        <span style="font-size:11px;color:var(--text-muted);">Populated after Fetch All Demands. Pick the LDP combo (Q<sub>UD</sub> = Q<sub>G</sub> ± Q<sub>E</sub>) for code-correct DCR.</span>
-                    </div>
-                </div>
-
-                <div style="margin-bottom:14px;">
-                    <b style="font-size:12px;">Column Capacities &amp; DCR (with P-M envelope)</b>
-                    <div style="overflow:auto;max-height:340px;margin-top:6px;">
-                        <table id="asceColCapTable" class="midas-table" style="font-size:11px;"></table>
-                    </div>
-                </div>
-
-                <!-- P-M diagram: per-column envelope plot -->
-                <div style="margin-bottom:14px;">
-                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-                        <b style="font-size:12px;">P-M Interaction Diagram</b>
-                        <div style="display:flex;gap:6px;align-items:center;">
-                            <label style="font-size:11px;color:var(--text-muted);">Column:</label>
-                            <select id="ascePmSelect" class="input" style="width:200px;font-size:11px;" onchange="asceRenderPmDiagram()"></select>
-                        </div>
-                    </div>
-                    <div id="ascePmPlot" style="width:100%;height:380px;background:var(--bg-secondary);border:1px solid var(--border);border-radius:var(--radius);"></div>
-                </div>
-
-                <div>
-                    <b style="font-size:12px;">Beam Capacities &amp; DCR</b>
-                    <div style="overflow:auto;max-height:340px;margin-top:6px;">
-                        <table id="asceBeamCapTable" class="midas-table" style="font-size:11px;"></table>
-                    </div>
-                </div>
-            </div>
-
-            <!-- ─── 4. QA/QC Summary ──────────────────────── -->
-            <div class="panel">
-                <div class="panel-header">
-                    <span class="panel-title">4. QA/QC Summary — Review Flags</span>
-                    <div style="display:flex;gap:6px;">
-                        <button class="btn btn-blue btn-sm" onclick="asceBuildQaQc()">Refresh QA/QC</button>
-                        <button class="btn btn-ghost btn-sm" onclick="asceExportQaQc('csv')">Export CSV</button>
-                        <button class="btn btn-ghost btn-sm" onclick="asceExportQaQc('json')">Export JSON</button>
-                    </div>
-                </div>
-                <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
-                    <div class="stat-card" style="flex:1;min-width:120px;"><div class="stat-label">OK</div><div class="stat-value" id="asceQaOk" style="color:var(--accent-green);">—</div></div>
-                    <div class="stat-card" style="flex:1;min-width:120px;"><div class="stat-label">Placeholder</div><div class="stat-value" id="asceQaPh" style="color:var(--accent-orange);">—</div></div>
-                    <div class="stat-card" style="flex:1;min-width:120px;"><div class="stat-label">Missing</div><div class="stat-value" id="asceQaMiss" style="color:var(--accent-red);">—</div></div>
-                    <div class="stat-card" style="flex:1;min-width:120px;"><div class="stat-label">Total</div><div class="stat-value" id="asceQaTotal">—</div></div>
-                </div>
-                <div style="overflow:auto;max-height:420px;">
-                    <table id="asceQaTable" class="midas-table" style="font-size:11.5px;"></table>
-                </div>
-            </div>
-        </div>
-
-        <style>
-            .asce-ok        { color: var(--accent-green); font-weight:600; }
-            .asce-warn      { color: var(--accent-orange); font-weight:600; }
-            .asce-err       { color: var(--accent-red); font-weight:600; }
-            .asce-pending   { color: var(--text-muted); font-style: italic; }
-            .asce-placeholder { color: var(--accent-orange); font-weight:600; background:rgba(154,103,0,0.08); padding:1px 6px; border-radius:3px; font-size:10.5px; }
-        </style>
-
         <!-- ════════════ CONTROL-NODE DRIFT ════════════ -->
         <!-- Per-corner-node displacement & drift. User enters 4 corner nodes per
              floor in a Handsontable grid; we fetch DISPLACEMENTG (TABLE_TYPE)
@@ -1487,168 +1246,79 @@ Roof, 15.00, 0.00, Consider
             </div>
         </div>
 
-        <!-- ════════════ BEAM RESULTS ════════════ -->
-        <div id="tab-beam" class="tab-page">
-            <div class="page-header"><h2>Beam Results</h2><p>RC beam design based on beam_solver.py - ACI shear &amp; flexure</p></div>
+        <!-- ════════════ STORY DISPLACEMENT (extraction) ════════════ -->
+        <div id="tab-storydisp" class="tab-page">
+            <div class="page-header">
+                <h2>Story Displacement</h2>
+                <p>Extract story displacement results from MIDAS via <code>/post/TABLE</code> (STORY_DISPLACEMENT_X / STORY_DISPLACEMENT_Y)</p>
+            </div>
+
             <div class="panel">
-                <div class="panel-header"><span class="panel-title">Beam Design Parameters</span></div>
+                <div class="panel-header"><span class="panel-title">Parameters</span></div>
                 <div class="form-row" style="margin-bottom:12px;">
-                    <div class="form-group"><label>f'c (MPa)</label><input type="number" id="bmFc" class="input" value="27.579" step="0.001" style="width:100px;" /></div>
-                    <div class="form-group"><label>fy (MPa)</label><input type="number" id="bmFy" class="input" value="413.685" step="0.001" style="width:100px;" /></div>
-                    <div class="form-group"><label>Main Bar (mm)</label><input type="number" id="bmDb" class="input" value="25" style="width:80px;" /></div>
-                    <div class="form-group"><label>Tie Bar (mm)</label><input type="number" id="bmDbs" class="input" value="12" style="width:80px;" /></div>
-                    <div class="form-group"><label>Cover (mm)</label><input type="number" id="bmCover" class="input" value="40" style="width:80px;" /></div>
-                    <div class="form-group"><label>Frame Type</label><select id="bmFrameType" class="input"><option value="SMRF">SMRF</option><option value="IMRF">IMRF</option><option value="OMRF">OMRF</option></select></div>
-                </div>
-                <div class="form-row" style="margin-bottom:12px;">
-                    <div class="form-group" style="flex:1;"><label>Load Case (Gravity - Vg)</label><input type="text" id="bmLoadCaseGravity" class="input" value="1.2D+0.5L(ST)" /></div>
-                    <div class="form-group" style="flex:1;"><label>Load Case (Seismic - Mpr)</label><input type="text" id="bmLoadCaseSeismic" class="input" value="Ex(ST)" /></div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Floor Filter</label>
-                        <select id="bmFloorFilter" class="input" onchange="applyBeamFloorFilter()">
-                            <option value="ALL">All Floors</option>
+                    <div class="form-group" style="flex:2;">
+                        <label>Load Cases <span style="font-size:10px;color:var(--text-muted)">(Ctrl/Shift+click for multiple)</span></label>
+                        <select id="storyDispLoadCases" class="input" multiple style="min-height:90px;">
+                            <option selected>Ex(ST)</option><option selected>EX +(ST)</option><option selected>EX -(ST)</option>
+                            <option selected>Ey(ST)</option><option selected>EY +(ST)</option><option selected>EY -(ST)</option>
                         </select>
                     </div>
-                    <button class="btn btn-blue" onclick="runBeamDesign()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="10" width="20" height="4" rx="1"/></svg>
-                        Run Beam Design
+                    <div class="form-group">
+                        <label>Direction</label>
+                        <select id="storyDispDirection" class="input" onchange="updateStoryDispLoadCases()">
+                            <option value="X">X Direction</option>
+                            <option value="Y">Y Direction</option>
+                            <option value="BOTH" selected>Both (X + Y)</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row" style="align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;">
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;">Force</label>
+                        <select id="storyDispForceUnit" class="input" style="width:80px;font-size:11px;">
+                            <option>KN</option><option>N</option><option>KGF</option><option>TONF</option><option>LBF</option><option>KIPS</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;">Distance</label>
+                        <select id="storyDispDistUnit" class="input" style="width:70px;font-size:11px;">
+                            <option selected>MM</option><option>CM</option><option>M</option><option>IN</option><option>FT</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="flex-direction:row;align-items:center;gap:6px;">
+                        <label style="margin:0;">Decimals</label>
+                        <input type="number" id="storyDispDecimals" class="input" value="4" min="0" max="15" style="width:60px;font-size:11px;" />
+                    </div>
+                </div>
+                <div class="form-row">
+                    <button class="btn btn-blue" onclick="fetchStoryDisplacement()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-7"/></svg>
+                        Extract Story Displacement
                     </button>
                 </div>
             </div>
 
-            <div id="beamResults" style="display:none;">
+            <div id="storyDispResultsArea" style="display:none;">
                 <div style="display:flex; gap:8px; margin-bottom:12px; align-items:center; flex-wrap:wrap;">
-                    <span id="beamStatusBadge" style="display:none;font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;"></span>
-                    <span style="font-size:11px;color:var(--text-muted);margin-right:auto;">Double-click any cell to edit, then click Rerun</span>
-                    <button class="btn btn-blue btn-sm" onclick="rerunBeamDesign()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
-                        Rerun Design
-                    </button>
-                    <button class="btn btn-ghost btn-sm" onclick="copyBeamTable()">
+                    <span id="storyDispStatusBadge" style="font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;background:var(--bg-secondary);color:var(--text-secondary);"></span>
+                    <span style="margin-right:auto;"></span>
+                    <button class="btn btn-ghost btn-sm" onclick="copyStoryDispTable()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
                         Copy
                     </button>
-                    <button class="btn btn-ghost btn-sm" onclick="exportBeamCSV()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                        CSV
-                    </button>
-                    <button class="btn btn-blue btn-sm" onclick="drawBeamFramePlot()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
-                        Plot Frame
-                    </button>
-                    <button class="btn btn-ghost btn-sm" onclick="optimizeBeamTags()" title="Group beams with same size, rebar, and db into same tag">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M16 3h5v5"/><path d="M8 3H3v5"/><path d="M12 22v-8.3a4 4 0 00-1.172-2.872L3 3"/><path d="m15 9 6-6"/></svg>
-                        Optimize Tags
-                    </button>
-                </div>
-
-                <!-- Beam Frame Plot -->
-                <div id="beamFrameWrapper" class="chart-wrapper" style="display:none; margin-bottom:16px;">
-                    <div style="display:flex; gap:8px; margin-bottom:8px; justify-content:space-between; width:100%; align-items:center;">
-                        <div style="display:flex; gap:12px; align-items:center;">
-                            <span style="font-size:12px;font-weight:600;color:var(--text-primary);">Beam Frame Plan View</span>
-                            <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--accent-green);"><span style="display:inline-block;width:20px;height:3px;background:var(--accent-green);border-radius:2px;"></span>PASS</span>
-                            <span style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--accent-red);"><span style="display:inline-block;width:20px;height:3px;background:var(--accent-red);border-radius:2px;"></span>FAIL</span>
-                        </div>
-                        <div style="display:flex;gap:6px;">
-                            <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-muted);cursor:pointer;">
-                                <input type="checkbox" id="beamPlotShowIds" checked onchange="drawBeamFramePlot()" style="accent-color:var(--accent-blue);" />
-                                Show IDs
-                            </label>
-                            <label style="display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text-muted);cursor:pointer;">
-                                <input type="checkbox" id="beamPlotShowNodes" onchange="drawBeamFramePlot()" style="accent-color:var(--accent-blue);" />
-                                Show Nodes
-                            </label>
-                            <button class="btn btn-ghost btn-sm" onclick="downloadCanvas('beamFrameCanvas','beam_frame.png')">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                                Download
-                            </button>
-                            <button class="btn btn-blue btn-sm" onclick="downloadAllBeamPlots()">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                                Download All
-                            </button>
-                        </div>
-                    </div>
-                    <div style="display:flex; gap:16px; flex-wrap:wrap; width:100%;">
-                        <div style="flex:1; min-width:380px;">
-                            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;text-align:center;">Element IDs</div>
-                            <canvas id="beamFrameCanvas" width="800" height="600"></canvas>
-                        </div>
-                        <div style="flex:1; min-width:380px;">
-                            <div style="font-size:11px;color:var(--text-muted);margin-bottom:4px;text-align:center;">Beam Tags</div>
-                            <canvas id="beamTagCanvas" width="800" height="600"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="table-wrap">
-                    <div class="table-scroll"><table id="beamTable" class="sticky-col"><thead><tr></tr></thead><tbody></tbody></table></div>
-                </div>
-            </div>
-
-            <div id="beamEmpty" class="empty-state">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="10" width="20" height="4" rx="1"/><line x1="6" y1="6" x2="6" y2="10"/><line x1="18" y1="6" x2="18" y2="10"/></svg>
-                <h3>No beam data</h3>
-                <p>Configure design parameters and click "Run Beam Design" to compute ACI beam design results.</p>
-            </div>
-        </div>
-
-        <!-- ════════════ COLUMN RESULTS ════════════ -->
-        <div id="tab-column" class="tab-page">
-            <div class="page-header"><h2>Column Results</h2><p>Vertical column elements with section data</p></div>
-            <div class="panel">
-                <div class="panel-header"><span class="panel-title">Column Parameters</span></div>
-                <div class="form-row" style="margin-bottom:12px;">
-                    <div class="form-group"><label>Main Bar (mm)</label><input type="number" id="colDb" class="input" value="25" style="width:80px;" /></div>
-                    <div class="form-group"><label>Bars per Face (n)</label><input type="number" id="colN" class="input" value="8" style="width:80px;" /></div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label>Floor Filter</label>
-                        <select id="colFloorFilter" class="input" onchange="applyColumnFloorFilter()">
-                            <option value="ALL">All Floors</option>
-                        </select>
-                    </div>
-                    <button class="btn btn-blue" onclick="fetchColumnData()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="2" width="6" height="20" rx="1"/></svg>
-                        Get Column Data
-                    </button>
-                </div>
-            </div>
-
-            <div id="columnResults" style="display:none;">
-                <div style="display:flex; gap:8px; margin-bottom:12px; align-items:center; flex-wrap:wrap;">
-                    <span id="colStatusBadge" style="display:none;font-size:12px;font-weight:600;padding:6px 14px;border-radius:20px;"></span>
-                    <span style="font-size:11px;color:var(--text-muted);margin-right:auto;">Double-click any editable cell to modify</span>
-                    <button class="btn btn-blue btn-sm" onclick="drawColumn3D()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
-                        Plot 3D
-                    </button>
-                    <button class="btn btn-ghost btn-sm" onclick="copyColumnTable()">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
-                        Copy
-                    </button>
-                    <button class="btn btn-ghost btn-sm" onclick="exportColumnCSV()">
+                    <button class="btn btn-ghost btn-sm" onclick="exportStoryDispCSV()">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         CSV
                     </button>
                 </div>
 
-                <!-- Column 3D Plot (Plotly) -->
-                <div id="col3dWrapper" class="chart-wrapper" style="display:none; margin-bottom:16px;">
-                    <div id="col3dPlot" style="width:100%;height:650px;"></div>
-                </div>
-
-                <div class="table-wrap">
-                    <div class="table-scroll"><table id="columnTable" class="sticky-col"><thead><tr></tr></thead><tbody></tbody></table></div>
-                </div>
+                <div id="storyDispTablesContainer"></div>
             </div>
 
-            <div id="columnEmpty" class="empty-state">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="9" y="2" width="6" height="20" rx="1"/></svg>
-                <h3>No column data</h3><p>Click "Get Column Data" to fetch vertical column elements with section dimensions.</p>
+            <div id="storyDispEmpty" class="empty-state">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-7"/></svg>
+                <h3>No story displacement data</h3>
+                <p>Select load cases and click "Extract Story Displacement" to fetch results from MIDAS.</p>
             </div>
         </div>
 
@@ -2844,8 +2514,6 @@ async function connect() {
             document.getElementById("nodeCount").textContent = Object.keys(data.NODE || data).length;
             updateProgress(60, "Fetching model statistics...");
             await refreshStats();
-            updateProgress(70, "Fetching structure groups...");
-            await fetchBeamGroup();
             updateProgress(85, "Fetching story data...");
             try { await fetchStoryData(); } catch(e) { logEntry(`<span class="log-info">Story data auto-fetch: ${e.message}</span>`); }
             updateProgress(100, "Connected!");
@@ -2862,7 +2530,7 @@ async function connect() {
 
 function disconnect() {
     isConnected = false; apiKey = ""; clearInterval(pingInterval);
-    forBeamEList = null; cachedGrupData = null;
+    cachedGrupData = null;
     setStatus("disconnected");
     document.getElementById("connectBtn").style.display = "inline-flex";
     document.getElementById("disconnectBtn").style.display = "none";
@@ -3016,34 +2684,6 @@ async function refreshStats() {
     } catch {}
 }
 
-async function fetchBeamGroup() {
-    try {
-        const grupData = await midasAPI("GET", "/db/GRUP");
-        const groups = grupData.GRUP || grupData.Assign || grupData;
-        cachedGrupData = groups;
-        const grupCount = typeof groups === "object" ? Object.keys(groups).length : 0;
-        document.getElementById("grupCount").textContent = grupCount || "-";
-        forBeamEList = null;
-        for (const [gid, ginfo] of Object.entries(groups)) {
-            if (typeof ginfo === "object" && ginfo !== null) {
-                const name = (ginfo.NAME || "").trim().toLowerCase();
-                if (name === "for_beam") {
-                    forBeamEList = (ginfo.E_LIST || []).map(String);
-                    logEntry(`<span class="log-info">Group "for_beam" found: ${forBeamEList.length} elements</span>`);
-                    break;
-                }
-            }
-        }
-        if (forBeamEList === null) {
-            forBeamEList = [];
-            logEntry(`<span class="log-info">Group "for_beam" not found in structure groups — using all beams</span>`);
-        }
-    } catch (e) {
-        forBeamEList = [];
-        logEntry(`<span class="log-info">Could not fetch groups (GET /db/GRUP): ${e.message}</span>`);
-    }
-}
-
 function setAnalysisStatus(state) {
     const el = document.getElementById("analysisStatus");
     if (state === "completed") {
@@ -3110,65 +2750,7 @@ function renderTable(tableId, headers, rows) {
     }).join("");
 }
 
-function renderBeamTable(tableId, dataRows) {
-    const table = document.getElementById(tableId);
-    const dispHeaders = [
-        "id", "tag", "Ln\n(m)", "bw\n(mm)", "h\n(mm)", "f'c\n(MPa)", "\u03B2", "fy\n(MPa)", "fys\n(MPa)",
-        "loc", "nb", "As\n(mm\u00B2)", "nt", "db\n(mm)", "d\n(mm)",
-        "vdb\n(mm)", "vns", "vs\n(mm)",
-        "Md\n(kN.m)", "Mn\n(kN.m)", "MPr\n(kN.m)", "mr",
-        "Vd\n(kN)", "Vc\n(kN)", "Vn\n(kN)", "vr", "Status"
-    ];
-    table.querySelector("thead tr").innerHTML = dispHeaders.map(h => `<th>${h}</th>`).join("");
-
-    const locMap = {
-        i: { nb:9,As:12,nt:15,d:19,vns:23,vs:26,Md:29,Mn:32,MPr:35,mr:38,Vd:41,Vn:45,vr:48 },
-        m: { nb:10,As:13,nt:16,d:20,vns:24,vs:27,Md:30,Mn:33,MPr:36,mr:39,Vd:42,Vn:46,vr:49 },
-        j: { nb:11,As:14,nt:17,d:21,vns:25,vs:28,Md:31,Mn:34,MPr:37,mr:40,Vd:43,Vn:47,vr:50 }
-    };
-    const locs = ["i","m","j"];
-    let tbodyHtml = "";
-
-    dataRows.forEach((row, beamIdx) => {
-        const even = beamIdx % 2 === 1;
-        const bgClass = even ? " beam-even" : "";
-        const beamId = String(row[0]);
-        const status = String(row[51] || "");
-        const hasStatus = status.trim() === "FAIL";
-
-        locs.forEach((loc, li) => {
-            const m = locMap[loc];
-            const isFirst = li === 0;
-            const cells = [
-                isFirst ? beamId : "",
-                isFirst ? row[1] : "",
-                isFirst ? row[2] : "",
-                row[3], row[4], row[5], row[6], row[7], row[8],
-                loc,
-                row[m.nb], row[m.As], row[m.nt], row[18], row[m.d],
-                row[22], row[m.vns], row[m.vs],
-                row[m.Md], row[m.Mn], row[m.MPr], row[m.mr],
-                row[m.Vd], row[44], row[m.Vn], row[m.vr],
-                isFirst ? status : ""
-            ];
-
-            tbodyHtml += `<tr class="${bgClass}" data-beam-id="${beamId}" data-beam-idx="${beamIdx}" data-loc="${loc}" ${hasStatus ? 'data-status="FAIL"' : ''}>`;
-            cells.forEach((cell, ci) => {
-                let style = "";
-                const val = String(cell).trim();
-                if (val === "PASS") style = 'style="color:#3fb950;font-weight:700;text-align:center"';
-                else if (val === "FAIL") style = 'style="color:#f85149;font-weight:700;text-align:center"';
-                const hdr = dispHeaders[ci] || "";
-                if ((hdr === "mr" || hdr === "vr") && parseFloat(val) > 1.0)
-                    style = 'style="color:var(--accent-red);font-weight:700"';
-                tbodyHtml += `<td ${style}>${cell}</td>`;
-            });
-            tbodyHtml += "</tr>";
-        });
-    });
-    table.querySelector("tbody").innerHTML = tbodyHtml;
-}
-
+// Stale beam-tab helpers (no longer wired to UI; safe to drop in a follow-up cleanup)
 function setupBeamTableInteractions(editedElems) {
     const tbody = document.getElementById("beamTable").querySelector("tbody");
     const trs = [...tbody.querySelectorAll("tr")];
@@ -5026,1149 +4608,151 @@ function drawDispChart(seriesArr, stories, dirLabel, canvasId) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// ASCE 41-17 LDP DATA EXTRACTION
-// Implements the pipeline described in the APEC reference doc
-// "Midas Gen Data Extraction for ASCE 41-17 LDP". Three stages:
-// (1) settings verification, (2) demand extraction, (3) capacity
-// inputs via Handsontable, then a QA/QC summary that flags every
-// placeholder/missing value for engineer review.
+// STORY DISPLACEMENT — extraction module
+// Pulls STORY_DISPLACEMENT_X / STORY_DISPLACEMENT_Y from /post/TABLE
+// for one or more load cases and renders the raw data table per
+// direction (X, Y, or both). Companion to the plot in the
+// Drift & Displacement tab — this one is for tabular export.
 // ══════════════════════════════════════════════════════════════
-let asceMaterialsHot = null, asceColumnsHot = null, asceBeamsHot = null;
-let asceLastDemands = {}; // { 1: {status, data, note}, 2: {...}, ... }
-let asceLastSettings = {};
+let storyDispCache = null; // { dirLabel: { headers, rows } }
 
-const ASCE_MATERIAL_HEADERS = ["ID", "Name", "f'c (MPa)", "fy (MPa)", "fyt (MPa)", "Source"];
-const ASCE_COLUMN_HEADERS = ["Element", "Section", "b (mm)", "h (mm)", "Cover (mm)", "Long. As (mm²)", "Bars (n-Ø)", "Tie Av (mm²)", "Tie spacing s (mm)", "fyt (MPa)", "Clear height (mm)", "Material", "m-factor", "Source"];
-const ASCE_BEAM_HEADERS = ["Element", "Section", "b (mm)", "h (mm)", "Cover (mm)", "Top As (mm²)", "Bot As (mm²)", "Stirrup Av (mm²)", "Stirrup s (mm)", "fyt (MPa)", "Material", "m-factor", "Source"];
-// Column indices (kept in sync with the *_HEADERS arrays above)
-const ASCE_COL_M_IDX = 12, ASCE_COL_SRC_IDX = 13;
-const ASCE_BEAM_M_IDX = 11, ASCE_BEAM_SRC_IDX = 12;
+function updateStoryDispLoadCases() {
+    const dir = document.getElementById("storyDispDirection").value;
+    populateSelect("storyDispLoadCases", getFilteredLoadCases(dir));
+}
 
-function asceOnTabActivate() {
-    if (typeof Handsontable === "undefined") {
-        setTimeout(asceOnTabActivate, 200);
+async function fetchStoryDisplacement() {
+    if (!isConnected) { showToast("Connect first", "error"); return; }
+    const sel = document.getElementById("storyDispLoadCases");
+    const loadCases = Array.from(sel.selectedOptions).map(o => o.value);
+    if (!loadCases.length) { showToast("Select at least one load case", "error"); return; }
+
+    const dirMode = document.getElementById("storyDispDirection").value;
+    const forceUnit = document.getElementById("storyDispForceUnit").value || "KN";
+    const distUnit  = document.getElementById("storyDispDistUnit").value  || "MM";
+    const decimals  = parseInt(document.getElementById("storyDispDecimals").value) || 4;
+
+    const directions = [];
+    if (dirMode === "X" || dirMode === "BOTH") directions.push({ type: "STORY_DISPLACEMENT_X", label: "X" });
+    if (dirMode === "Y" || dirMode === "BOTH") directions.push({ type: "STORY_DISPLACEMENT_Y", label: "Y" });
+
+    const totalSteps = loadCases.length * directions.length;
+    showProgress("Fetching Story Displacement",
+        `${loadCases.length} load case(s), ${directions.map(d=>d.label).join("+")} direction`,
+        "POST /post/TABLE");
+
+    storyDispCache = {};
+    let step = 0;
+    for (const dir of directions) {
+        const merged = { headers: [], rows: [] };
+        for (const lc of loadCases) {
+            updateProgress((step / totalSteps) * 90, `Fetching ${dir.label} — ${lc}`);
+            try {
+                const body = { Argument: {
+                    TABLE_TYPE: dir.type,
+                    UNIT: { FORCE: forceUnit, DIST: distUnit },
+                    LOAD_CASE_NAMES: [lc],
+                    STYLES: { FORMAT: "FIXED", PLACE: decimals }
+                }};
+                const result = await midasAPI("POST", "/post/TABLE", body);
+                if (isMidasError && isMidasError(result)) {
+                    logEntry(`<span class="log-status-err">${dir.type} "${lc}": ${result.message || "error"}</span>`);
+                    step++;
+                    continue;
+                }
+                const tbl = result.empty || result[Object.keys(result).find(k => k !== "empty")] || {};
+                const headers = tbl.HEAD || [];
+                const rows = tbl.DATA || [];
+                if (!headers.length || !rows.length) { step++; continue; }
+                if (!merged.headers.length) merged.headers = ["Load Case", ...headers];
+                rows.forEach(r => merged.rows.push([lc, ...r]));
+            } catch (err) {
+                logEntry(`<span class="log-status-err">${dir.type} "${lc}": ${err.message}</span>`);
+            }
+            step++;
+        }
+        if (merged.rows.length) storyDispCache[dir.label] = merged;
+    }
+    hideProgress();
+
+    const labels = Object.keys(storyDispCache);
+    if (!labels.length) {
+        document.getElementById("storyDispResultsArea").style.display = "none";
+        document.getElementById("storyDispEmpty").style.display = "flex";
+        showToast("No story displacement data returned", "error");
         return;
     }
-    if (!asceMaterialsHot) asceSetupMaterialsGrid();
-    if (!asceColumnsHot) asceSetupColumnsGrid();
-    if (!asceBeamsHot) asceSetupBeamsGrid();
+
+    renderStoryDispTables();
+    document.getElementById("storyDispResultsArea").style.display = "block";
+    document.getElementById("storyDispEmpty").style.display = "none";
+    const totalRows = labels.reduce((s, k) => s + storyDispCache[k].rows.length, 0);
+    document.getElementById("storyDispStatusBadge").textContent =
+        `${totalRows} row(s) — ${labels.join(" + ")} direction · units ${forceUnit}/${distUnit}`;
+    showToast(`Extracted ${totalRows} story displacement row(s)`);
 }
 
-// ─── Section 1: Settings verification ────────────────────────
-async function asceVerifySettings() {
-    if (!isConnected) { showToast("Connect first", "error"); return; }
-    const setStatus = (id, kind, msg) => {
-        const cls = kind === "ok" ? "asce-ok" : kind === "warn" ? "asce-warn" : kind === "err" ? "asce-err" : "asce-pending";
-        document.getElementById(id).innerHTML = `<span class="${cls}">${msg}</span>`;
-    };
-    asceLastSettings = { A: null, B: null, C: null, D: null, E: null };
-
-    // A) RSA spectrum function — must be BSE-1E or BSE-2E. Fetch /db/splc and look for the name.
-    try {
-        const data = await midasAPI("GET", "/db/splc");
-        const splc = data.SPLC || data;
-        const names = Object.values(splc || {}).map(v => (v && v.NAME) || "").filter(Boolean);
-        const hasBSE = names.some(n => /BSE\s*[-]?\s*[12]\s*E/i.test(n));
-        if (!names.length) { setStatus("asceSetA", "err", "✗ No RS load cases found"); asceLastSettings.A = { ok: false, note: "no RS cases" }; }
-        else if (hasBSE) { setStatus("asceSetA", "ok", "✓ BSE-1E/2E found"); asceLastSettings.A = { ok: true, note: names.filter(n => /BSE/i.test(n)).join(", ") }; }
-        else { setStatus("asceSetA", "warn", `⚠ No BSE-* in ${names.length} RS case(s) — review`); asceLastSettings.A = { ok: false, note: `RS cases present but no BSE-1E/2E: ${names.join(", ")}` }; }
-    } catch (e) {
-        setStatus("asceSetA", "err", "✗ /db/splc fetch failed");
-        asceLastSettings.A = { ok: false, note: e.message };
-    }
-
-    // B & D & E) Load combinations — heuristic name matching
-    try {
-        const data = await midasAPI("GET", "/db/lcom-gen");
-        const lcom = data["LCOM-GEN"] || data.LCOM || data;
-        const combos = Object.values(lcom || {}).map(v => (v && (v.NAME || v.name)) || "").filter(Boolean);
-        // B: 100/30 directional
-        const has10030 = combos.some(n => /100\s*\+\s*30|30\s*\+\s*100|100.*30|30.*100/i.test(n));
-        if (combos.length === 0) {
-            setStatus("asceSetB", "err", "✗ No combos defined");
-            asceLastSettings.B = { ok: false, note: "no combinations" };
-        } else if (has10030) {
-            setStatus("asceSetB", "ok", "✓ 100/30 combo present");
-            asceLastSettings.B = { ok: true, note: "100/30 directional combo found by name" };
-        } else {
-            setStatus("asceSetB", "warn", "⚠ No 100/30 combo by name");
-            asceLastSettings.B = { ok: false, note: `${combos.length} combo(s), none match 100/30 pattern — review names` };
-        }
-        // D: gravity 1.1·(D + 0.25L)  — match names containing "1.1" + "D" + "0.25" + "L" loosely
-        const hasGrav = combos.some(n => /1\.1.*0\.25|ASCE\s*41|QG/i.test(n));
-        if (hasGrav) {
-            setStatus("asceSetD", "ok", "✓ ASCE-41 gravity combo by name");
-            asceLastSettings.D = { ok: true, note: "Gravity combo with 1.1/0.25 pattern found" };
-        } else {
-            setStatus("asceSetD", "warn", "⚠ Verify Q_G = 1.1·(D + 0.25L) — name not matched");
-            asceLastSettings.D = { ok: false, note: "PLACEHOLDER: assumed Q_G = 1.1·(D + 0.25L); confirm in MIDAS" };
-        }
-        // E: total LDP combo Q_UD = Q_G ± Q_E
-        const hasUD = combos.some(n => /Q?UD|LDP|Q_G\s*[+\-±]\s*Q_E/i.test(n));
-        if (hasUD) {
-            setStatus("asceSetE", "ok", "✓ LDP total combo by name");
-            asceLastSettings.E = { ok: true, note: "LDP combo found" };
-        } else {
-            setStatus("asceSetE", "warn", "⚠ Build Q_UD = Q_G ± Q_E post-export");
-            asceLastSettings.E = { ok: false, note: "PLACEHOLDER: combine Q_G and Q_E in pipeline" };
-        }
-    } catch (e) {
-        setStatus("asceSetB", "err", "✗ combo fetch failed");
-        setStatus("asceSetD", "err", "✗ combo fetch failed");
-        setStatus("asceSetE", "err", "✗ combo fetch failed");
-        asceLastSettings.B = asceLastSettings.D = asceLastSettings.E = { ok: false, note: e.message };
-    }
-
-    // C) Accidental torsion — REST API doesn't expose RS load case eccentricity directly.
-    // Mark as PLACEHOLDER for manual review.
-    setStatus("asceSetC", "warn", "⚠ Verify in MIDAS UI (not in REST API)");
-    asceLastSettings.C = { ok: false, note: "PLACEHOLDER: REST API does not expose RS eccentricity. Confirm ±5% in Load > RS Load Cases > Eccentricity." };
-
-    // Summary note
-    const oks = Object.values(asceLastSettings).filter(s => s && s.ok).length;
-    const total = 5;
-    document.getElementById("asceSettingsNotes").innerHTML = oks === total
-        ? `<span class="asce-ok">All ${total} settings verified.</span>`
-        : `<span class="asce-warn">${oks}/${total} verified — items flagged ⚠ require manual review (see §4 QA/QC).</span>`;
-    showToast(`Settings: ${oks}/${total} verified`);
-}
-
-// ─── Section 2: Demand-side extraction ───────────────────────
-async function asceExtractDemands() {
-    if (!isConnected) { showToast("Connect first", "error"); return; }
-    asceLastDemands = {};
-    const log = msg => {
-        const div = document.getElementById("asceDemandsLog");
-        const t = new Date().toLocaleTimeString();
-        div.innerHTML += `[${t}] ${msg}<br>`;
-        div.scrollTop = div.scrollHeight;
-    };
-    const setStatus = (id, kind, msg) => {
-        const cls = kind === "ok" ? "asce-ok" : kind === "ph" ? "asce-placeholder" : kind === "err" ? "asce-err" : "asce-pending";
-        document.getElementById(id).innerHTML = `<span class="${cls}">${msg}</span>`;
-    };
-
-    log("Starting demand extraction (8 items)...");
-
-    // Helper: try a /post/TABLE call
-    const tryTable = async (tableType, lcNames) => {
-        try {
-            const body = { Argument: { TABLE_TYPE: tableType, UNIT: { FORCE: "KN", DIST: "MM" }, LOAD_CASE_NAMES: lcNames || [], STYLES: { FORMAT: "Fixed", PLACE: 4 } }};
-            const res = await midasAPI("POST", "/post/TABLE", body);
-            const tbl = res.empty || res[Object.keys(res).find(k => k !== "empty")] || {};
-            return { ok: !!(tbl.HEAD && tbl.DATA && tbl.DATA.length), head: tbl.HEAD || [], data: tbl.DATA || [], raw: tbl };
-        } catch (e) {
-            return { ok: false, error: e.message };
-        }
-    };
-
-    // 1) Story shear — try STORY_SHEAR (RS-combined). Falls back to placeholder if not exposed.
-    {
-        const r = await tryTable("STORY_SHEAR", []);
-        if (r.ok) {
-            asceLastDemands[1] = { status: "ok", count: r.data.length, head: r.head };
-            setStatus("asceDem1", "ok", `✓ ${r.data.length} rows`);
-            log(`#1 Story Shear: ${r.data.length} rows`);
-        } else {
-            asceLastDemands[1] = { status: "placeholder", note: "STORY_SHEAR not in REST API — fall back to STORY_DRIFT_X/Y for K_eff or use desktop NX API GetStoryShearForRS()" };
-            setStatus("asceDem1", "ph", "⚠ PLACEHOLDER");
-            log(`#1 Story Shear: placeholder (REST API gap)`);
-        }
-    }
-
-    // 2 & 3) Beam force (columns + beams)
-    {
-        const r = await tryTable("BEAMFORCE", []);
-        if (r.ok) {
-            asceLastDemands[2] = { status: "ok", count: r.data.length, head: r.head, data: r.data, note: "Filter by element TYPE for columns vs beams in pipeline" };
-            asceLastDemands[3] = { status: "ok", count: r.data.length, head: r.head, data: r.data, note: "Same source as #2; filter beams element-side" };
-            setStatus("asceDem2", "ok", `✓ ${r.data.length} rows`);
-            setStatus("asceDem3", "ok", `✓ ${r.data.length} rows`);
-            log(`#2/#3 BeamForce: ${r.data.length} rows (filter columns/beams downstream)`);
-        } else {
-            asceLastDemands[2] = asceLastDemands[3] = { status: "missing", note: r.error || "BEAMFORCE returned empty" };
-            setStatus("asceDem2", "err", "✗ failed");
-            setStatus("asceDem3", "err", "✗ failed");
-            log(`#2/#3 BeamForce: ${r.error || "empty"}`);
-        }
-    }
-
-    // 4) Wall member force — best-effort
-    {
-        const r = await tryTable("WALLFORCE", []);
-        if (r.ok) {
-            asceLastDemands[4] = { status: "ok", count: r.data.length, head: r.head };
-            setStatus("asceDem4", "ok", `✓ ${r.data.length} rows`);
-            log(`#4 Wall Force: ${r.data.length} rows`);
-        } else {
-            // Try alternative table name
-            const r2 = await tryTable("WALLMEMBERFORCE", []);
-            if (r2.ok) {
-                asceLastDemands[4] = { status: "ok", count: r2.data.length, head: r2.head };
-                setStatus("asceDem4", "ok", `✓ ${r2.data.length} rows`);
-                log(`#4 Wall Force (WALLMEMBERFORCE): ${r2.data.length} rows`);
-            } else {
-                asceLastDemands[4] = { status: "placeholder", note: "WALLFORCE / WALLMEMBERFORCE not exposed — extract via MIDAS UI > Excel for now" };
-                setStatus("asceDem4", "ph", "⚠ PLACEHOLDER");
-                log(`#4 Wall Force: placeholder`);
-            }
-        }
-    }
-
-    // 5) Story mass / centre of mass — STORY_MASS gives mass + CM in standard MIDAS
-    {
-        const r = await tryTable("STORY_MASS", []);
-        if (r.ok) {
-            asceLastDemands[5] = { status: "ok", count: r.data.length, head: r.head };
-            setStatus("asceDem5", "ok", `✓ ${r.data.length} rows`);
-            log(`#5 Centre of Mass: ${r.data.length} rows`);
-        } else {
-            asceLastDemands[5] = { status: "placeholder", note: "STORY_MASS not exposed — use storyDataCache + tributary mass; engineer review" };
-            setStatus("asceDem5", "ph", "⚠ PLACEHOLDER");
-            log(`#5 CM: placeholder`);
-        }
-    }
-
-    // 6) Centre of rigidity — NOT exposed in REST API; flag PLACEHOLDER
-    asceLastDemands[6] = { status: "placeholder", note: "PLACEHOLDER: CR not exposed in REST API. Compute from per-column lateral stiffness K_i = 12·E·I / h³ and weight by location, OR extract from MIDAS UI." };
-    setStatus("asceDem6", "ph", "⚠ PLACEHOLDER (compute)");
-    log(`#6 CR: placeholder (derive from column stiffness)`);
-
-    // 7) Story drift — known to work
-    {
-        const r = await tryTable("STORY_DRIFT_X", []);
-        if (r.ok) {
-            asceLastDemands[7] = { status: "ok", count: r.data.length, head: r.head };
-            setStatus("asceDem7", "ok", `✓ ${r.data.length} rows`);
-            log(`#7 Story Drift X: ${r.data.length} rows (also fetch Y)`);
-        } else {
-            asceLastDemands[7] = { status: "missing", note: r.error || "STORY_DRIFT_X failed" };
-            setStatus("asceDem7", "err", "✗ failed");
-            log(`#7 Story Drift: ${r.error || "empty"}`);
-        }
-    }
-
-    // 8) Modal participation — try VIBRATION_MODE
-    {
-        const r = await tryTable("VIBRATION_MODE", []);
-        if (r.ok) {
-            asceLastDemands[8] = { status: "ok", count: r.data.length, head: r.head };
-            setStatus("asceDem8", "ok", `✓ ${r.data.length} modes`);
-            log(`#8 Modes: ${r.data.length}`);
-        } else {
-            asceLastDemands[8] = { status: "placeholder", note: "VIBRATION_MODE not in REST. Use existing Modes tab in this app to verify ≥ 90% mass per direction." };
-            setStatus("asceDem8", "ph", "⚠ PLACEHOLDER (use Modes tab)");
-            log(`#8 Modes: placeholder`);
-        }
-    }
-
-    log("Done.");
-    asceRefreshLcFilter();
-    const okCount = Object.values(asceLastDemands).filter(d => d.status === "ok").length;
-    const phCount = Object.values(asceLastDemands).filter(d => d.status === "placeholder").length;
-    showToast(`Demands: ${okCount} OK, ${phCount} placeholder, ${8 - okCount - phCount} missing`);
-}
-
-function asceExportDemandsJson() {
-    if (!Object.keys(asceLastDemands).length) { showToast("Run Fetch All Demands first", "error"); return; }
-    const blob = new Blob([JSON.stringify({ settings: asceLastSettings, demands: asceLastDemands }, null, 2)], { type: "application/json" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `asce41_demands_${new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19)}.json`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    showToast("Exported");
-}
-
-// ─── Section 3: Capacity grids (Handsontable) ────────────────
-function asceSetupMaterialsGrid() {
-    const container = document.getElementById("asceMaterialsGrid");
-    if (!container || asceMaterialsHot) return;
-    asceMaterialsHot = new Handsontable(container, {
-        data: [["", "", "", "", "", ""]],
-        colHeaders: ASCE_MATERIAL_HEADERS,
-        rowHeaders: true,
-        height: 180,
-        stretchH: "all",
-        licenseKey: "non-commercial-and-evaluation",
-        contextMenu: true,
-        manualColumnResize: true,
-        columns: [
-            { type: "text" },
-            { type: "text" },
-            { type: "numeric", numericFormat: { pattern: "0.00" } },
-            { type: "numeric", numericFormat: { pattern: "0.00" } },
-            { type: "numeric", numericFormat: { pattern: "0.00" } },
-            { type: "text", readOnly: true, className: "htDimmed" }
-        ]
-    });
-}
-
-function asceSetupColumnsGrid() {
-    const container = document.getElementById("asceColumnsGrid");
-    if (!container || asceColumnsHot) return;
-    asceColumnsHot = new Handsontable(container, {
-        data: [Array(ASCE_COLUMN_HEADERS.length).fill("")],
-        colHeaders: ASCE_COLUMN_HEADERS,
-        rowHeaders: true,
-        height: 240,
-        stretchH: "all",
-        licenseKey: "non-commercial-and-evaluation",
-        contextMenu: true,
-        manualColumnResize: true,
-        columns: [
-            { type: "text" }, { type: "text" },                                   // Element, Section
-            { type: "numeric", numericFormat: { pattern: "0" } },                 // b
-            { type: "numeric", numericFormat: { pattern: "0" } },                 // h
-            { type: "numeric", numericFormat: { pattern: "0" } },                 // cover
-            { type: "numeric", numericFormat: { pattern: "0" } },                 // Long As
-            { type: "text" },                                                      // Bars (n-Ø)
-            { type: "numeric", numericFormat: { pattern: "0.00" } },              // Tie Av
-            { type: "numeric", numericFormat: { pattern: "0" } },                 // Tie spacing
-            { type: "numeric", numericFormat: { pattern: "0" } },                 // fyt
-            { type: "numeric", numericFormat: { pattern: "0" } },                 // Clear height
-            { type: "text" },                                                      // Material
-            { type: "numeric", numericFormat: { pattern: "0.0" } },               // m-factor
-            { type: "text", readOnly: true, className: "htDimmed" }                // Source
-        ]
-    });
-}
-
-function asceSetupBeamsGrid() {
-    const container = document.getElementById("asceBeamsGrid");
-    if (!container || asceBeamsHot) return;
-    asceBeamsHot = new Handsontable(container, {
-        data: [Array(ASCE_BEAM_HEADERS.length).fill("")],
-        colHeaders: ASCE_BEAM_HEADERS,
-        rowHeaders: true,
-        height: 220,
-        stretchH: "all",
-        licenseKey: "non-commercial-and-evaluation",
-        contextMenu: true,
-        manualColumnResize: true,
-        columns: [
-            { type: "text" }, { type: "text" },
-            { type: "numeric", numericFormat: { pattern: "0" } },
-            { type: "numeric", numericFormat: { pattern: "0" } },
-            { type: "numeric", numericFormat: { pattern: "0" } },
-            { type: "numeric", numericFormat: { pattern: "0" } },
-            { type: "numeric", numericFormat: { pattern: "0" } },
-            { type: "numeric", numericFormat: { pattern: "0.00" } },
-            { type: "numeric", numericFormat: { pattern: "0" } },
-            { type: "numeric", numericFormat: { pattern: "0" } },
-            { type: "text" },
-            { type: "numeric", numericFormat: { pattern: "0.0" } },               // m-factor
-            { type: "text", readOnly: true, className: "htDimmed" }
-        ]
-    });
-}
-
-function asceMaterialsAddRow() { if (asceMaterialsHot) asceMaterialsHot.alter("insert_row_below", asceMaterialsHot.countRows() - 1); }
-function asceMaterialsClear()  { if (asceMaterialsHot) asceMaterialsHot.loadData([Array(ASCE_MATERIAL_HEADERS.length).fill("")]); }
-function asceColumnsAddRow()   { if (asceColumnsHot)   asceColumnsHot.alter("insert_row_below", asceColumnsHot.countRows() - 1); }
-function asceColumnsClear()    { if (asceColumnsHot)   asceColumnsHot.loadData([Array(ASCE_COLUMN_HEADERS.length).fill("")]); }
-function asceBeamsAddRow()     { if (asceBeamsHot)     asceBeamsHot.alter("insert_row_below", asceBeamsHot.countRows() - 1); }
-function asceBeamsClear()      { if (asceBeamsHot)     asceBeamsHot.loadData([Array(ASCE_BEAM_HEADERS.length).fill("")]); }
-
-// Pre-fill from MIDAS /db/sect + /db/matl (best-effort; sections are split into
-// columns vs beams by SHAPE = SB / Box / Pipe heuristic — engineer reviews).
-async function asceAutofillCapacity() {
-    if (!isConnected) { showToast("Connect first", "error"); return; }
-    if (!asceMaterialsHot) asceSetupMaterialsGrid();
-    if (!asceColumnsHot)   asceSetupColumnsGrid();
-    if (!asceBeamsHot)     asceSetupBeamsGrid();
-
-    showProgress("ASCE 41 — Capacity Pre-fill", "Reading sections & materials...", "GET /db/sect + /db/matl");
-    try {
-        const [sectData, matlData] = await Promise.all([
-            midasAPI("GET", "/db/sect"),
-            midasAPI("GET", "/db/matl")
-        ]);
-        updateProgress(60, "Parsing...");
-
-        // Materials
-        const matlObj = matlData.MATL || matlData;
-        const matRows = [];
-        for (const [id, v] of Object.entries(matlObj)) {
-            if (!v || typeof v !== "object") continue;
-            // Try common MIDAS material fields
-            const name = v.NAME || v.sNAME || `Mat-${id}`;
-            // Concrete: TYPE includes CONC; rebar: TYPE includes STEEL; depends on locale
-            const fc = parseFloat(v.STRENGTH || v.dSTRENGTH || v.fc || 0);
-            // fy is in rebar materials, often separate from concrete
-            const fy = parseFloat(v.dFY || v.FY || v.fy || 0);
-            matRows.push([id, name, fc || "", fy || "", "", "/db/matl"]);
-        }
-        if (!matRows.length) matRows.push([Array(ASCE_MATERIAL_HEADERS.length).fill("")]);
-        asceMaterialsHot.loadData(matRows);
-
-        // Sections
-        const sectObj = sectData.SECT || sectData;
-        const colRows = [];
-        const beamRows = [];
-        for (const [id, v] of Object.entries(sectObj)) {
-            if (!v || typeof v !== "object") continue;
-            const name = v.NAME || v.sNAME || `Sect-${id}`;
-            const sb = v.SECT_BEFORE || {};
-            const si = sb.SECT_I || {};
-            const vsize = si.vSIZE || [];
-            // vsize[0] = H, vsize[1] = B (in meters per CLAUDE.md note)
-            const h = vsize[0] ? Math.round(vsize[0] * 1000) : "";
-            const b = vsize[1] ? Math.round(vsize[1] * 1000) : "";
-            // Heuristic: square/wide sections that are reasonably sized → put in BOTH so engineer picks
-            // For automated pre-fill, default everything to columns; engineer prunes.
-            // Column row: + m-factor (default 3.0) + Source
-            colRows.push([
-                "", name, b, h, 40, "", "PLACEHOLDER", "", "", 415, "", "", 3.0, "/db/sect"
-            ]);
-            // Beam row: + m-factor (default 3.0) + Source
-            beamRows.push([
-                "", name, b, h, 40, "", "", "", "", 415, "", 3.0, "/db/sect"
-            ]);
-        }
-        if (!colRows.length) colRows.push(Array(ASCE_COLUMN_HEADERS.length).fill(""));
-        if (!beamRows.length) beamRows.push(Array(ASCE_BEAM_HEADERS.length).fill(""));
-        asceColumnsHot.loadData(colRows);
-        asceBeamsHot.loadData(beamRows);
-
-        updateProgress(100, "Done");
-        hideProgress();
-        showToast(`Pre-filled ${matRows.length} material(s), ${colRows.length} column row(s), ${beamRows.length} beam row(s) — review reinforcement & bar layout`);
-    } catch (e) {
-        hideProgress();
-        showToast(`Pre-fill failed: ${e.message}`, "error");
-    }
-}
-
-// One-click insert of typical APEC-default placeholders for each grid
-function asceAddCapacityPlaceholders() {
-    if (!asceMaterialsHot) asceSetupMaterialsGrid();
-    if (!asceColumnsHot)   asceSetupColumnsGrid();
-    if (!asceBeamsHot)     asceSetupBeamsGrid();
-    // Materials: typical APEC mid-rise concrete + rebar
-    asceMaterialsHot.loadData([
-        ["1", "C28", 28, "", "", "PLACEHOLDER (APEC default)"],
-        ["2", "Grade 60", "", 415, 415, "PLACEHOLDER (APEC default)"]
-    ]);
-    // Columns: one typical row (m-factor 3.0 default per ASCE 41 Table 10-7 IO/LS)
-    asceColumnsHot.loadData([
-        ["", "C-500x500", 500, 500, 40, 4800, "8-Ø25", 79, 100, 415, 3000, "C28+G60", 3.0, "PLACEHOLDER (APEC default)"]
-    ]);
-    // Beams: one typical row
-    asceBeamsHot.loadData([
-        ["", "B-300x600", 300, 600, 40, 1500, 1500, 79, 150, 415, "C28+G60", 3.0, "PLACEHOLDER (APEC default)"]
-    ]);
-    showToast("Placeholder rows inserted — replace with actual values before running pipeline");
-}
-
-// ─── ACI 318 capacity helpers (SI units: MPa, mm, kN) ───────
-// Singly-reinforced rectangular Mn (ACI 318 §22.3). Returns kN·m.
-function asceMn(As, fy, fc, b, d) {
-    if (!(As > 0) || !(fy > 0) || !(fc > 0) || !(b > 0) || !(d > 0)) return 0;
-    const a = (As * fy) / (0.85 * fc * b);
-    if (a <= 0 || a > d) return 0;
-    return (As * fy * (d - a / 2)) / 1e6; // N·mm → kN·m
-}
-
-// ACI 318 §22.5.5.1 (no axial) / §22.5.6 (with axial compression) Vc. Returns N.
-// Pu in N (positive = compression). Ag in mm². Conservative: ignores tension reduction.
-function asceVc(fc, bw, d, Pu, Ag) {
-    if (!(fc > 0) || !(bw > 0) || !(d > 0)) return 0;
-    let factor = 1.0;
-    if (Pu > 0 && Ag > 0) {
-        // §22.5.6.1 Eq.: factor = (1 + Pu / (14·Ag))
-        factor = 1.0 + Pu / (14 * Ag);
-        if (factor > 2.0) factor = 2.0; // sanity cap
-    }
-    return 0.17 * factor * Math.sqrt(fc) * bw * d; // N (lambda = 1.0 normalweight)
-}
-
-// Vs from transverse steel. Av in mm², fyt in MPa, d/s in mm. Returns N.
-function asceVs(Av, fyt, d, s) {
-    if (!(Av > 0) || !(fyt > 0) || !(d > 0) || !(s > 0)) return 0;
-    return (Av * fyt * d) / s;
-}
-
-// Total Vn = Vc + Vs (kN). ACI 318 §22.5.1.2 caps Vs ≤ 0.66·√fc·bw·d (N).
-function asceVn(fc, bw, d, Pu, Ag, Av, fyt, s) {
-    const Vc = asceVc(fc, bw, d, Pu, Ag);
-    let Vs = asceVs(Av, fyt, d, s);
-    const VsMax = 0.66 * Math.sqrt(fc) * bw * d;
-    if (Vs > VsMax) Vs = VsMax;
-    return (Vc + Vs) / 1000; // N → kN
-}
-
-// Pure axial compression Pn,max (ACI 318 §22.4.2). All in MPa, mm. Returns kN.
-// Tied columns: Pn,max = 0.80·[0.85·fc·(Ag − Ast) + fy·Ast]
-function ascePnMax(fc, fy, Ag, Ast) {
-    if (!(fc > 0) || !(fy > 0) || !(Ag > 0)) return 0;
-    const Pn = 0.85 * fc * (Ag - Ast) + fy * Ast;
-    return 0.80 * Pn / 1000; // N → kN
-}
-
-// 4-point P-M interaction envelope for a tied rectangular RC column with
-// symmetric reinforcement (As_top = As_bot = Ast/2). Returns ordered points
-// {P, M, label} sorted by descending P. P in kN, M in kN·m.
-function ascePMEnvelope(b, h, cover, Ast, fc, fy) {
-    if (!(b > 0 && h > 0 && fc > 0 && fy > 0)) return [];
-    const halfBar = 12;
-    const d = h - cover - halfBar;
-    const dp = cover + halfBar;
-    if (d <= dp) return [];
-    const Ag = b * h;
-    const As = Ast / 2;
-    const Es = 200000;
-    const ecu = 0.003;
-    const beta1 = fc <= 28 ? 0.85 : Math.max(0.65, 0.85 - 0.05 * (fc - 28) / 7);
-
-    // 1) Pure compression (tied column factor 0.80)
-    const Po = 0.85 * fc * (Ag - Ast) + fy * Ast; // N
-    const PnMax = 0.80 * Po / 1000;
-
-    // 2) Balanced point: ecu and εy reached simultaneously
-    const cb = (ecu / (ecu + fy / Es)) * d;
-    const ab = beta1 * cb;
-    const Cc_b = 0.85 * fc * ab * b;
-    const fps_b = Math.min(fy, Math.max(0, ecu * Es * (cb - dp) / cb));
-    const Cs_b = As * (fps_b - 0.85 * fc);
-    const Ts_b = As * fy;
-    const Pb = (Cc_b + Cs_b - Ts_b) / 1000;
-    const Mb = (Cc_b * (h / 2 - ab / 2) + Cs_b * (h / 2 - dp) + Ts_b * (d - h / 2)) / 1e6;
-
-    // 3) Pure flexure (P=0): bisect on c to find ΣF = 0
-    let cLo = dp + 1, cHi = d - 1;
-    let cF = (cLo + cHi) / 2;
-    for (let i = 0; i < 40; i++) {
-        cF = (cLo + cHi) / 2;
-        const a = beta1 * cF;
-        const Cc = 0.85 * fc * a * b;
-        const fps = Math.min(fy, Math.max(0, ecu * Es * (cF - dp) / cF));
-        const fst = Math.min(fy, ecu * Es * (d - cF) / cF);
-        const Cs = As * (fps - 0.85 * fc);
-        const Ts = As * fst;
-        const F = Cc + Cs - Ts;
-        if (Math.abs(F) < 50) break;
-        if (F > 0) cHi = cF; else cLo = cF;
-    }
-    const aF = beta1 * cF;
-    const Cc_F = 0.85 * fc * aF * b;
-    const fps_F = Math.min(fy, Math.max(0, ecu * Es * (cF - dp) / cF));
-    const fst_F = Math.min(fy, ecu * Es * (d - cF) / cF);
-    const Cs_F = As * (fps_F - 0.85 * fc);
-    const Ts_F = As * fst_F;
-    const M0 = (Cc_F * (h / 2 - aF / 2) + Cs_F * (h / 2 - dp) + Ts_F * (d - h / 2)) / 1e6;
-
-    // 4) Pure tension (all rebar, concrete cracked)
-    const PnMin = -fy * Ast / 1000;
-
-    return [
-        { P: PnMax, M: 0,  label: "Po (Pure Comp.)" },
-        { P: Pb,    M: Mb, label: "Balanced" },
-        { P: 0,     M: M0, label: "Pure Flexure" },
-        { P: PnMin, M: 0,  label: "Pure Tension" }
-    ];
-}
-
-// Radial DCR against a P-M envelope. Demand vector (Mu, Pu) from origin extended
-// to envelope intersection. DCR = |demand| / |intersection|. Returns null if
-// the ray does not cross any segment (degenerate envelope).
-function ascePMDcrRadial(Mu, Pu, env) {
-    if (!env || env.length < 4) return null;
-    const Mabs = Math.abs(Mu);
-    const demandMag = Math.sqrt(Mabs * Mabs + Pu * Pu);
-    if (demandMag === 0) return 0;
-    let tBest = null;
-    for (let i = 0; i < env.length - 1; i++) {
-        const A = env[i], B = env[i + 1];
-        const dM = B.M - A.M, dP = B.P - A.P;
-        const det = Mabs * dP - Pu * dM; // dir × seg
-        if (Math.abs(det) < 1e-9) continue;
-        // Solve: t·dir = A + s·(B - A)
-        const t = (A.M * dP - A.P * dM) / det;
-        const s = (Mabs * A.P - Pu * A.M) / det;
-        if (t > 0 && s >= 0 && s <= 1 && (tBest == null || t > tBest)) tBest = t;
-    }
-    if (tBest == null) return null;
-    // demand at parametric t=1 maps to actual demand point (Mu_abs, Pu).
-    // intersection at parametric tBest maps to (tBest·Mu_abs, tBest·Pu) on envelope.
-    // Hence DCR = 1 / tBest.
-    return 1 / tBest;
-}
-
-// Effective depth d ≈ h − cover − bar_dia/2 (assume 12 mm half-radius if unknown)
-function asceEffDepth(h, cover, barDiaHalf) {
-    const halfBar = barDiaHalf || 12;
-    const d = (h || 0) - (cover || 0) - halfBar;
-    return d > 0 ? d : 0;
-}
-
-// Build a map of materialName → {fc, fy, fyt} from the materials grid
-function asceBuildMaterialMap() {
-    const map = {};
-    if (!asceMaterialsHot) return map;
-    asceMaterialsHot.getData().forEach(r => {
-        const name = (r[1] || "").toString().trim();
-        if (!name) return;
-        const fc = parseFloat(r[2]) || 0;
-        const fy = parseFloat(r[3]) || 0;
-        const fyt = parseFloat(r[4]) || fy;
-        map[name.toLowerCase()] = { fc, fy, fyt };
-    });
-    return map;
-}
-
-// Resolve {fc, fy, fyt} for a row: try the row's Material name → matMap;
-// fall back to first material; default APEC values if nothing in grid.
-function asceResolveMaterial(rowMatName, matMap, fyt_row) {
-    const key = (rowMatName || "").toString().trim().toLowerCase();
-    if (key && matMap[key]) {
-        const m = matMap[key];
-        return { fc: m.fc || 28, fy: m.fy || 415, fyt: fyt_row || m.fyt || m.fy || 415 };
-    }
-    // Fall back to first material if any
-    const first = Object.values(matMap)[0];
-    if (first) return { fc: first.fc || 28, fy: first.fy || 415, fyt: fyt_row || first.fyt || first.fy || 415 };
-    // APEC default
-    return { fc: 28, fy: 415, fyt: fyt_row || 415 };
-}
-
-// Parse the BEAMFORCE response captured in §2 into per-element max-abs demand.
-// Headers vary by MIDAS locale: try common variants. Returns map elem → {Mu, Vu, Pu}.
-// If asceLcFilter is non-empty, only rows whose Load Case appears in the set are counted.
-function asceParseBeamforceDemands() {
-    const d = asceLastDemands && asceLastDemands[2];
-    if (!d || d.status !== "ok" || !d.head || !d.head.length) return null;
-    const headers = d.head;
-    const dataRows = d.data || (d.raw && d.raw.DATA) || null;
-    if (!dataRows) return null;
-
-    const findIdx = (...candidates) => {
-        for (const cand of candidates) {
-            const i = headers.findIndex(h => h && h.toString().toUpperCase().includes(cand.toUpperCase()));
-            if (i >= 0) return i;
-        }
-        return -1;
-    };
-    const iElem = findIdx("Element", "Elem", "ID");
-    const iLC   = findIdx("Load", "Case");
-    const iAx = findIdx("Axial", "Fx", "P");
-    const iVy = findIdx("Shear-y", "Shear y", "Sheary", "Vy", "V2");
-    const iVz = findIdx("Shear-z", "Shear z", "Vz", "V3");
-    const iMy = findIdx("Moment-y", "Moment y", "My", "M2");
-    const iMz = findIdx("Moment-z", "Moment z", "Mz", "M3");
-    if (iElem < 0) return null;
-
-    // LC filter (multi-select). Empty → include all.
-    const sel = document.getElementById("asceLcFilter");
-    const allowedLcs = sel ? new Set(Array.from(sel.selectedOptions).map(o => o.value)) : new Set();
-    const useFilter = allowedLcs.size > 0;
-
-    const out = {};
-    const seenLcs = new Set();
-    dataRows.forEach(row => {
-        const e = row[iElem];
-        if (e === null || e === undefined || e === "") return;
-        const key = String(e).trim();
-        const lc = iLC >= 0 ? String(row[iLC] || "").trim() : "";
-        if (lc) seenLcs.add(lc);
-        if (useFilter && lc && !allowedLcs.has(lc)) return;
-        const P = iAx >= 0 ? Math.abs(parseFloat(row[iAx]) || 0) : 0;
-        const Vy = iVy >= 0 ? Math.abs(parseFloat(row[iVy]) || 0) : 0;
-        const Vz = iVz >= 0 ? Math.abs(parseFloat(row[iVz]) || 0) : 0;
-        const My = iMy >= 0 ? Math.abs(parseFloat(row[iMy]) || 0) : 0;
-        const Mz = iMz >= 0 ? Math.abs(parseFloat(row[iMz]) || 0) : 0;
-        const V = Math.max(Vy, Vz);
-        const M = Math.max(My, Mz);
-        if (!out[key]) out[key] = { Mu: 0, Vu: 0, Pu: 0 };
-        if (M > out[key].Mu) out[key].Mu = M;
-        if (V > out[key].Vu) out[key].Vu = V;
-        if (P > out[key].Pu) out[key].Pu = P;
-    });
-    out.__seenLcs = [...seenLcs].sort();
-    return out;
-}
-
-// Populate the LC filter dropdown from the BEAMFORCE response. Called after fetch.
-function asceRefreshLcFilter() {
-    const demands = asceParseBeamforceDemands();
-    const sel = document.getElementById("asceLcFilter");
-    if (!sel || !demands || !demands.__seenLcs) return;
-    const prev = new Set(Array.from(sel.selectedOptions).map(o => o.value));
-    sel.innerHTML = "";
-    demands.__seenLcs.forEach(lc => {
-        const o = document.createElement("option");
-        o.value = lc; o.textContent = lc;
-        if (prev.has(lc)) o.selected = true;
-        sel.appendChild(o);
-    });
-}
-
-// Main entry point: walk the column + beam grids, compute capacities,
-// match demand by element ID, render two DCR tables.
-let asceLastCaps = { columns: [], beams: [] };
-function asceComputeCapacitiesAndDcr() {
-    if (!asceColumnsHot || !asceBeamsHot) { showToast("Open the ASCE 41 tab first to init grids", "error"); return; }
-    const matMap = asceBuildMaterialMap();
-    const fceFactor = parseFloat(document.getElementById("asceFcExpected").value) || 1.5;
-    const fyeFactor = parseFloat(document.getElementById("asceFyExpected").value) || 1.25;
-    const kappa = parseFloat(document.getElementById("asceKappa").value) || 1.0;
-    const demands = asceParseBeamforceDemands(); // null if not yet fetched
-
-    // ── Columns ──────────────────────────────────────────
-    const colCaps = [];
-    asceColumnsHot.getData().forEach(r => {
-        const elem = (r[0] || "").toString().trim();
-        const sect = (r[1] || "").toString().trim();
-        if (!elem && !sect) return;
-        const b = parseFloat(r[2]) || 0;
-        const h = parseFloat(r[3]) || 0;
-        const cover = parseFloat(r[4]) || 40;
-        const longAs = parseFloat(r[5]) || 0;
-        const tieAv = parseFloat(r[7]) || 0;
-        const tieS = parseFloat(r[8]) || 0;
-        const fyt_row = parseFloat(r[9]) || 0;
-        const clearH = parseFloat(r[10]) || 0;
-        const matName = r[11];
-        const mFactor = parseFloat(r[ASCE_COL_M_IDX]) || 3.0;
-        const isPlaceholder = /PLACEHOLDER/i.test(r[ASCE_COL_SRC_IDX] || "");
-        const { fc, fy, fyt } = asceResolveMaterial(matName, matMap, fyt_row);
-        const fce = fc * fceFactor;
-        const fye = fy * fyeFactor;
-        const fyte = fyt * fyeFactor;
-        const Ag = b * h;
-        const Ast = longAs;
-        const d = asceEffDepth(h, cover);
-
-        // 4-point P-M envelope (with κ baked into all P/M points)
-        const envRaw = ascePMEnvelope(b, h, cover, Ast, fce, fye);
-        const envScaled = envRaw.map(p => ({ P: p.P * kappa, M: p.M * kappa, label: p.label }));
-        const Mn0 = envScaled.length ? envScaled.find(p => p.label === "Pure Flexure").M : kappa * asceMn(Ast / 2, fye, fce, b, d);
-        const PnMax = envScaled.length ? envScaled[0].P : kappa * ascePnMax(fce, fye, Ag, Ast);
-        const Mb = envScaled.length ? envScaled[1].M : 0;
-        const Pb = envScaled.length ? envScaled[1].P : 0;
-
-        // Demand lookup
-        const dem = demands && elem && demands[elem] ? demands[elem] : null;
-        const Pu = dem ? dem.Pu : 0;
-        const Mu = dem ? dem.Mu : null;
-        const Vu = dem ? dem.Vu : null;
-
-        // Vn with axial bonus
-        const Vn = kappa * asceVn(fce, b, d, Pu * 1000, Ag, tieAv, fyte, tieS);
-
-        // Radial P-M DCR (preferred over the simple M-only DCR)
-        const dcrPM = (dem != null && envScaled.length) ? ascePMDcrRadial(Mu, Pu, envScaled) : null;
-        const dcrM = (Mu != null && Mn0 > 0) ? Mu / Mn0 : null;
-        const dcrV = (Vu != null && Vn > 0) ? Vu / Vn : null;
-
-        // Gate-clause checks (§7.3.1.1: DCR < min(3.0, m))
-        const limit = Math.min(3.0, mFactor);
-        const dcrCheck = dcr => dcr == null ? null : (dcr <= limit ? "PASS" : (dcr <= 3.0 ? "EXCEED m" : "FAIL gate"));
-
-        const aOverD = (clearH && d) ? (clearH / 2) / d : null;
-        colCaps.push({
-            elem, sect, b, h, d: d.toFixed(0),
-            fc, fy, fce: fce.toFixed(1), fye: fye.toFixed(1),
-            kappa, mFactor, isPlaceholder,
-            envelope: envScaled,
-            Mn: Mn0.toFixed(1), Vn: Vn.toFixed(1), PnMax: PnMax.toFixed(0),
-            Mb: Mb.toFixed(1), Pb: Pb.toFixed(0),
-            Mu: Mu == null ? "—" : Mu.toFixed(1),
-            Vu: Vu == null ? "—" : Vu.toFixed(1),
-            Pu: dem ? Pu.toFixed(0) : "—",
-            dcrM: dcrM == null ? "—" : dcrM.toFixed(2),
-            dcrV: dcrV == null ? "—" : dcrV.toFixed(2),
-            dcrPM: dcrPM == null ? "—" : dcrPM.toFixed(2),
-            checkM: dcrCheck(dcrM) || "—",
-            checkV: dcrCheck(dcrV) || "—",
-            checkPM: dcrCheck(dcrPM) || "—",
-            ductilityFlag: aOverD != null && aOverD < 2 ? "Brittle (a/d<2)" : (aOverD != null ? "Ductile (a/d≥2)" : "—"),
-            _dcrMNum: dcrM, _dcrVNum: dcrV, _dcrPMNum: dcrPM
+function renderStoryDispTables() {
+    const container = document.getElementById("storyDispTablesContainer");
+    container.innerHTML = "";
+    if (!storyDispCache) return;
+    Object.keys(storyDispCache).forEach(dirLabel => {
+        const data = storyDispCache[dirLabel];
+        const panel = document.createElement("div");
+        panel.className = "panel";
+        const title = `Story Displacement — ${dirLabel} direction`;
+        let html = `<div class="panel-header"><span class="panel-title">${title}</span>`
+                 + `<span style="font-size:11px;color:var(--text-muted);">${data.rows.length} row(s)</span></div>`
+                 + `<div class="table-wrap"><div class="table-scroll">`
+                 + `<table class="sticky-col"><thead><tr>`
+                 + data.headers.map(h => `<th>${h}</th>`).join("")
+                 + `</tr></thead><tbody>`;
+        data.rows.forEach(row => {
+            html += "<tr>" + row.map(c => `<td>${c == null ? "" : c}</td>`).join("") + "</tr>";
         });
+        html += "</tbody></table></div></div>";
+        panel.innerHTML = html;
+        container.appendChild(panel);
     });
-
-    // ── Beams ────────────────────────────────────────────
-    const beamCaps = [];
-    asceBeamsHot.getData().forEach(r => {
-        const elem = (r[0] || "").toString().trim();
-        const sect = (r[1] || "").toString().trim();
-        if (!elem && !sect) return;
-        const b = parseFloat(r[2]) || 0;
-        const h = parseFloat(r[3]) || 0;
-        const cover = parseFloat(r[4]) || 40;
-        const topAs = parseFloat(r[5]) || 0;
-        const botAs = parseFloat(r[6]) || 0;
-        const stirrupAv = parseFloat(r[7]) || 0;
-        const stirrupS = parseFloat(r[8]) || 0;
-        const fyt_row = parseFloat(r[9]) || 0;
-        const matName = r[10];
-        const mFactor = parseFloat(r[ASCE_BEAM_M_IDX]) || 3.0;
-        const isPlaceholder = /PLACEHOLDER/i.test(r[ASCE_BEAM_SRC_IDX] || "");
-        const { fc, fy, fyt } = asceResolveMaterial(matName, matMap, fyt_row);
-        const fce = fc * fceFactor;
-        const fye = fy * fyeFactor;
-        const fyte = fyt * fyeFactor;
-        const d = asceEffDepth(h, cover);
-        const MnPos = kappa * asceMn(botAs, fye, fce, b, d);
-        const MnNeg = kappa * asceMn(topAs, fye, fce, b, d);
-        const Vn = kappa * asceVn(fce, b, d, 0, b * h, stirrupAv, fyte, stirrupS);
-        const dem = demands && elem && demands[elem] ? demands[elem] : null;
-        const Mu = dem ? dem.Mu : null;
-        const Vu = dem ? dem.Vu : null;
-        const Mn_critical = Math.min(MnPos, MnNeg) || Math.max(MnPos, MnNeg);
-        const dcrM = (Mu != null && Mn_critical > 0) ? Mu / Mn_critical : null;
-        const dcrV = (Vu != null && Vn > 0) ? Vu / Vn : null;
-        const limit = Math.min(3.0, mFactor);
-        const dcrCheck = dcr => dcr == null ? null : (dcr <= limit ? "PASS" : (dcr <= 3.0 ? "EXCEED m" : "FAIL gate"));
-        beamCaps.push({
-            elem, sect, b, h, d: d.toFixed(0),
-            fc, fy, fce: fce.toFixed(1), fye: fye.toFixed(1),
-            kappa, mFactor, isPlaceholder,
-            MnPos: MnPos.toFixed(1), MnNeg: MnNeg.toFixed(1), Vn: Vn.toFixed(1),
-            Mu: Mu == null ? "—" : Mu.toFixed(1),
-            Vu: Vu == null ? "—" : Vu.toFixed(1),
-            dcrM: dcrM == null ? "—" : dcrM.toFixed(2),
-            dcrV: dcrV == null ? "—" : dcrV.toFixed(2),
-            checkM: dcrCheck(dcrM) || "—",
-            checkV: dcrCheck(dcrV) || "—",
-            _dcrMNum: dcrM, _dcrVNum: dcrV
-        });
-    });
-
-    asceLastCaps = { columns: colCaps, beams: beamCaps, kappa, fceFactor, fyeFactor, hasDemand: !!demands };
-    asceRenderColumnCapTable(colCaps);
-    asceRenderBeamCapTable(beamCaps);
-
-    const noDemandMsg = demands ? "" : " (no BEAMFORCE demand fetched yet — DCR shown as —)";
-    showToast(`Computed: ${colCaps.length} columns, ${beamCaps.length} beams${noDemandMsg}`);
 }
 
-function asceDcrCellClass(dcrNum) {
-    if (dcrNum == null) return "";
-    if (dcrNum > 3.0) return "asce-err";       // gate-clause exceedance
-    if (dcrNum > 1.0) return "asce-warn";      // exceeds expected capacity
-    return "asce-ok";
-}
-
-function asceRenderColumnCapTable(rows) {
-    const tbl = document.getElementById("asceColCapTable");
-    const checkBadge = s => {
-        if (s === "PASS") return `<span class="asce-ok">PASS</span>`;
-        if (s === "EXCEED m") return `<span class="asce-warn">EXCEED m</span>`;
-        if (s === "FAIL gate") return `<span class="asce-err">FAIL gate</span>`;
-        return "—";
-    };
-    let html = `<thead>
-        <tr class="midas-banner"><th colspan="17">Column Capacities (kN, kN·m) — κ=${(asceLastCaps.kappa).toFixed(2)}, f<sub>ce</sub>/f'<sub>c</sub>=${asceLastCaps.fceFactor}, f<sub>ye</sub>/f<sub>y</sub>=${asceLastCaps.fyeFactor}</th></tr>
-        <tr class="midas-cols">
-            <th>Element</th><th>Section</th>
-            <th>m</th>
-            <th>P<sub>n,max</sub></th><th>(P<sub>b</sub>, M<sub>b</sub>)</th><th>M<sub>n</sub>(P=0)</th><th>V<sub>n</sub></th>
-            <th>M<sub>u</sub></th><th>V<sub>u</sub></th><th>P<sub>u</sub></th>
-            <th>DCR<sub>M</sub></th><th>DCR<sub>V</sub></th><th>DCR<sub>P-M</sub></th>
-            <th>Check M</th><th>Check V</th><th>Check P-M</th><th>Ductility</th>
-        </tr></thead><tbody>`;
-    rows.forEach(r => {
-        const phMark = r.isPlaceholder ? ` <span class="asce-placeholder">PH</span>` : "";
-        html += `<tr>
-            <td class="midas-mode">${r.elem || "—"}${phMark}</td>
-            <td>${r.sect || "—"}</td>
-            <td>${(r.mFactor || 0).toFixed(1)}</td>
-            <td>${r.PnMax}</td>
-            <td>(${r.Pb}, ${r.Mb})</td>
-            <td>${r.Mn}</td>
-            <td>${r.Vn}</td>
-            <td>${r.Mu}</td><td>${r.Vu}</td><td>${r.Pu}</td>
-            <td class="${asceDcrCellClass(r._dcrMNum)}">${r.dcrM}</td>
-            <td class="${asceDcrCellClass(r._dcrVNum)}">${r.dcrV}</td>
-            <td class="${asceDcrCellClass(r._dcrPMNum)}">${r.dcrPM}</td>
-            <td>${checkBadge(r.checkM)}</td>
-            <td>${checkBadge(r.checkV)}</td>
-            <td>${checkBadge(r.checkPM)}</td>
-            <td style="font-size:10.5px;">${r.ductilityFlag}</td>
-        </tr>`;
-    });
-    if (!rows.length) html += `<tr><td colspan="17" style="text-align:center;color:var(--text-muted);">No column rows — fill in §3 grid first.</td></tr>`;
-    html += `</tbody>`;
-    tbl.innerHTML = html;
-
-    // Update P-M selector
-    const sel = document.getElementById("ascePmSelect");
-    if (sel) {
-        sel.innerHTML = "";
-        rows.forEach((r, i) => {
-            if (!r.envelope || !r.envelope.length) return;
-            const o = document.createElement("option");
-            o.value = i;
-            o.textContent = `${r.elem || "?"} — ${r.sect || "?"} (${r.b}×${r.h})`;
-            sel.appendChild(o);
-        });
-        if (sel.options.length) {
-            sel.selectedIndex = 0;
-            asceRenderPmDiagram();
-        } else {
-            const div = document.getElementById("ascePmPlot");
-            if (div) div.innerHTML = `<div style="padding:24px;color:var(--text-muted);text-align:center;">No P-M envelope (need b, h, As, fc, fy in §3)</div>`;
-        }
-    }
-}
-
-// Render the 4-point P-M envelope (mirrored across M=0) for the selected column
-// with the demand point overlaid. Uses Plotly.
-function asceRenderPmDiagram() {
-    const sel = document.getElementById("ascePmSelect");
-    const div = document.getElementById("ascePmPlot");
-    if (!sel || !div || !sel.value) return;
-    const idx = parseInt(sel.value, 10);
-    const r = (asceLastCaps.columns || [])[idx];
-    if (!r || !r.envelope || !r.envelope.length) return;
-
-    const PAL = (typeof plotlyPalette === "function") ? plotlyPalette() : { bg: "#fff", text: "#000", textMuted: "#666", border: "#ccc", gridMinor: "#eee" };
-    const env = r.envelope;
-    // Build closed polygon: positive-M side ∪ mirrored negative-M side
-    const poly = [
-        ...env,
-        ...env.slice().reverse().map(p => ({ P: p.P, M: -p.M })),
-        env[0]
-    ];
-
-    const traces = [{
-        type: "scatter", mode: "lines+markers",
-        name: "Envelope",
-        x: poly.map(p => p.M), y: poly.map(p => p.P),
-        line: { color: "#0969da", width: 2 },
-        marker: { color: "#0969da", size: 6 },
-        hovertemplate: "<b>Envelope</b><br>M = %{x:.1f} kN·m<br>P = %{y:.0f} kN<extra></extra>"
-    }];
-
-    // Annotate the four canonical points
-    const annotations = env.map(p => ({
-        x: p.M, y: p.P, xref: "x", yref: "y",
-        text: p.label, showarrow: false,
-        font: { size: 10, color: PAL.textMuted },
-        bgcolor: PAL.bg, borderpad: 2, xanchor: "left", yanchor: "bottom",
-        xshift: 6, yshift: 4
-    }));
-
-    // Demand point (only meaningful if Mu/Pu were resolved; r.Mu is "—" if not)
-    const muNum = parseFloat(r.Mu);
-    const puNum = parseFloat(r.Pu);
-    if (!isNaN(muNum) && !isNaN(puNum)) {
-        traces.push({
-            type: "scatter", mode: "markers+text",
-            name: "Demand (M_u, P_u)",
-            x: [muNum], y: [puNum],
-            text: [`DCR = ${r.dcrPM}`],
-            textposition: "top right",
-            marker: { color: "#cf222e", size: 12, symbol: "x", line: { width: 2, color: "#cf222e" }},
-            hovertemplate: `<b>Demand</b><br>M<sub>u</sub> = %{x:.1f} kN·m<br>P<sub>u</sub> = %{y:.0f} kN<br>DCR = ${r.dcrPM}<extra></extra>`
-        });
-        // Radial line from origin through demand
-        traces.push({
-            type: "scatter", mode: "lines",
-            name: "Radial",
-            x: [0, muNum], y: [0, puNum],
-            line: { color: "#cf222e", width: 1, dash: "dot" },
-            showlegend: false,
-            hoverinfo: "skip"
-        });
-    }
-
-    const xMax = Math.max(...env.map(p => Math.abs(p.M)), 1);
-    const yMax = Math.max(...env.map(p => p.P), 1);
-    const yMin = Math.min(...env.map(p => p.P), 0);
-
-    const layout = {
-        title: { text: `<b>${r.elem || "?"}</b> — ${r.sect || "?"} (${r.b}×${r.h}, κ=${asceLastCaps.kappa.toFixed(2)})`, font: { size: 13, color: PAL.text }, x: 0.5, xanchor: "center" },
-        paper_bgcolor: PAL.bg, plot_bgcolor: PAL.bg,
-        xaxis: {
-            title: { text: "M (kN·m)", font: { size: 11, color: PAL.textMuted } },
-            range: [-xMax * 1.15, xMax * 1.15],
-            zeroline: true, zerolinecolor: PAL.border,
-            gridcolor: PAL.gridMinor, linecolor: PAL.border,
-            mirror: true, showline: true, ticks: "outside", ticklen: 4
-        },
-        yaxis: {
-            title: { text: "P (kN)", font: { size: 11, color: PAL.textMuted } },
-            range: [yMin * 1.15, yMax * 1.15],
-            zeroline: true, zerolinecolor: PAL.border,
-            gridcolor: PAL.gridMinor, linecolor: PAL.border,
-            mirror: true, showline: true, ticks: "outside", ticklen: 4
-        },
-        margin: { l: 80, r: 30, t: 50, b: 60 },
-        showlegend: true,
-        legend: { orientation: "h", y: -0.18, xanchor: "center", x: 0.5, font: { size: 10 } },
-        font: { family: "Segoe UI, system-ui, sans-serif", color: PAL.text },
-        annotations
-    };
-    const config = { responsive: true, displaylogo: false, modeBarButtonsToRemove: ["lasso2d", "select2d"] };
-    Plotly.react(div, traces, layout, config);
-    requestAnimationFrame(() => { try { Plotly.Plots.resize(div); } catch (e) {} });
-}
-
-function asceRenderBeamCapTable(rows) {
-    const tbl = document.getElementById("asceBeamCapTable");
-    const checkBadge = s => {
-        if (s === "PASS") return `<span class="asce-ok">PASS</span>`;
-        if (s === "EXCEED m") return `<span class="asce-warn">EXCEED m</span>`;
-        if (s === "FAIL gate") return `<span class="asce-err">FAIL gate</span>`;
-        return "—";
-    };
-    let html = `<thead>
-        <tr class="midas-banner"><th colspan="14">Beam Capacities (kN, kN·m) — κ=${(asceLastCaps.kappa).toFixed(2)}, f<sub>ce</sub>/f'<sub>c</sub>=${asceLastCaps.fceFactor}, f<sub>ye</sub>/f<sub>y</sub>=${asceLastCaps.fyeFactor}</th></tr>
-        <tr class="midas-cols">
-            <th>Element</th><th>Section</th><th>m</th>
-            <th>M<sub>n</sub><sup>+</sup></th><th>M<sub>n</sub><sup>−</sup></th><th>V<sub>n</sub></th>
-            <th>M<sub>u</sub></th><th>V<sub>u</sub></th>
-            <th>DCR<sub>M</sub></th><th>DCR<sub>V</sub></th>
-            <th>Check M</th><th>Check V</th>
-        </tr></thead><tbody>`;
-    rows.forEach(r => {
-        const phMark = r.isPlaceholder ? ` <span class="asce-placeholder">PH</span>` : "";
-        html += `<tr>
-            <td class="midas-mode">${r.elem || "—"}${phMark}</td>
-            <td>${r.sect || "—"}</td>
-            <td>${(r.mFactor || 0).toFixed(1)}</td>
-            <td>${r.MnPos}</td><td>${r.MnNeg}</td><td>${r.Vn}</td>
-            <td>${r.Mu}</td><td>${r.Vu}</td>
-            <td class="${asceDcrCellClass(r._dcrMNum)}">${r.dcrM}</td>
-            <td class="${asceDcrCellClass(r._dcrVNum)}">${r.dcrV}</td>
-            <td>${checkBadge(r.checkM)}</td>
-            <td>${checkBadge(r.checkV)}</td>
-        </tr>`;
-    });
-    if (!rows.length) html += `<tr><td colspan="12" style="text-align:center;color:var(--text-muted);">No beam rows — fill in §3 grid first.</td></tr>`;
-    html += `</tbody>`;
-    tbl.innerHTML = html;
-}
-
-function asceExportCapacities(fmt) {
-    if (!asceLastCaps.columns.length && !asceLastCaps.beams.length) {
-        showToast("Compute capacities first", "error"); return;
-    }
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    const filename = `asce41_capacities_${stamp}.${fmt}`;
-    let blob;
-    if (fmt === "json") {
-        blob = new Blob([JSON.stringify({
-            kappa: asceLastCaps.kappa,
-            fceFactor: asceLastCaps.fceFactor,
-            fyeFactor: asceLastCaps.fyeFactor,
-            hasDemand: asceLastCaps.hasDemand,
-            columns: asceLastCaps.columns,
-            beams: asceLastCaps.beams
-        }, null, 2)], { type: "application/json" });
-    } else {
-        const lines = [];
-        lines.push("# Columns");
-        const colHdr = ["elem","sect","mFactor","b","h","d","fce","fye","PnMax","Pb","Mb","Mn","Vn","Mu","Vu","Pu","dcrM","dcrV","dcrPM","checkM","checkV","checkPM","ductilityFlag","isPlaceholder"];
-        lines.push(colHdr.join(","));
-        asceLastCaps.columns.forEach(r => lines.push(colHdr.map(h => {
-            const v = r[h]; return v == null ? "" : String(v).replace(/,/g, ";");
-        }).join(",")));
+function copyStoryDispTable() {
+    if (!storyDispCache) { showToast("Extract data first", "error"); return; }
+    const lines = [];
+    Object.keys(storyDispCache).forEach(dirLabel => {
+        const data = storyDispCache[dirLabel];
+        lines.push(`# ${dirLabel} direction`);
+        lines.push(data.headers.join("\t"));
+        data.rows.forEach(r => lines.push(r.join("\t")));
         lines.push("");
-        lines.push("# Beams");
-        const beamHdr = ["elem","sect","mFactor","b","h","d","fce","fye","MnPos","MnNeg","Vn","Mu","Vu","dcrM","dcrV","checkM","checkV","isPlaceholder"];
-        lines.push(beamHdr.join(","));
-        asceLastCaps.beams.forEach(r => lines.push(beamHdr.map(h => {
-            const v = r[h]; return v == null ? "" : String(v).replace(/,/g, ";");
-        }).join(",")));
-        blob = new Blob([lines.join("\n")], { type: "text/csv" });
-    }
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    showToast(`Exported → ${filename}`);
+    });
+    navigator.clipboard.writeText(lines.join("\n"))
+        .then(() => showToast("Copied to clipboard"))
+        .catch(() => showToast("Copy failed", "error"));
 }
 
-// ─── Section 4: QA/QC summary ────────────────────────────────
-function asceBuildQaQc() {
-    const rows = [];
-    // Settings
-    [["A", "RSA spectrum function"], ["B", "Directional combination"], ["C", "Accidental torsion ±5%"], ["D", "Gravity load combo"], ["E", "LDP total combo"]].forEach(([k, label]) => {
-        const s = asceLastSettings[k];
-        rows.push({
-            section: "1. Settings",
-            id: k,
-            item: label,
-            status: s ? (s.ok ? "OK" : "Placeholder") : "Missing",
-            note: s ? s.note : "Not yet verified"
-        });
+function exportStoryDispCSV() {
+    if (!storyDispCache) { showToast("Extract data first", "error"); return; }
+    const lines = [];
+    Object.keys(storyDispCache).forEach(dirLabel => {
+        const data = storyDispCache[dirLabel];
+        lines.push(`# ${dirLabel} direction`);
+        lines.push(data.headers.map(csvCell).join(","));
+        data.rows.forEach(r => lines.push(r.map(csvCell).join(",")));
+        lines.push("");
     });
-    // Demands
-    [[1, "Story shear"], [2, "Per-column forces"], [3, "Per-beam forces"], [4, "Wall element forces"], [5, "Centre of mass"], [6, "Centre of rigidity"], [7, "Story drifts"], [8, "Modal mass participation"]].forEach(([k, label]) => {
-        const d = asceLastDemands[k];
-        rows.push({
-            section: "2. Demands",
-            id: `#${k}`,
-            item: label,
-            status: d ? (d.status === "ok" ? "OK" : d.status === "placeholder" ? "Placeholder" : "Missing") : "Missing",
-            note: d ? (d.note || `${d.count || 0} rows fetched`) : "Not yet extracted"
-        });
-    });
-    // Capacity
-    const matN = asceMaterialsHot ? asceMaterialsHot.getData().filter(r => r[1]).length : 0;
-    const colN = asceColumnsHot ? asceColumnsHot.getData().filter(r => r[1]).length : 0;
-    const bmN  = asceBeamsHot ? asceBeamsHot.getData().filter(r => r[1]).length : 0;
-    const phMat = asceMaterialsHot ? asceMaterialsHot.getData().some(r => /PLACEHOLDER/i.test(r[5] || "")) : false;
-    const phCol = asceColumnsHot ? asceColumnsHot.getData().some(r => /PLACEHOLDER/i.test(r[ASCE_COL_SRC_IDX] || "")) : false;
-    const phBm  = asceBeamsHot ? asceBeamsHot.getData().some(r => /PLACEHOLDER/i.test(r[ASCE_BEAM_SRC_IDX] || "")) : false;
-    rows.push({ section: "3. Capacity", id: "#13", item: "Materials (f'c, fy)", status: matN ? (phMat ? "Placeholder" : "OK") : "Missing", note: `${matN} row(s)` });
-    rows.push({ section: "3. Capacity", id: "#9-11,14", item: "Columns (b, h, As, ties, height)", status: colN ? (phCol ? "Placeholder" : "OK") : "Missing", note: `${colN} row(s)` });
-    rows.push({ section: "3. Capacity", id: "#12", item: "Beams (As, stirrups)", status: bmN ? (phBm ? "Placeholder" : "OK") : "Missing", note: `${bmN} row(s)` });
-    rows.push({ section: "3. Capacity", id: "#15", item: "Knowledge factor κ", status: document.getElementById("asceKappa").value ? "OK" : "Missing", note: `κ = ${document.getElementById("asceKappa").value}` });
-
-    // Counts
-    const okCount = rows.filter(r => r.status === "OK").length;
-    const phCount = rows.filter(r => r.status === "Placeholder").length;
-    const missCount = rows.filter(r => r.status === "Missing").length;
-    document.getElementById("asceQaOk").textContent = okCount;
-    document.getElementById("asceQaPh").textContent = phCount;
-    document.getElementById("asceQaMiss").textContent = missCount;
-    document.getElementById("asceQaTotal").textContent = rows.length;
-
-    // Render
-    const statusBadge = s => {
-        if (s === "OK") return `<span class="asce-ok">✓ OK</span>`;
-        if (s === "Placeholder") return `<span class="asce-placeholder">⚠ Placeholder — review</span>`;
-        return `<span class="asce-err">✗ Missing</span>`;
-    };
-    let html = `<thead><tr class="midas-banner"><th colspan="5">QA/QC Review (${okCount} OK, ${phCount} placeholder, ${missCount} missing of ${rows.length})</th></tr>`;
-    html += `<tr class="midas-cols"><th>Section</th><th style="width:80px;">ID</th><th>Item</th><th style="width:170px;">Status</th><th>Note</th></tr></thead><tbody>`;
-    rows.forEach(r => {
-        html += `<tr><td class="midas-mode">${r.section}</td><td class="midas-mode">${r.id}</td><td>${r.item}</td><td>${statusBadge(r.status)}</td><td style="text-align:left;">${r.note}</td></tr>`;
-    });
-    html += `</tbody>`;
-    document.getElementById("asceQaTable").innerHTML = html;
-    return rows;
+    const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = "story_displacement.csv"; a.click();
+    URL.revokeObjectURL(url);
 }
 
-function asceExportQaQc(fmt) {
-    const rows = asceBuildQaQc();
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
-    let blob;
-    if (fmt === "json") {
-        blob = new Blob([JSON.stringify(rows, null, 2)], { type: "application/json" });
-    } else {
-        const headers = ["section", "id", "item", "status", "note"];
-        const lines = [headers.join(",")];
-        rows.forEach(r => {
-            lines.push(headers.map(h => {
-                const v = r[h] || "";
-                const s = String(v).replace(/"/g, '""');
-                return /[",\n]/.test(s) ? `"${s}"` : s;
-            }).join(","));
-        });
-        blob = new Blob([lines.join("\n")], { type: "text/csv" });
-    }
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = `asce41_qa_${stamp}.${fmt}`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-    showToast(`Exported QA/QC → ${a.download}`);
+function csvCell(v) {
+    if (v == null) return "";
+    const s = String(v);
+    if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+    return s;
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -10939,6 +9523,7 @@ async function fetchLoads() {
         // Populate drift & displacement dropdowns based on current direction
         updateDriftLoadCases();
         updateDispLoadCases();
+        updateStoryDispLoadCases();
         // Irregularity dropdown — show all earthquake cases (X + Y) since checks are per-LC.
         populateSelect("irregLoadCases", window._eqNamesAll && window._eqNamesAll.length ? window._eqNamesAll : window._allLoadNames || []);
 
